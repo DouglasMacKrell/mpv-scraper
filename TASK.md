@@ -99,7 +99,7 @@
 * **Steps:**
   1. Create `src/mpv_scraper/tmdb.py`.
   2. Load `TMDB_API_KEY` from env; raise if unset.
-  3. Implement `search_movie(title, year, token)` using the `/search/movie` endpoint.
+  3. Implement `search_movie(title: str, year: Optional[int])` using the `/search/movie` endpoint.
   4. Implement caching and rate-limiting identical to the TVDB client.
 * **Done when:** Tests pass with mocked TMDB responses.
 
@@ -108,7 +108,7 @@
 * **Tests to Write:**
   - `tests/test_tmdb.py::test_fetch_movie_details`
 * **Steps:**
-  1. Implement `get_movie_details(movie_id, token)`.
+  1. Implement `get_movie_details(movie_id: int)`.
   2. Convert `vote_average` to a 0–1 float.
   3. Cache the response.
 * **Done when:** Tests validate meta mapping and caching.
