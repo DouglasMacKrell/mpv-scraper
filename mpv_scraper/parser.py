@@ -2,10 +2,10 @@ import re
 from pathlib import Path
 from typing import Optional
 
-from mpv_scraper.types import TVShowMeta
+from mpv_scraper.types import TVMeta, MovieMeta
 
 
-def parse_tv_filename(filename: str) -> Optional[TVShowMeta]:
+def parse_tv_filename(filename: str) -> Optional[TVMeta]:
     """
     Parses a TV show filename to extract metadata using regex.
 
@@ -23,7 +23,7 @@ def parse_tv_filename(filename: str) -> Optional[TVShowMeta]:
         filename: The name of the media file (e.g., "Show - S01E01 - Title.mkv").
 
     Returns:
-        A TVShowMeta object if parsing is successful, otherwise None.
+        A TVMeta object if parsing is successful, otherwise None.
     """
     # Regex to capture show name, season/episode info, and titles
     pattern = re.compile(
@@ -52,10 +52,38 @@ def parse_tv_filename(filename: str) -> Optional[TVShowMeta]:
     else:
         titles = []
 
-    return TVShowMeta(
+    return TVMeta(
         show=show_name,
         season=season,
         start_ep=start_ep,
         end_ep=end_ep,
         titles=titles,
     )
+
+
+def parse_movie_filename(filename: str) -> Optional[MovieMeta]:
+    """
+    Parses a movie filename to extract the title and year.
+
+    Args:
+        filename: The name of the media file (e.g., "Movie Title (Year).mkv").
+
+    Returns:
+        A MovieMeta object if parsing is successful, otherwise None.
+    """
+    # First, check if it's a TV show, and if so, ignore it.
+    tv_pattern = re.compile(r"S\d{2}E\d{2}", re.IGNORECASE)
+    if tv_pattern.search(filename):
+        return None
+
+    # Regex to capture movie title and optional year
+    pattern = re.compile(r"^(.+?)(?:\s\((\d{4})\))?(\.\w+)?$")
+    match = pattern.match(Path(filename).stem)
+
+    if not match:
+        return None
+
+    title = match.group(1).strip()
+    year = int(match.group(2)) if match.group(2) else None
+
+    return MovieMeta(title=title, year=year)
