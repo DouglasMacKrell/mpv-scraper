@@ -43,8 +43,23 @@ def generate(path):
 
 
 @main.command()
+def undo():
+    """Undo the most recent scraper run using *transaction.log* in cwd."""
+    from pathlib import Path
+    from mpv_scraper.transaction import revert_transaction
+
+    log_path = Path("transaction.log")
+    if not log_path.exists():
+        click.echo("No transaction.log found in current directory.")
+        return 1
+    revert_transaction(log_path)
+    click.echo("Undo completed.")
+
+
+@main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
-def run(path):
+@click.pass_context
+def run(ctx, path):
     """End-to-end scan → scrape → generate workflow for DIRECTORY."""
     ctx = click.get_current_context()
     ctx.invoke(scan, path=path)
