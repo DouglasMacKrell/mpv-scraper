@@ -36,12 +36,13 @@ graph TD
   - TVDB for TV metadata, TMDB for movies
   - Generating `/mpv/gamelist.xml` and `/mpv/<Show Name>/gamelist.xml` (and `/mpv/Movies/gamelist.xml`)
   - Downloading poster/thumbnails/logos, converting to PNG, resizing if needed
-  - Interactive CLI prompts for ambiguous titles
+  - Interactive CLI prompts for ambiguous titles (choices are for the current session only).
   - **Anthology span support**: handle filenames with episode ranges (e.g., `S01E09-E10`), name spans in output and fetch metadata from the first episode in the range, falling back to subsequent episodes if fields (image, desc) are missing.
 - **Out of scope (future)**
   - Additional metadata sources (e.g. fan art, subtitles)
   - Multi-language support
   - Season-folder nesting beyond one level
+  - Persistent storage of user disambiguation choices.
 
 ## 5. Tech Stack
 - **Language:** Python 3.9+
@@ -89,8 +90,10 @@ graph TD
 - **Graceful failure** on missing data or API errors
 
 ## 9. Timeline & Milestones
-- **Week 1:** Directory scanning + filename parsing (including span logic) + stub XML writer
-- **Week 2:** TVDB integration + show/episode metadata + image download (with span fallback)
-- **Week 3:** TMDB integration for movies + image download
-- **Week 4:** Image compression + final XML generation + interactive prompts
-- **Week 5:** Testing, validation, documentation, and polishing
+- **Sprint 1:** Directory scanning & Filename parsing
+- **Sprint 2:** TVDB integration
+- **Sprint 3:** TMDB integration
+- **Sprint 4:** Image processing
+- **Sprint 5:** XML Generation & CLI Integration
+- **Sprint 6:** Testing, validation, documentation, and polishing
+- **Sprint 7:** Undo & Rollback Functionality

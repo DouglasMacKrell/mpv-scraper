@@ -62,15 +62,17 @@
 **Purpose:** Authenticate with TVDB and fetch show/episode metadata.
 
 ### 3.1 TVDB Authentication & Search
-* **Goal:** Obtain JWT token and search for series by name.
+* **Goal:** Obtain JWT token and search for series by name. The user's choice for ambiguous results will be for the **current session only** and will not be persisted.
 * **Tests to Write:**
   - `tests/test_tvdb.py::test_authenticate_raises_on_missing_key`
   - `tests/test_tvdb.py::test_search_show_returns_candidates`
+  - `tests/test_tvdb.py::test_interactive_disambiguation_prompt` (using mocks for `click.prompt`)
 * **Steps:**
   1. Load `TVDB_API_KEY` from env; raise if unset.
   2. Implement `authenticate_tvdb() -> token` calling login endpoint.
   3. Write `search_show(name: str, token: str) -> List[Series]`.
-* **Done when:** Calls succeed in tests using HTTP mocks.
+  4. Implement an interactive prompt when search returns multiple results.
+* **Done when:** Calls succeed in tests using HTTP mocks and user interaction is correctly simulated.
 
 ### 3.2 Fetch Series & Episodes
 * **Goal:** Retrieve series overview, poster URL, and episode list.
@@ -89,7 +91,7 @@
 **Purpose:** Search TMDB and fetch movie metadata.
 
 ### 4.1 TMDB Movie Search
-* **Goal:** Find movie by title and year.
+* **Goal:** Find movie by title and year. Disambiguation choices are for the current session only.
 * **Tests to Write:**
   - `tests/test_tmdb.py::test_search_movie_by_title_year`
   - `tests/test_tmdb.py::test_search_movie_without_year`
@@ -155,5 +157,32 @@
   2. Wire up commands to call scanning, scraping, and XML generation.
   3. Update `README.md` with usage examples and flags.
 * **Done when:** `mpv-scraper run /mpv` completes end-to-end in demo.
+
+---
+
+## 7 · Sprint 7 (Undo & Rollback Functionality)
+**Purpose:** Implement a system to track and revert file changes made by the scraper.
+
+### 7.1 Transaction Logging
+* **Goal:** Record all file operations (creations, modifications) performed during a scraper run.
+* **Tests to Write:**
+  - `tests/test_undo.py::test_log_file_creation`
+  - `tests/test_undo.py::test_log_file_modification`
+* **Steps:**
+  1. Design a transaction log format (e.g., JSON).
+  2. Create a `TransactionLogger` class to manage writing to the log.
+  3. Integrate logging into the image download and XML generation steps.
+* **Done when:** A `transaction.log` file is correctly generated after a `run` command.
+
+### 7.2 Implement `undo` Command
+* **Goal:** Create a CLI command to revert the changes from the most recent transaction log.
+* **Tests to Write:**
+  - `tests/test_undo.py::test_undo_reverts_created_files`
+  - `tests/test_undo.py::test_undo_restores_modified_files`
+* **Steps:**
+  1. Add an `undo` command to `cli.py`.
+  2. Implement logic to parse the transaction log and reverse the operations (e.g., delete created files, restore previous versions of modified files from a temporary backup).
+  3. The `undo` command should consume the log file upon successful completion.
+* **Done when:** Running `mpv-scraper undo` successfully restores the file system to its pre-run state.
 
 ---
