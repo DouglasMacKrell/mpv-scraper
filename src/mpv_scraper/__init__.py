@@ -12,4 +12,5 @@ __all__ = [
     "tvdb",
     "images",
     "tmdb",
+    "xml_writer",
 ]
