@@ -1,8 +1,15 @@
 """Command-line interface entrypoint for MPV Metadata Scraper.
 
-This module wires up Click commands that allow users to execute the full
-workflow (scan, scrape, generate) from the terminal.  Additional commands
-such as `undo` will be introduced in later sprints.
+Commands
+========
+scan PATH
+    Scan a media directory and output a brief summary of shows/movies discovered.
+
+generate PATH
+    Generate *gamelist.xml* files for the directory using metadata previously scraped (stub for now).
+
+run PATH
+    Convenience wrapper that performs *scan* ➜ (future) *scrape* ➜ *generate* in sequence.
 """
 
 import click
