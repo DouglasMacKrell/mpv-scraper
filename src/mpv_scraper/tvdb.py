@@ -9,6 +9,7 @@ import time
 CACHE_DIR = Path.home() / ".cache" / "mpv-scraper"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_TTL_SECONDS = 24 * 60 * 60  # 24 hours
+API_RATE_LIMIT_DELAY_SECONDS = 0.5
 
 
 def _get_from_cache(key: str) -> Optional[Dict[str, Any]]:
@@ -48,6 +49,7 @@ def authenticate_tvdb() -> str:
     if cached_token and cached_token.get("token"):
         return cached_token["token"]
 
+    time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.post(
         "https://api4.thetvdb.com/v4/login", json={"apikey": api_key}, timeout=10
     )
@@ -80,6 +82,7 @@ def search_show(name: str, token: str) -> List[Dict[str, Any]]:
     if cached_search:
         return cached_search
 
+    time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.get(
         "https://api4.thetvdb.com/v4/search", headers=headers, params=params, timeout=10
     )
@@ -120,3 +123,41 @@ def disambiguate_show(results: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]
         return results[choice - 1]
 
     return None
+
+
+def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
+    """
+    Retrieves the full extended record for a series, including all episodes.
+
+    Args:
+        series_id: The numeric ID of the series.
+        token: The JWT authentication token.
+
+    Returns:
+        A dictionary containing the full series record, or None if not found.
+    """
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Check cache
+    cache_key = f"series_{series_id}_extended"
+    cached_record = _get_from_cache(cache_key)
+    if cached_record:
+        return cached_record
+
+    time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+    response = requests.get(
+        f"https://api4.thetvdb.com/v4/series/{series_id}/extended",
+        headers=headers,
+        timeout=10,
+    )
+
+    if response.status_code == 404:
+        return None
+
+    response.raise_for_status()
+    record = response.json().get("data")
+
+    if record:
+        _set_to_cache(cache_key, record)
+
+    return record

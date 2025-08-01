@@ -5,6 +5,7 @@ from mpv_scraper.tvdb import (
     authenticate_tvdb,
     search_show,
     disambiguate_show,
+    get_series_extended,
     CACHE_DIR,
 )
 
@@ -127,3 +128,35 @@ def test_disambiguate_show_returns_none_for_empty_list():
     """Tests that None is returned for an empty list of results."""
     chosen = disambiguate_show([])
     assert chosen is None
+
+
+@patch("requests.get")
+@patch("time.sleep", return_value=None)
+def test_get_series_extended_returns_full_record(mock_sleep, mock_get):
+    """
+    Tests that get_series_extended fetches the full, detailed record for a series.
+    """
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {
+        "data": {
+            "id": 75978,
+            "name": "MythBusters",
+            "episodes": [
+                {"id": 1, "name": "Episode 1"},
+                {"id": 2, "name": "Episode 2"},
+            ],
+        }
+    }
+    mock_get.return_value = mock_response
+
+    record = get_series_extended(75978, "fake_token")
+    assert record is not None
+    assert record["name"] == "MythBusters"
+    assert len(record["episodes"]) == 2
+    mock_get.assert_called_once_with(
+        "https://api4.thetvdb.com/v4/series/75978/extended",
+        headers={"Authorization": "Bearer fake_token"},
+        timeout=10,
+    )
+    mock_sleep.assert_called_once()  # Ensure rate limiting is called

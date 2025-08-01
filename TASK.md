@@ -75,15 +75,15 @@
 * **Done when:** Calls succeed in tests using HTTP mocks and user interaction is correctly simulated.
 
 ### 3.2 Fetch Series & Episodes
-* **Goal:** Retrieve series overview, poster URL, and episode list.
+* **Goal:** Retrieve full series record, including all episode data, in a single API call.
 * **Tests to Write:**
-  - `tests/test_tvdb.py::test_fetch_series_details`
-  - `tests/test_tvdb.py::test_fetch_episodes_maps_by_season_ep`
+  - `tests/test_tvdb.py::test_get_series_extended_returns_full_record`
+  - `tests/test_tvdb.py::test_get_series_extended_handles_not_found`
 * **Steps:**
-  1. Implement `get_series_details(series_id, token)`.
-  2. Implement `get_episodes(series_id, token) -> List[Episode]`.
-  3. Map episodes into dict keyed by `(season, episode)`.
-* **Done when:** Tests confirm correct data mapping.
+  1. Implement `get_series_extended(series_id, token)` to call the `/series/{id}/extended` endpoint.
+  2. The function should cache the entire response JSON to avoid repeated calls.
+  3. Implement a simple rate-limiter (e.g., a short sleep) after each API call to respect API limits.
+* **Done when:** Tests confirm the full series record is fetched and cached correctly.
 
 ---
 
