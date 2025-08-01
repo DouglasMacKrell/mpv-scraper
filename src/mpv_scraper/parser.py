@@ -1,3 +1,14 @@
+"""Filename parsing utilities for TV episodes and movies.
+
+This module exposes two public helpers:
+
+* `parse_tv_filename`  – Parses TV episode filenames, including anthology
+  spans like `S01E09-E10`, returning a `TVMeta` dataclass.
+* `parse_movie_filename` – Parses movie filenames in `Title (Year)` format,
+  returning a `MovieMeta` dataclass (or `None` if the file actually looks
+  like a TV episode).
+"""
+
 import re
 from pathlib import Path
 from typing import Optional

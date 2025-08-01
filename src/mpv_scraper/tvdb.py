@@ -1,3 +1,10 @@
+"""TVDB API client helpers.
+
+Handles authentication, searching, disambiguation prompts, and fetching
+extended series information.  Implements simple disk caching and honors a
+small delay between HTTP requests to respect rate limits.
+"""
+
 import click
 import os
 import requests

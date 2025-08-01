@@ -66,6 +66,12 @@ The scraper expects and generates the following structure within the main media 
         └── S01E01.png        # Episode thumbnail
 ```
 
+## Quick Start
+
+For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/QUICK_START.md).
+
+---
+
 ## Installation and Setup
 
 1.  **Clone the repository:**

@@ -1,3 +1,10 @@
+"""Directory scanner for the `/mpv` media folder.
+
+`scan_directory` walks one level deep, distinguishing between show
+sub-folders and the special `Movies/` folder, returning a `ScanResult`
+object listing all discovered media.
+"""
+
 from pathlib import Path
 from .types import ScanResult, ShowDirectory, MovieFile
 
