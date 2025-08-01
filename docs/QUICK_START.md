@@ -50,6 +50,12 @@ You can add these lines to your shell profile (e.g., `~/.zshrc`) for persistence
 
 ---
 
+## Artwork Handling
+
+All downloaded artwork is automatically saved as PNGs.  If an image is wider than **500 px** or the file exceeds **600 KB**, the scraper resizes it proportionally and applies additional compression so it always meets EmulationStation performance recommendations.
+
+---
+
 ## Running the Scraper
 
 Assuming your media lives in `/mpv`:
