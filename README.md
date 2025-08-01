@@ -66,6 +66,26 @@ The scraper expects and generates the following structure within the main media 
         └── S01E01.png        # Episode thumbnail
 ```
 
+## CLI Usage
+
+After installing the package and activating your virtual-environment you can invoke the scraper via **Click** commands:
+
+```bash
+# View help
+python -m mpv_scraper.cli --help
+
+# Scan a directory (dry information only)
+python -m mpv_scraper.cli scan /mpv
+
+# Generate gamelist.xml files (expects scraped metadata)
+python -m mpv_scraper.cli generate /mpv
+
+# Full workflow – scan ➜ scrape (todo) ➜ generate
+python -m mpv_scraper.cli run /mpv
+```
+
+---
+
 ## Quick Start
 
 For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/QUICK_START.md).
