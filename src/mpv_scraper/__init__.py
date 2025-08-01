@@ -13,4 +13,5 @@ __all__ = [
     "images",
     "tmdb",
     "xml_writer",
+    "transaction",
 ]
