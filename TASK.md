@@ -146,6 +146,14 @@
   2. Re-save PNG and verify size.
 * **Done when:** Tests confirm all sample images below threshold.
 
+### 5.3 Documentation Sweep
+* **Goal:** Document image-processing utilities and update user docs if new flags or behaviors were introduced during Sprint 5.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Ensure `images.py` (or equivalent) has clear docstrings.
+  2. Update `README.md` and `docs/QUICK_START.md` with any new prerequisite tools or usage notes (e.g., Pillow install, CLI flags).
+* **Done when:** Documentation matches implemented functionality.
+
 ---
 
 ## 6 · Sprint 6 (XML Generation & CLI Integration)
@@ -171,6 +179,14 @@
   2. Wire up commands to call scanning, scraping, and XML generation.
   3. Update `README.md` with usage examples and flags.
 * **Done when:** `mpv-scraper run /mpv` completes end-to-end in demo.
+
+### 6.3 Documentation Sweep
+* **Goal:** Verify XML generation and CLI sections are fully documented.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Ensure new CLI commands and XML helpers include comprehensive docstrings.
+  2. Update `README.md` usage examples and any option tables.
+* **Done when:** Docs accurately reflect CLI behavior and XML schema.
 
 ---
 
@@ -198,5 +214,13 @@
   2. Implement logic to parse the transaction log and reverse the operations (e.g., delete created files, restore previous versions of modified files from a temporary backup).
   3. The `undo` command should consume the log file upon successful completion.
 * **Done when:** Running `mpv-scraper undo` successfully restores the file system to its pre-run state.
+
+### 7.3 Documentation Sweep
+* **Goal:** Document the rollback system and provide usage examples.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Add docstrings to `TransactionLogger` and `undo` command implementation.
+  2. Update `README.md` with a section on “Reverting Changes”.
+* **Done when:** Users can understand and confidently use the undo capability.
 
 ---

@@ -10,5 +10,6 @@ __all__ = [
     "scanner",
     "parser",
     "tvdb",
+    "images",
     "tmdb",
 ]
