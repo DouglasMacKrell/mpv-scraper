@@ -33,7 +33,7 @@ graph TD
 - **`gamelist.xml` Generation:** Creates EmulationStation-compatible `gamelist.xml` files for the root media folder and each subdirectory.
 - **Smart Filename Parsing:** Robustly parses filenames for both TV shows (`Show - S01E01 - Title.ext`) and movies (`Movie (Year).ext`).
 - **Anthology Span Support:** Correctly handles TV episode ranges (e.g., `S01E09-E10`), combining metadata and titles appropriately.
-- **Image Processing:** Downloads artwork, converts it to PNG, and optimizes it to be under 600KB for performance.
+- **Image Processing:** Downloads artwork, converts it to PNG, automatically resizes/compresses to stay under 600 KB (max 500 px width) for fast loading.
 - **Interactive Mode:** Prompts the user to resolve ambiguities when multiple search results are found. The user's choice is for the current session only and is not saved.
 - **API Key Management:** Loads API keys securely from environment variables.
 
