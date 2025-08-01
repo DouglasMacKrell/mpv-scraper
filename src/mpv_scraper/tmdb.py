@@ -24,14 +24,13 @@ def search_movie(title: str, year: Optional[int] = None) -> List[Dict[str, Any]]
     if not api_key:
         raise ValueError("TMDB_API_KEY environment variable not set.")
 
-    # Use the same cache functions from the tvdb module
     cache_key = f"tmdb_search_{title.lower().replace(' ', '_')}_{year or 'any'}"
     cached_search = _get_from_cache(cache_key)
     if cached_search:
         return cached_search
 
+    headers = {"Authorization": f"Bearer {api_key}"}
     params = {
-        "api_key": api_key,
         "query": title,
     }
     if year:
@@ -40,6 +39,7 @@ def search_movie(title: str, year: Optional[int] = None) -> List[Dict[str, Any]]
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.get(
         "https://api.themoviedb.org/3/search/movie",
+        headers=headers,
         params=params,
         timeout=10,
     )
@@ -49,3 +49,48 @@ def search_movie(title: str, year: Optional[int] = None) -> List[Dict[str, Any]]
     _set_to_cache(cache_key, results)
 
     return results
+
+
+def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Fetches detailed information for a specific movie from the TMDB API.
+
+    Args:
+        movie_id: The TMDB ID of the movie.
+
+    Returns:
+        A dictionary containing the movie's details, or None if not found.
+
+    Raises:
+        ValueError: If the TMDB_API_KEY environment variable is not set.
+    """
+    api_key = os.getenv("TMDB_API_KEY")
+    if not api_key:
+        raise ValueError("TMDB_API_KEY environment variable not set.")
+
+    cache_key = f"tmdb_movie_{movie_id}_details"
+    cached_details = _get_from_cache(cache_key)
+    if cached_details:
+        return cached_details
+
+    headers = {"Authorization": f"Bearer {api_key}"}
+
+    time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+    response = requests.get(
+        f"https://api.themoviedb.org/3/movie/{movie_id}",
+        headers=headers,
+        timeout=10,
+    )
+    if response.status_code == 404:
+        return None
+    response.raise_for_status()
+
+    details = response.json()
+
+    # Normalize vote_average to a 0-1 float
+    vote_average = details.get("vote_average", 0.0)
+    details["vote_average"] = round(vote_average / 10.0, 2) if vote_average else 0.0
+
+    _set_to_cache(cache_key, details)
+
+    return details

@@ -119,7 +119,7 @@
 * **Steps:**
   1. Review all modules in `src/mpv_scraper` and ensure docstrings are clear and complete.
   2. Add module-level docstrings explaining the purpose of each file.
-  3. Create `docs/QUICK_START.md` with simple, step-by-step instructions for a new user.
+  3. Create `docs/QUICK_START.md` with simple, step-by-step instructions for a new user. **This must include how to acquire TVDB and TMDB API keys.**
   4. Update `README.md` to link to the new documentation files.
 * **Done when:** All code is documented and the Quick Start Guide is clear and accurate.
 
