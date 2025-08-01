@@ -80,6 +80,9 @@ python -m mpv_scraper.cli scan /mpv
 # Generate gamelist.xml files (expects scraped metadata)
 python -m mpv_scraper.cli generate /mpv
 
+# Undo (rollback the last run)
+python -m mpv_scraper.cli undo
+
 # Full workflow – scan ➜ scrape (todo) ➜ generate
 python -m mpv_scraper.cli run /mpv
 ```
