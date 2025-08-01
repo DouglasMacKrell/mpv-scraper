@@ -1,3 +1,11 @@
+"""TMDB API client helpers.
+
+This module provides lightweight wrappers around TheMovieDB v3 REST API
+for movie search (`search_movie`) and detailed lookup (`get_movie_details`).
+Functions implement simple file-based caching and respect a global rate-
+limit delay shared with the TVDB client.
+"""
+
 import os
 import requests
 from typing import List, Dict, Any, Optional
