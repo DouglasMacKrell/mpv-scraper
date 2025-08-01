@@ -81,3 +81,4 @@ The tool will provide several commands to manage the scraping process. The prima
 # Run the full scraping and generation process on the /mpv directory
 python -m mpv_scraper.cli run /path/to/your/mpv/folder
 ```
+<!-- ci trigger -->
