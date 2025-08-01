@@ -1,8 +1,6 @@
 import pytest
 
 from mpv_scraper.types import TVMeta, MovieMeta
-
-# This import will fail until the parser module is created
 from mpv_scraper.parser import parse_tv_filename, parse_movie_filename
 
 

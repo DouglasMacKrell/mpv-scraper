@@ -1,52 +1,44 @@
 from pathlib import Path
-from typing import Dict, List
+from .types import ScanResult, ShowDirectory, MovieFile
 
 
-def scan_directory(path: Path) -> Dict[str, List[Path]]:
+def scan_directory(path: Path) -> ScanResult:
     """
     Scans a directory to identify TV show subdirectories and movie files.
 
-    This function iterates through a given path and sorts its contents:
-    - Subdirectories are considered TV show folders.
-    - The special 'Movies' subdirectory is scanned for individual movie files.
-    - It handles cases where the path itself is the 'Movies' directory.
-    - Hidden files and system files (like .DS_Store) are ignored.
-
     Args:
-        path: The root directory to scan (e.g., '/mpv').
+        path: The root directory to scan.
 
     Returns:
-        A dictionary with two keys:
-        'shows': A list of Paths to individual show directories.
-        'movies': A list of Paths to individual movie files.
-        Returns an empty structure if the path doesn't exist.
+        A ScanResult object containing lists of ShowDirectory and MovieFile objects.
+
+    Raises:
+        FileNotFoundError: If the provided path does not exist or is not a directory.
     """
-    if not path.exists() or not path.is_dir():
-        return {"shows": [], "movies": []}
+    if not path.is_dir():
+        raise FileNotFoundError(
+            f"The specified path does not exist or is not a directory: {path}"
+        )
 
     shows = []
     movies = []
 
-    # Handle the case where the scanner is pointed directly at the Movies folder
-    if path.name == "Movies":
-        for item in path.iterdir():
-            if item.is_file() and not item.name.startswith("."):
-                movies.append(item)
-        return {"shows": [], "movies": movies}
-
-    # Standard case: scanning the root media directory
     for item in path.iterdir():
         if item.name.startswith("."):
             continue
 
         if item.is_dir():
             if item.name == "Movies":
-                # Scan inside the Movies directory for movie files
                 for movie_file in item.iterdir():
                     if movie_file.is_file() and not movie_file.name.startswith("."):
-                        movies.append(movie_file)
+                        movies.append(MovieFile(path=movie_file))
             else:
-                # Any other directory is considered a show directory
-                shows.append(item)
+                show_files = [
+                    f
+                    for f in item.iterdir()
+                    if f.is_file() and not f.name.startswith(".")
+                ]
+                if show_files:
+                    shows.append(ShowDirectory(path=item, files=show_files))
 
-    return {"shows": shows, "movies": movies}
+    return ScanResult(shows=shows, movies=movies)

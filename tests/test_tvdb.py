@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.mpv_scraper.tvdb import (
+from mpv_scraper.tvdb import (
     authenticate_tvdb,
     search_show,
     disambiguate_show,

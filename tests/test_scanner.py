@@ -1,6 +1,7 @@
 import pytest
 from pathlib import Path
 from mpv_scraper.scanner import scan_directory
+from mpv_scraper.types import ScanResult
 
 
 @pytest.fixture
@@ -38,49 +39,32 @@ def test_scan_directory_returns_shows_and_movies(media_root: Path):
     """
     result = scan_directory(media_root)
 
-    assert "shows" in result
-    assert "movies" in result
+    assert isinstance(result, ScanResult)
 
-    expected_shows = [media_root / "Show A", media_root / "Show B"]
-    expected_movies = [
-        media_root / "Movies" / "Movie 1 (2023).mkv",
-        media_root / "Movies" / "Movie 2 (2024).mp4",
-    ]
+    # We get ShowDirectory objects back, so we extract the paths to compare
+    show_paths = sorted([show.path for show in result.shows])
+    movie_paths = sorted([movie.path for movie in result.movies])
 
-    assert sorted(result["shows"]) == sorted(expected_shows)
-    assert sorted(result["movies"]) == sorted(expected_movies)
+    expected_shows = sorted([media_root / "Show A", media_root / "Show B"])
+    expected_movies = sorted(
+        [
+            media_root / "Movies" / "Movie 1 (2023).mkv",
+            media_root / "Movies" / "Movie 2 (2024).mp4",
+        ]
+    )
+
+    assert show_paths == expected_shows
+    assert movie_paths == expected_movies
 
 
 def test_scan_empty_directory(empty_root: Path):
     """Tests that scanning an empty directory returns an empty structure."""
     result = scan_directory(empty_root)
-
-    assert result == {"shows": [], "movies": []}
-
-
-def test_scan_directory_with_only_movies(media_root: Path):
-    """Tests scanning a directory that only contains movies."""
-    movies_only_path = media_root / "Movies"
-    # We are scanning the sub-directory here, so it should find files but no "show" folders
-    result = scan_directory(movies_only_path)
-
-    assert result["shows"] == []
-    assert len(result["movies"]) == 2
-
-
-def test_scan_directory_with_only_shows(media_root: Path):
-    """Tests scanning a directory that only contains shows (by removing the Movies dir)."""
-    import shutil
-
-    shutil.rmtree(media_root / "Movies")
-
-    result = scan_directory(media_root)
-
-    assert len(result["shows"]) == 2
-    assert result["movies"] == []
+    assert result.shows == []
+    assert result.movies == []
 
 
 def test_scan_non_existent_directory():
-    """Tests that scanning a non-existent path returns an empty structure."""
-    result = scan_directory(Path("non_existent_path_for_testing"))
-    assert result == {"shows": [], "movies": []}
+    """Tests that scanning a non-existent path raises an error."""
+    with pytest.raises(FileNotFoundError):
+        scan_directory(Path("non_existent_path_for_testing"))

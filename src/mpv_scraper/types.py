@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
+from pathlib import Path
 
 
 @dataclass
@@ -19,3 +20,26 @@ class MovieMeta:
 
     title: str
     year: Optional[int]
+
+
+@dataclass
+class ShowDirectory:
+    """Represents a directory containing episodes for a single TV show."""
+
+    path: Path
+    files: List[Path]
+
+
+@dataclass
+class MovieFile:
+    """Represents a single movie file."""
+
+    path: Path
+
+
+@dataclass
+class ScanResult:
+    """The result of a directory scan, containing discovered shows and movies."""
+
+    shows: List[ShowDirectory]
+    movies: List[MovieFile]
