@@ -87,17 +87,20 @@
 
 ---
 
-## 4 · Sprint 4 (TMDB Integration)
-**Purpose:** Search TMDB and fetch movie metadata.
+## 4 · Sprint 4 (TMDB Integration & Documentation)
+**Purpose:** Search TMDB, fetch movie metadata, and perform a full documentation sweep.
 
 ### 4.1 TMDB Movie Search
-* **Goal:** Find movie by title and year. Disambiguation choices are for the current session only.
+* **Goal:** Find movie by title and year, mirroring the TVDB client's architecture.
 * **Tests to Write:**
+  - `tests/test_tmdb.py::test_search_movie_raises_on_missing_key`
   - `tests/test_tmdb.py::test_search_movie_by_title_year`
-  - `tests/test_tmdb.py::test_search_movie_without_year`
+  - `tests/test_tmdb.py::test_search_movie_caches_results`
 * **Steps:**
-  1. Load `TMDB_API_KEY` from env; raise if unset.
-  2. Implement `search_movie(title, year) -> List[Movie]` using `/search/movie` endpoint.
+  1. Create `src/mpv_scraper/tmdb.py`.
+  2. Load `TMDB_API_KEY` from env; raise if unset.
+  3. Implement `search_movie(title, year, token)` using the `/search/movie` endpoint.
+  4. Implement caching and rate-limiting identical to the TVDB client.
 * **Done when:** Tests pass with mocked TMDB responses.
 
 ### 4.2 Fetch Movie Details
@@ -105,9 +108,20 @@
 * **Tests to Write:**
   - `tests/test_tmdb.py::test_fetch_movie_details`
 * **Steps:**
-  1. Implement `get_movie_details(movie_id) -> MovieMeta`.
-  2. Convert `vote_average` to 0–1 float.
-* **Done when:** Tests validate meta mapping.
+  1. Implement `get_movie_details(movie_id, token)`.
+  2. Convert `vote_average` to a 0–1 float.
+  3. Cache the response.
+* **Done when:** Tests validate meta mapping and caching.
+
+### 4.3 Documentation Sweep
+* **Goal:** Ensure all modules are documented and create a user-facing Quick Start Guide.
+* **Tests to Write:** N/A (Documentation task)
+* **Steps:**
+  1. Review all modules in `src/mpv_scraper` and ensure docstrings are clear and complete.
+  2. Add module-level docstrings explaining the purpose of each file.
+  3. Create `docs/QUICK_START.md` with simple, step-by-step instructions for a new user.
+  4. Update `README.md` to link to the new documentation files.
+* **Done when:** All code is documented and the Quick Start Guide is clear and accurate.
 
 ---
 
