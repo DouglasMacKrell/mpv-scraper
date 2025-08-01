@@ -3,9 +3,9 @@ from pathlib import Path
 
 
 def test_package_structure():
-    """Tests that the main package directory exists and is a Python package."""
+    """Tests that the main package directory exists inside src/."""
     root_dir = Path(__file__).parent.parent
-    package_dir = root_dir / "mpv_scraper"
+    package_dir = root_dir / "src" / "mpv_scraper"
     assert package_dir.is_dir()
     assert (package_dir / "__init__.py").is_file()
 

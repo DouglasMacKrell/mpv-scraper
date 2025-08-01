@@ -8,6 +8,25 @@ This tool scans a target directory (e.g., `/mpv`) containing TV show and movie m
 
 It's designed to work with the Knulli UI's expected directory structure, ensuring that all media is correctly cataloged with titles, descriptions, ratings, release dates, and artwork.
 
+## Project Structure
+The project follows a standard `src` layout to ensure clean imports and a clear separation between the application code and project configuration.
+
+```mermaid
+graph TD
+    A[mpv-scraper] --> B[src];
+    A --> C[tests];
+    A --> D[docs];
+    A --> E[examples];
+    A --> F[setup.py];
+    A --> G[README.md];
+    A --> H[PLANNING.md];
+
+    B --> B1[mpv_scraper];
+    B1 --> B2[__init__.py];
+    B1 --> B3[cli.py];
+    B1 --> B4[parser.py];
+```
+
 ## Key Features
 
 - **TV & Movie Scraping:** Uses TheTVDB for television series and TheMovieDB for movies.
