@@ -50,6 +50,18 @@ You can add these lines to your shell profile (e.g., `~/.zshrc`) for persistence
 
 ---
 
+## Reverting Changes
+
+If you run the scraper and want to undo the filesystem changes it made, simply run:
+
+```bash
+python -m mpv_scraper.cli undo
+```
+
+The command consumes the generated `transaction.log` (created during a run) and restores the previous state.
+
+---
+
 ## Artwork Handling
 
 All downloaded artwork is automatically saved as PNGs.  If an image is wider than **500 px** or the file exceeds **600 KB**, the scraper resizes it proportionally and applies additional compression so it always meets EmulationStation performance recommendations.
