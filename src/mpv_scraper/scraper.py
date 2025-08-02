@@ -12,8 +12,9 @@ from typing import Any
 from mpv_scraper.images import download_image, download_marquee
 from mpv_scraper.utils import normalize_rating
 
-# Lazily import tvdb to keep top-level deps light and simplify test patching.
+# Lazily import tvdb and tmdb to keep top-level deps light and simplify test patching.
 import mpv_scraper.tvdb as tvdb  # noqa: WPS433 – runtime import is intentional
+import mpv_scraper.tmdb as tmdb  # noqa: WPS433 – runtime import is intentional
 
 
 CACHE_FILE = ".scrape_cache.json"
@@ -77,3 +78,54 @@ def scrape_tv(show_dir: Path) -> None:  # pragma: no cover – covered via integ
 
     # 5. Cache raw record for later generate step
     _safe_write_json(show_dir / CACHE_FILE, record)
+
+
+def scrape_movie(
+    movie_path: Path,
+) -> None:  # pragma: no cover – covered via integration
+    """Scrape a movie file.
+
+    Parameters
+    ----------
+    movie_path
+        Path to the movie media file.
+    """
+    from mpv_scraper.parser import parse_movie_filename
+
+    # 1. Parse movie filename to extract title and year
+    movie_meta = parse_movie_filename(movie_path.name)
+    if not movie_meta:
+        raise RuntimeError(f"Could not parse movie filename: {movie_path.name!r}")
+
+    # 2. Search for movie in TMDB
+    search_results = tmdb.search_movie(movie_meta.title, movie_meta.year)
+    if not search_results:
+        raise RuntimeError(f"TMDB could not find movie for {movie_meta.title!r}")
+    movie_id = search_results[0]["id"]
+
+    # 3. Get detailed movie information
+    record = tmdb.get_movie_details(movie_id)
+    if not record:
+        raise RuntimeError(f"Failed to fetch details for movie id {movie_id}")
+
+    # 4. Create images directory
+    images_dir = movie_path.parent / "images"
+    images_dir.mkdir(exist_ok=True, parents=True)
+
+    # 5. Download poster
+    poster_path = record.get("poster_path")
+    if poster_path:
+        poster_url = f"https://image.tmdb.org/t/p/original{poster_path}"
+        download_image(poster_url, images_dir / f"{movie_meta.title}.png")
+
+    # 6. Download logo (from collection if available)
+    logo_url = None
+    collection = record.get("belongs_to_collection", {})
+    if collection and collection.get("poster_path"):
+        logo_url = f"https://image.tmdb.org/t/p/original{collection['poster_path']}"
+
+    if logo_url:
+        download_marquee(logo_url, images_dir / "logo.png")
+
+    # 7. Cache raw record for later generate step
+    _safe_write_json(movie_path.parent / CACHE_FILE, record)
