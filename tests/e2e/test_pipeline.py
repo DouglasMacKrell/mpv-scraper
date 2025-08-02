@@ -17,7 +17,11 @@ import pytest
 from click.testing import CliRunner
 
 import mpv_scraper.cli as cli
-from tests.utils_images import create_placeholder_png
+import sys
+
+# Ensure test utilities are importable regardless of how tests are executed
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from utils_images import create_placeholder_png
 
 # Inject test-only placeholder factory
 cli.create_placeholder_png = create_placeholder_png
