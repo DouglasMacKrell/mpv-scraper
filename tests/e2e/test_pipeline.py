@@ -7,7 +7,6 @@ match the project constraints.
 
 from __future__ import annotations
 
-import shutil
 import tempfile
 from pathlib import Path
 from typing import List
@@ -35,13 +34,19 @@ def test_full_pipeline_generates_expected_files():
 
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp_path = Path(tmpdir)
-        # Copy mock library into the temp directory.
-        src_library = Path(__file__).parent.parent.parent / "mocks" / "mpv"
-        dest_library = tmp_path / "mpv"
-        shutil.copytree(src_library, dest_library)
+        library_root = tmp_path / "mpv"
+
+        # --- Build a minimal mock library ----------------------------------
+        show_dir = library_root / "Test Show"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        (show_dir / "Test Show - S01E01 - Pilot.mp4").touch()
+
+        movies_dir = library_root / "Movies"
+        movies_dir.mkdir(parents=True, exist_ok=True)
+        (movies_dir / "Sample Movie (1999).mkv").touch()
 
         # Execute: mpv-scraper run <library>
-        result = runner.invoke(cli_main, ["run", str(dest_library)])
+        result = runner.invoke(cli_main, ["run", str(library_root)])
         assert result.exit_code == 0, result.output
 
         # --- Validation helpers --------------------------------------------------
@@ -56,9 +61,9 @@ def test_full_pipeline_generates_expected_files():
             return tree
 
         # 1. Ensure we have a top-level gamelist and at least one per-folder list.
-        xml_files = _iter_xml_files(dest_library)
+        xml_files = _iter_xml_files(library_root)
         assert (
-            dest_library / "gamelist.xml"
+            library_root / "gamelist.xml"
         ) in xml_files, "Missing top-level gamelist.xml"
         assert len(xml_files) >= 2, "Expected per-folder gamelist.xml files"
 
