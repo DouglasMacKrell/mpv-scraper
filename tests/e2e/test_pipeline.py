@@ -16,7 +16,13 @@ import xml.etree.ElementTree as ET
 import pytest
 from click.testing import CliRunner
 
-from mpv_scraper.cli import main as cli_main
+import mpv_scraper.cli as cli
+from tests.utils_images import create_placeholder_png
+
+# Inject test-only placeholder factory
+cli.create_placeholder_png = create_placeholder_png
+
+cli_main = cli.main
 
 
 @pytest.mark.integration

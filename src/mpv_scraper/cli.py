@@ -14,6 +14,17 @@ run PATH
 
 import click
 
+# --- Test-only placeholder hook ---------------------------------------------
+
+
+def _noop_placeholder(*_args, **_kwargs):
+    """No-op; real implementation is monkey-patched in tests."""
+
+
+# Points to the active placeholder factory used by generate(); overridden in tests.
+create_placeholder_png = _noop_placeholder
+# -----------------------------------------------------------------------------
+
 
 @click.group()
 def main():
@@ -47,7 +58,6 @@ def generate(path):
     """
     from pathlib import Path
 
-    from mpv_scraper.images import create_placeholder_png
     from mpv_scraper.parser import parse_tv_filename, parse_movie_filename
     from mpv_scraper.scanner import scan_directory
     from mpv_scraper.xml_writer import write_top_gamelist, write_show_gamelist
