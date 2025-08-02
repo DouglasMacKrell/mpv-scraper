@@ -223,4 +223,88 @@
   2. Update `README.md` with a section on “Reverting Changes”.
 * **Done when:** Users can understand and confidently use the undo capability.
 
+## 8 · Sprint 8 (Integration & Regression Testing)
+**Purpose:** Validate the complete scraper workflow and guard against regressions before release.
+
+### 8.1 End-to-End Pipeline Test
+* **Goal:** Ensure `scan → scrape (mocked) → generate` produces correct outputs for a realistic library.
+* **Tests to Write:**
+  - `tests/e2e/test_pipeline.py::test_full_pipeline_generates_expected_files`
+* **Steps:**
+  1. Copy `mocks/mpv` into a temp directory in the test.
+  2. Monkeypatch TVDB/TMDB calls to return canned JSON (use `responses` or `pytest-mock`).
+  3. Invoke `cli.run` on the temp directory with `CliRunner`.
+  4. Assert:
+     * Top-level and per-show `gamelist.xml` files exist and are well-formed.
+     * All referenced image files exist and are ≤ 600 KB.
+* **Done when:** Test passes without network access and within CI time limits.
+
+### 8.2 Regression Test – Undo Safety
+* **Goal:** Confirm that `undo` restores the filesystem exactly to its pre-run state.
+* **Tests to Write:**
+  - `tests/regression/test_undo_state.py::test_run_then_undo_restores_checksum`
+* **Steps:**
+  1. Use a temp copy of `mocks/mpv`.
+  2. Capture checksum / listing of the directory.
+  3. Run `cli.run` (with APIs mocked) to generate files & `transaction.log`.
+  4. Run `cli.undo`.
+  5. Re-calculate checksum; expect it to match the original.
+* **Done when:** Directory state is identical and `transaction.log` is removed.
+
+### 8.3 CLI Smoke Test Matrix
+* **Goal:** Verify every CLI command exits 0 with minimal runtime.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_commands.py` parametrized for `scan`, `generate`, `run`, `undo`.
+* **Steps:**
+  1. Use `CliRunner()` with the mock library.
+  2. Assert `result.exit_code == 0` for each command.
+* **Done when:** All smoke tests green.
+
+### 8.4 Continuous Integration Updates
+* **Goal:** Ensure new tests run in GitHub Actions.
+* **Steps:**
+  1. Update `.github/workflows/ci.yml` to install any extra dev dependencies (e.g., `responses`).
+  2. Ensure the workflow caches wheels and runs `pytest` on every push/PR.
+* **Done when:** CI passes with the new integration suite.
+
+## 8.5 Documentation Sweep – Testing Guides
+**Purpose:** Add clear guidance on how to run the new integration / regression tests and keep QUICK START fully up-to-date.
+
+### Goal
+Document the test framework, mock media setup, and CI expectations so contributors can run the full suite locally and understand the Sprint 8 tests.
+
+### Tests to Write
+N/A (pure documentation)
+
+### Steps
+1. **Add “Running the Test Suite” section to `docs/QUICK_START.md`**
+   * Explain:
+     * Activating the venv (`source .venv/bin/activate`)
+     * Installing dev dependencies: `pip install -r requirements-dev.txt`
+     * Running the full matrix: `pytest -q`
+     * Filtering: `pytest -k e2e` or `-k smoke`
+
+2. **Create `docs/TESTING.md`**
+   * Describe directory structure of `mocks/mpv`.
+   * Show how TVDB/TMDB HTTP calls are mocked with `responses`.
+   * Detail how `transaction.log` is checked in rollback tests.
+   * Provide troubleshooting tips (e.g., clearing cache, regenerating mocks).
+
+3. **Update README**
+   * Add a bullet under “CLI Usage”: “See `docs/TESTING.md` for running the test suite.”
+   * Verify all command examples (`scan`, `generate`, `run`, `undo`) remain correct.
+
+4. **Cross-check links**
+   * Ensure README → QUICK_START → TESTING hyperlinks render in GitHub.
+   * Confirm CI badge or status references still resolve.
+
+5. **Run pre-commit hooks**
+   * Let hooks format markdown / fix trailing newlines if needed.
+
+### Done when
+* QUICK_START contains a concise “Running the Tests” section.
+* A standalone `docs/TESTING.md` exists with full instructions.
+* README references the new guide.
+* `pytest -q` passes and all links render correctly on GitHub.
+
 ---
