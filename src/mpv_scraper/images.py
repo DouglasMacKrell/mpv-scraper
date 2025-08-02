@@ -15,6 +15,8 @@ from typing import Final
 import requests
 from PIL import Image
 
+from mpv_scraper.utils import retry_with_backoff
+
 __all__ = [
     "download_image",
     "ensure_png_size",
@@ -26,6 +28,9 @@ __all__ = [
 PNG_MODE: Final[str] = "RGBA"
 
 
+@retry_with_backoff(
+    max_attempts=3, base_delay=1.0, exceptions=(requests.RequestException,)
+)
 def download_image(url: str, dest: Path) -> None:
     """Download an image and save it as PNG.
 
@@ -69,6 +74,9 @@ def download_image(url: str, dest: Path) -> None:
         raise OSError(f"Failed to write image to {dest}")
 
 
+@retry_with_backoff(
+    max_attempts=3, base_delay=1.0, exceptions=(requests.RequestException,)
+)
 def download_marquee(url: str, dest: Path) -> None:
     """Download a logo image suitable for the <marquee> XML tag.
 

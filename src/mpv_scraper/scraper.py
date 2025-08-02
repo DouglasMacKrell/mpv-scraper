@@ -57,14 +57,26 @@ def scrape_tv(show_dir: Path) -> None:  # pragma: no cover – covered via integ
     # 2. Poster
     poster_url: str | None = record.get("image")
     if poster_url:
-        download_image(poster_url, images_dir / "poster.png")
+        try:
+            download_image(poster_url, images_dir / "poster.png")
+        except Exception:
+            # Create placeholder if poster download fails
+            from mpv_scraper.images import create_placeholder_png
+
+            create_placeholder_png(images_dir / "poster.png")
 
     # 3. Logo (clearLogo)
     logo_url: str | None = (
         record.get("artworks", {}).get("clearLogo") if record.get("artworks") else None
     )
     if logo_url:
-        download_marquee(logo_url, images_dir / "logo.png")
+        try:
+            download_marquee(logo_url, images_dir / "logo.png")
+        except Exception:
+            # Create placeholder if logo download fails
+            from mpv_scraper.images import create_placeholder_png
+
+            create_placeholder_png(images_dir / "logo.png")
 
     # 4. Episode images (best-effort)
     for ep in record.get("episodes", []):
@@ -74,7 +86,13 @@ def scrape_tv(show_dir: Path) -> None:  # pragma: no cover – covered via integ
         if not (season and number and img_url):
             continue
         dest = images_dir / f"S{season:02d}E{number:02d}.png"
-        download_image(img_url, dest)
+        try:
+            download_image(img_url, dest)
+        except Exception:
+            # Create placeholder if episode image download fails
+            from mpv_scraper.images import create_placeholder_png
+
+            create_placeholder_png(dest)
 
     # 5. Cache raw record for later generate step
     _safe_write_json(show_dir / CACHE_FILE, record)
@@ -116,7 +134,13 @@ def scrape_movie(
     poster_path = record.get("poster_path")
     if poster_path:
         poster_url = f"https://image.tmdb.org/t/p/original{poster_path}"
-        download_image(poster_url, images_dir / f"{movie_meta.title}.png")
+        try:
+            download_image(poster_url, images_dir / f"{movie_meta.title}.png")
+        except Exception:
+            # Create placeholder if poster download fails
+            from mpv_scraper.images import create_placeholder_png
+
+            create_placeholder_png(images_dir / f"{movie_meta.title}.png")
 
     # 6. Download logo (from collection if available)
     logo_url = None
@@ -125,7 +149,13 @@ def scrape_movie(
         logo_url = f"https://image.tmdb.org/t/p/original{collection['poster_path']}"
 
     if logo_url:
-        download_marquee(logo_url, images_dir / "logo.png")
+        try:
+            download_marquee(logo_url, images_dir / "logo.png")
+        except Exception:
+            # Create placeholder if logo download fails
+            from mpv_scraper.images import create_placeholder_png
+
+            create_placeholder_png(images_dir / "logo.png")
 
     # 7. Cache raw record for later generate step
     _safe_write_json(movie_path.parent / CACHE_FILE, record)
