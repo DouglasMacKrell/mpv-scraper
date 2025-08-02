@@ -15,7 +15,12 @@ from typing import Final
 import requests
 from PIL import Image
 
-__all__ = ["download_image", "ensure_png_size", "create_placeholder_png"]
+__all__ = [
+    "download_image",
+    "ensure_png_size",
+    "create_placeholder_png",
+    "download_marquee",
+]
 
 # PIL recommends using RGBA for universal compatibility.
 PNG_MODE: Final[str] = "RGBA"
@@ -62,6 +67,19 @@ def download_image(url: str, dest: Path) -> None:
     # Confirm write.
     if not dest.exists():
         raise OSError(f"Failed to write image to {dest}")
+
+
+def download_marquee(url: str, dest: Path) -> None:
+    """Download a logo image suitable for the <marquee> XML tag.
+
+    This is a thin wrapper around :pyfunc:`download_image` that additionally
+    enforces the 600&nbsp;KB / 500&nbsp;px limits defined in the project
+    constraints.
+    """
+
+    # Re-use the core download logic and then ensure constraints.
+    download_image(url, dest)
+    ensure_png_size(dest)
 
 
 def ensure_png_size(path: Path, *, max_kb: int = 600, max_width: int = 500) -> None:
@@ -123,4 +141,4 @@ def create_placeholder_png(
     img.save(dest, format="PNG", optimize=True)
 
     # Final sanity: enforce size limit.
-    ensure_png_size(dest)
+    ensure_png_size(dest)  # guarantee size constraints

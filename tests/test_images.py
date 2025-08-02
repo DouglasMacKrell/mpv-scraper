@@ -72,3 +72,30 @@ def test_resize_under_threshold(tmp_path: Path):
     with Image.open(dest) as resized:
         assert resized.width <= 500
     assert dest.stat().st_size / 1024 <= 600
+
+
+@patch("requests.get")
+def test_download_marquee_png(mock_get, tmp_path: Path):
+    """download_marquee should save a PNG and enforce <600 KB size."""
+
+    from mpv_scraper.images import download_marquee
+
+    # Build a tiny RGBA PNG in-memory
+    file_obj = io.BytesIO()
+    Image.new("RGBA", (32, 32), (0, 0, 0, 0)).save(file_obj, format="PNG")
+
+    response = MagicMock()
+    response.status_code = 200
+    response.content = file_obj.getvalue()
+    mock_get.return_value = response
+
+    dest = tmp_path / "logo.png"
+    download_marquee("https://example.com/logo.png", dest)
+
+    # Assert PNG exists and is under limit
+    assert dest.exists()
+    assert dest.stat().st_size / 1024 <= 600
+    with Image.open(dest) as img:
+        assert img.format == "PNG"
+
+    mock_get.assert_called_once()
