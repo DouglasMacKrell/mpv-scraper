@@ -341,14 +341,15 @@ N/A (pure documentation)
   2. Persist in cache for later generate step.
 * **Done when:** Descriptions >140 chars handled without truncation.
 
-### 9.4 Marquee & Screenshot Artwork
-* **Goal:** Download additional artwork sizes (marquee/screenshot) and ensure ≤600 KB.
+### 9.4 Logo (Marquee) & Screenshot Artwork
+* **Goal:** Download alpha-channel series/movie **logo** (TVDB *clearLogo*, TMDB *logo*) for the `<marquee>` tag plus optional screenshots; ensure each image ≤600 KB.
 * **Tests to Write:**
   - `tests/test_images.py::test_download_marquee_png`
 * **Steps:**
-  1. Add `download_image` calls for marquee URLs.
-  2. Place files under `images/` and reference relative paths in XML.
-* **Done when:** Images saved, processed, and referenced in XML.
+  1. For TV shows pull the first English `clearLogo` from TVDB; for movies fetch the English (or “null”) logo from TMDB.
+  2. Save as PNG under `images/<logo>.png` and reference it via `<marquee>`.
+  3. (Optional) add screenshot handling similar to posters.
+* **Done when:** Logo artwork is downloaded, optimized, stored, and referenced in XML; size limits respected.
 
 ### 9.5 CLI Integration
 * **Goal:** Wire new metadata into `generate` workflow.

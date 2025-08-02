@@ -64,6 +64,13 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
             ET.SubElement(game_el, "desc").text = game["desc"]
         if game.get("image"):
             ET.SubElement(game_el, "image").text = _ensure_relative(game["image"])
+        if game.get("rating") is not None:
+            rating_val = float(game["rating"])
+            if not 0.0 <= rating_val <= 1.0:
+                raise ValueError("rating must be between 0 and 1")
+            ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
+        if game.get("marquee"):
+            ET.SubElement(game_el, "marquee").text = _ensure_relative(game["marquee"])
 
     tree = ET.ElementTree(root)
     dest.parent.mkdir(parents=True, exist_ok=True)
