@@ -21,9 +21,15 @@ def test_logo_undo(tmp_path: Path):
     logo_path = show_dir / "images" / "logo.png"
     assert logo_path.exists(), "Logo placeholder should be created"
 
-    # Undo
-    with runner.isolated_filesystem(temp_dir=str(tmp_path)):
+    # Undo – run from the library root so transaction.log is visible
+    import os
+
+    cwd = os.getcwd()
+    try:
+        os.chdir(tmp_path)
         result = runner.invoke(cli, ["undo"])
         assert result.exit_code == 0
+    finally:
+        os.chdir(cwd)
 
     assert not logo_path.exists(), "Logo should be removed after undo"
