@@ -360,6 +360,37 @@ N/A (pure documentation)
   2. Ensure transaction logging covers new files.
 * **Done when:** Smoke test passes and files created during run include extended metadata.
 
+### 9.5.1 Testing Enhancements
+**Purpose:** Close coverage gaps introduced by Sprints 9.3–9.5 and strengthen CI.
+
+#### 9.5.1.1 Unit & Integration Tests
+* **Tests to Write:**
+  - `tests/images/test_download_marquee_png::test_size_enforcement`
+  - `tests/integration/test_cache_hits.py::test_tmdb_cache`
+  - `tests/integration/test_cache_hits.py::test_tvdb_cache`
+  - `tests/regression/test_undo_logo.py::test_logo_undo`
+* **Steps:**
+  1. Replace placeholder logo test with real >500 px RGBA PNG; assert `download_marquee` saves <600 KB.
+  2. Mock `requests.get` and call TMDB/TVDB helpers twice; assert HTTP layer called once (cache hit).
+  3. Extend undo regression test to verify `logo.png` creation and rollback.
+* **Done when:** All new unit/integration tests pass locally.
+
+#### 9.5.1.2 Extended End-to-End Pipeline Test
+* **Tests to Write:**
+  - `tests/e2e/test_pipeline_extended.py::test_full_pipeline_multi_season`
+* **Steps:**
+  1. Build temp library with multi-season show and anthology span file.
+  2. Mock API responses to include ratings (0-10) and logo URLs.
+  3. Run `cli.run`; assert generated XML contains correct `<marquee>` paths and normalized `<rating>` values.
+  4. Validate resulting XML with `xmlschema` for well-formedness.
+* **Done when:** Extended pipeline test passes without network.
+
+#### 9.5.1.3 CI Workflow Updates
+* **Steps:**
+  1. Expand GitHub Actions matrix to Python 3.9, 3.10, and 3.11.
+  2. Install any new dev deps (e.g., `xmlschema`).
+* **Done when:** CI green across all versions and new tests.
+
 ### 9.6 Documentation Sweep – Extended Metadata
 * **Goal:** Document new XML tags and command-line options.
 * **Tests to Write:** N/A
