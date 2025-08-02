@@ -34,6 +34,7 @@ graph TD
 - **Smart Filename Parsing:** Robustly parses filenames for both TV shows (`Show - S01E01 - Title.ext`) and movies (`Movie (Year).ext`).
 - **Anthology Span Support:** Correctly handles TV episode ranges (e.g., `S01E09-E10`), combining metadata and titles appropriately.
 - **Image Processing:** Downloads artwork, converts it to PNG, automatically resizes/compresses to stay under 600 KB (max 500 px width) for fast loading.
+- **Error Handling & Retry Logic:** Robust retry mechanism with exponential backoff for network failures, graceful fallbacks for missing artwork.
 - **Interactive Mode:** Prompts the user to resolve ambiguities when multiple search results are found. The user's choice is for the current session only and is not saved.
 - **API Key Management:** Loads API keys securely from environment variables.
 
@@ -83,7 +84,7 @@ python -m mpv_scraper.cli generate /mpv
 # Undo (rollback the last run)
 python -m mpv_scraper.cli undo
 
-# Full workflow – scan ➜ scrape (todo) ➜ generate
+# Full workflow – scan ➜ scrape ➜ generate
 python -m mpv_scraper.cli run /mpv
 ```
 
@@ -110,6 +111,8 @@ After the scrape you’ll see additional tags in each `<game>` entry:
 For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/QUICK_START.md).
 
 👉 **Running tests?** See [docs/TESTING.md](docs/TESTING.md) for details.
+
+👉 **Error handling details?** See [docs/error_handling.md](docs/error_handling.md) for comprehensive information about retry logic and resilience features.
 
 ---
 
@@ -147,4 +150,15 @@ The tool will provide several commands to manage the scraping process. The prima
 # Run the full scraping and generation process on the /mpv directory
 python -m mpv_scraper.cli run /path/to/your/mpv/folder
 ```
+
+## Error Handling & Resilience
+
+The scraper is designed to be resilient to common failures:
+
+- **Network Retries:** Download functions automatically retry up to 3 times with exponential backoff (1s, 2s, 4s delays)
+- **Missing Artwork:** If poster or logo downloads fail, placeholder PNG images are created automatically
+- **Partial Failures:** The scraper continues processing even if some operations fail, ensuring metadata is still captured
+- **Graceful Degradation:** Missing artwork doesn't prevent metadata scraping or XML generation
+
+This ensures the scraper completes successfully even in challenging network conditions or when some artwork is unavailable.
 <!-- ci trigger -->

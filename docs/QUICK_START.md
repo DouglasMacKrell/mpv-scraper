@@ -66,6 +66,17 @@ The command consumes the generated `transaction.log` (created during a run) and 
 
 All downloaded artwork is automatically saved as PNGs, including series/movie logo files used for the EmulationStation `<marquee>` tag.  If an image is wider than **500 px** or the file exceeds **600 KB**, the scraper resizes it proportionally and applies additional compression so it always meets EmulationStation performance recommendations.
 
+## Error Handling & Resilience
+
+The scraper includes robust error handling to ensure successful completion:
+
+- **Automatic Retries:** Network downloads retry up to 3 times with exponential backoff
+- **Placeholder Images:** If artwork downloads fail, transparent placeholder PNGs are created automatically
+- **Graceful Degradation:** Missing artwork doesn't prevent metadata scraping or XML generation
+- **Partial Success:** The scraper continues processing even if some operations fail
+
+This means your scraping will complete successfully even with poor network conditions or missing artwork.
+
 ---
 
 ## Running the Scraper
@@ -124,6 +135,7 @@ Refer to [docs/TESTING.md](TESTING.md) for detailed guidance.
 
 * **Environment variable errors** – ensure `TVDB_API_KEY` and `TMDB_API_KEY` are exported.
 * **Rate limiting** – the scraper respects API limits; if you scrape a large library, the run may pause briefly between requests.
+* **Network failures** – the scraper automatically retries failed downloads; if you see placeholder images, some artwork downloads failed but processing continued.
 * **Incorrect matches** – the CLI will prompt for ambiguous titles; re-run the scraper if you made a wrong selection.
 
 ---

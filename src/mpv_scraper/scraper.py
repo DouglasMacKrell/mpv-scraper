@@ -1,6 +1,7 @@
 """Scraper helpers for live metadata/artwork download.
 
-Currently implements `scrape_tv` (Sprint 10.1).
+Implements `scrape_tv` and `scrape_movie` with robust error handling and retry logic.
+Includes graceful fallbacks for missing artwork and network failures.
 """
 
 from __future__ import annotations
