@@ -233,6 +233,8 @@ api_keys.txt
 /downloads/
 /images/
 *.mp4
+# Allow mock media samples in test fixtures
+!mocks/**/*.mp4
 *.mkv
 *.avi
 *.mov
