@@ -62,9 +62,9 @@ The command consumes the generated `transaction.log` (created during a run) and 
 
 ---
 
-## Artwork Handling
+## Artwork & Extended Metadata
 
-All downloaded artwork is automatically saved as PNGs.  If an image is wider than **500 px** or the file exceeds **600 KB**, the scraper resizes it proportionally and applies additional compression so it always meets EmulationStation performance recommendations.
+All downloaded artwork is automatically saved as PNGs, including series/movie logo files used for the EmulationStation `<marquee>` tag.  If an image is wider than **500 px** or the file exceeds **600 KB**, the scraper resizes it proportionally and applies additional compression so it always meets EmulationStation performance recommendations.
 
 ---
 

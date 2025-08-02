@@ -87,6 +87,22 @@ python -m mpv_scraper.cli undo
 python -m mpv_scraper.cli run /mpv
 ```
 
+### Extended Metadata Example
+
+After the scrape you’ll see additional tags in each `<game>` entry:
+
+```xml
+<game>
+  <path>./Paw Patrol - S04E01-E02 - Pups Save a Blimp &amp; Pups Save the Chili Cook-Off.mp4</path>
+  <name>Pups Save a Blimp &amp; Pups Save the Chili Cook-Off – S04E01-E02</name>
+  <desc>When Mayor Humdinger causes trouble…</desc>
+  <image>./images/S04E01.png</image>
+  <marquee>./images/logo.png</marquee>
+  <rating>0.78</rating>
+</game>
+```
+
+
 ---
 
 ## Quick Start
