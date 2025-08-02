@@ -399,4 +399,57 @@ N/A (pure documentation)
   2. Ensure any new CLI flags are documented.
 * **Done when:** Docs reflect extended metadata support.
 
+## 10 · Sprint 10 (Live Scraping Integration)
+**Purpose:** Replace placeholder metadata & artwork with real data from TVDB / TMDB and wire a full scrape step into the CLI.
+
+### 10.1 TV Show Scraping
+* **Goal:** Download episode descriptions, ratings, posters, and clearLogo for every show.
+* **Tests to Write:**
+  - `tests/integration/test_scrape_tv.py::test_episode_metadata_downloaded`
+  - `tests/integration/test_scrape_tv.py::test_logo_saved`
+* **Steps:**
+  1. Add `scraper.py` with `scrape_tv(show_dir: Path)`.
+  2. Use existing TVDB helpers to fetch series + episode records.
+  3. Save poster to `images/poster.png`, episode thumbnails to `images/SxxEyy.png`, logo to `images/logo.png` via `download_marquee`.
+  4. Cache the raw TVDB response under `.scrape_cache.json`.
+* **Done when:** Unit tests pass with mocked HTTP; images ≤ 600 KB.
+
+### 10.2 Movie Scraping
+* **Goal:** Fetch overview, normalized rating, poster, and logo for each movie.
+* **Tests to Write:**
+  - `tests/integration/test_scrape_movie.py::test_movie_metadata_downloaded`
+* **Steps:**
+  1. Implement `scrape_movie(movie_path: Path)` (TMDB).
+  2. Save poster (`images/<title>.png`) and logo (`images/logo.png`).
+  3. Cache TMDB JSON alongside the movie file.
+* **Done when:** Posters/logos downloaded (≤ 600 KB) and tests pass.
+
+### 10.3 `scrape` CLI Command
+* **Goal:** Add `python -m mpv_scraper.cli scrape <dir>`.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_commands.py::test_scrape_command`
+* **Steps:**
+  1. Call `scan_directory`, then invoke TV / Movie scrapers per item.
+  2. Record new files with `TransactionLogger`.
+* **Done when:** Smoke test passes using mocked network.
+
+### 10.4 Integrate Scrape into `run`
+* **Goal:** `cli.run` performs **scan → scrape → generate** with real data.
+* **Tests to Write:**
+  - `tests/e2e/test_pipeline_real.py::test_run_full_real_flow`
+* **Steps:**
+  1. Insert a call to the new `scrape` command inside `cli.run`.
+  2. Ensure `generate` reads the scrape cache and populates `<desc>`, `<rating>`, `<marquee>`.
+* **Done when:** End-to-end test passes (HTTP mocked).
+
+### 10.5 Error Handling & Retries
+* **Goal:** Robust retry logic and graceful fallbacks.
+* **Tests to Write:**
+  - `tests/unit/test_retry.py::test_retry_logic`
+  - `tests/unit/test_scraper.py::test_missing_artwork_placeholder`
+* **Steps:**
+  1. Add a retry decorator (max 3 attempts, exponential back-off).
+  2. If poster/logo unavailable, leave placeholder PNG but still write metadata.
+* **Done when:** Tests simulate failures and scraper completes without crashing.
+
 ---
