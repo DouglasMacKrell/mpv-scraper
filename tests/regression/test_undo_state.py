@@ -26,7 +26,17 @@ def test_run_then_undo_restores_checksum(tmp_path: Path, monkeypatch):
     project_root = Path(__file__).resolve().parents[2]
     src_library = project_root / "mocks" / "mpv"
     dst_library = tmp_path / "mpv"
-    shutil.copytree(src_library, dst_library)
+
+    if src_library.exists():
+        shutil.copytree(src_library, dst_library)
+    else:
+        # Fallback: create a minimal mock library so CI does not fail when mocks are absent.
+        show_dir = dst_library / "Sample Show"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        (show_dir / "S01E01 - Pilot.mp4").write_text("dummy")
+        movies_dir = dst_library / "Movies"
+        movies_dir.mkdir(parents=True, exist_ok=True)
+        (movies_dir / "Sample Movie (2024).mp4").write_text("dummy")
 
     # 2. Capture initial directory snapshot
     before = _snapshot_dir(dst_library)
