@@ -93,6 +93,8 @@ python -m mpv_scraper.cli run /mpv
 
 For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/QUICK_START.md).
 
+👉 **Running tests?** See [docs/TESTING.md](docs/TESTING.md) for details.
+
 ---
 
 ## Installation and Setup
