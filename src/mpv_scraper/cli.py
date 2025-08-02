@@ -85,6 +85,12 @@ def generate(path):
         create_placeholder_png(poster_path)
         _log_creation(poster_path)
 
+        # Create placeholder logo for marquee
+        logo_path = images_dir / "logo.png"
+        if not logo_path.exists():
+            create_placeholder_png(logo_path)
+            _log_creation(logo_path)
+
         folder_entries.append(
             {
                 "path": f"./{show.path.name}",
@@ -119,6 +125,8 @@ def generate(path):
                     "path": f"./{file_path.relative_to(root)}",
                     "name": name,
                     "image": f"./images/{img_name}",
+                    "rating": 0.0,
+                    "marquee": "./images/logo.png",
                 }
             )
 
@@ -136,6 +144,12 @@ def generate(path):
         poster_path = images_dir / "poster.png"
         create_placeholder_png(poster_path)
         _log_creation(poster_path)
+
+        # Create placeholder logo for marquee
+        logo_path = images_dir / "logo.png"
+        if not logo_path.exists():
+            create_placeholder_png(logo_path)
+            _log_creation(logo_path)
 
         folder_entries.append(
             {
@@ -159,6 +173,8 @@ def generate(path):
                     "path": f"./{movie_file.path.relative_to(root)}",
                     "name": name,
                     "image": f"./images/{img_name}",
+                    "rating": 0.0,
+                    "marquee": "./images/logo.png",
                 }
             )
         movies_gamelist_path = movies_dir / "gamelist.xml"
