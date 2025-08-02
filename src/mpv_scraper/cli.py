@@ -114,6 +114,7 @@ def generate(path):
     from mpv_scraper.scanner import scan_directory
     from mpv_scraper.xml_writer import write_top_gamelist, write_show_gamelist
     from mpv_scraper.transaction import TransactionLogger
+    from typing import Union
     import json
 
     root = Path(path)
@@ -123,7 +124,7 @@ def generate(path):
         if p.exists():
             logger.log_create(p)
 
-    def _load_scrape_cache(cache_path: Path) -> dict | None:
+    def _load_scrape_cache(cache_path: Path) -> Union[dict, None]:
         """Load scrape cache if it exists."""
         if cache_path.exists():
             try:
