@@ -4,3 +4,4 @@ requests-mock
 pre-commit
 black
 ruff
+responses
