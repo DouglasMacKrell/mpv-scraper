@@ -308,3 +308,63 @@ N/A (pure documentation)
 * `pytest -q` passes and all links render correctly on GitHub.
 
 ---
+
+## 9 · Sprint 9 (Extended Metadata & Artwork)
+**Purpose:** Enrich gamelists with ratings, long descriptions, and marquee artwork.
+
+### 9.1 XML Tag Support
+* **Goal:** Extend `xml_writer` to write optional `<desc>`, `<rating>`, `<marquee>` tags.
+* **Tests to Write:**
+  - `tests/test_xml.py::test_write_game_extended_tags`
+* **Steps:**
+  1. Update helper functions to accept `rating`, `marquee` fields.
+  2. Validate rating written as decimal 0–1.
+* **Done when:** New unit test passes and XML conforms to EmulationStation schema.
+
+### 9.2 Normalize Ratings
+* **Goal:** Convert TVDB/TMDB vote averages (0–10) to 0–1 floats.
+* **Tests to Write:**
+  - `tests/test_tvdb.py::test_rating_normalization`
+  - `tests/test_tmdb.py::test_rating_normalization`
+* **Steps:**
+  1. Add util `normalize_rating(raw: float) -> float`.
+  2. Integrate into TVDB/TMDB clients.
+* **Done when:** Ratings are normalized and cached.
+
+### 9.3 Fetch Long Descriptions
+* **Goal:** Store series/episode/movie overviews; fall back to shorter synopsis.
+* **Tests to Write:**
+  - `tests/test_tvdb.py::test_episode_description`
+  - `tests/test_tmdb.py::test_movie_description`
+* **Steps:**
+  1. Update API helpers to extract `overview`.
+  2. Persist in cache for later generate step.
+* **Done when:** Descriptions >140 chars handled without truncation.
+
+### 9.4 Marquee & Screenshot Artwork
+* **Goal:** Download additional artwork sizes (marquee/screenshot) and ensure ≤600 KB.
+* **Tests to Write:**
+  - `tests/test_images.py::test_download_marquee_png`
+* **Steps:**
+  1. Add `download_image` calls for marquee URLs.
+  2. Place files under `images/` and reference relative paths in XML.
+* **Done when:** Images saved, processed, and referenced in XML.
+
+### 9.5 CLI Integration
+* **Goal:** Wire new metadata into `generate` workflow.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_extended.py::test_generate_includes_extended_tags`
+* **Steps:**
+  1. Modify `generate` to read cached metadata and populate new XML fields.
+  2. Ensure transaction logging covers new files.
+* **Done when:** Smoke test passes and files created during run include extended metadata.
+
+### 9.6 Documentation Sweep – Extended Metadata
+* **Goal:** Document new XML tags and command-line options.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Update `docs/QUICK_START.md` and `README.md` with examples of ratings/marquee.
+  2. Ensure any new CLI flags are documented.
+* **Done when:** Docs reflect extended metadata support.
+
+---
