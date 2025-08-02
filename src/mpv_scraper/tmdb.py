@@ -96,8 +96,10 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
     details = response.json()
 
     # Normalize vote_average to a 0-1 float
+    from mpv_scraper.utils import normalize_rating  # type: ignore
+
     vote_average = details.get("vote_average", 0.0)
-    details["vote_average"] = round(vote_average / 10.0, 2) if vote_average else 0.0
+    details["vote_average"] = normalize_rating(vote_average)
 
     _set_to_cache(cache_key, details)
 

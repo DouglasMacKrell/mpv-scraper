@@ -165,6 +165,11 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     record = response.json().get("data")
 
     if record:
+        # Normalize siteRating (0-10) ➜ 0-1
+        from mpv_scraper.utils import normalize_rating  # type: ignore
+
+        rating_raw = record.get("siteRating")
+        record["siteRating"] = normalize_rating(rating_raw)
         _set_to_cache(cache_key, record)
 
     return record
