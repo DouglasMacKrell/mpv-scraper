@@ -22,6 +22,7 @@ def tmp_media(tmp_path_factory: pytest.TempPathFactory) -> Path:
     "command, args",
     [
         ("scan", lambda p: [str(p)]),
+        ("scrape", lambda p: [str(p)]),
         ("generate", lambda p: [str(p)]),
         ("run", lambda p: [str(p)]),
         ("undo", lambda p: []),  # undo runs in cwd containing transaction.log or not
@@ -40,3 +41,43 @@ def test_cli_smoke(command: str, args, tmp_media: Path, monkeypatch):
         result = runner.invoke(cli_main, [command, *args(tmp_media)])
 
     assert result.exit_code == 0, result.output
+
+
+def test_scrape_command(tmp_media: Path, monkeypatch):
+    """Test the scrape command specifically with mocked scrapers."""
+    from unittest.mock import patch
+
+    runner = CliRunner()
+
+    # Mock the scraper functions to avoid real API calls
+    with patch("mpv_scraper.scraper.scrape_tv") as mock_scrape_tv, patch(
+        "mpv_scraper.scraper.scrape_movie"
+    ) as mock_scrape_movie:
+        result = runner.invoke(cli_main, ["scrape", str(tmp_media)])
+
+        assert result.exit_code == 0, result.output
+        assert "scraping" in result.output.lower(), "Should mention scraping in output"
+
+        # Verify scrapers were called for the discovered content
+        assert mock_scrape_tv.called, "scrape_tv should be called for show directories"
+        assert mock_scrape_movie.called, "scrape_movie should be called for movie files"
+
+
+def test_run_command_includes_scrape(tmp_media: Path, monkeypatch):
+    """Test that the run command includes the scrape step."""
+    from unittest.mock import patch
+
+    runner = CliRunner()
+
+    # Mock the scraper functions to avoid real API calls
+    with patch("mpv_scraper.scraper.scrape_tv") as mock_scrape_tv, patch(
+        "mpv_scraper.scraper.scrape_movie"
+    ) as mock_scrape_movie:
+        result = runner.invoke(cli_main, ["run", str(tmp_media)])
+
+        assert result.exit_code == 0, result.output
+        assert "scraping" in result.output.lower(), "Should mention scraping in output"
+
+        # Verify scrapers were called as part of the run workflow
+        assert mock_scrape_tv.called, "scrape_tv should be called during run"
+        assert mock_scrape_movie.called, "scrape_movie should be called during run"

@@ -47,6 +47,58 @@ def scan(path):
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+def scrape(path):
+    """Scrape metadata and artwork for DIRECTORY.
+
+    Scans *path* and downloads:
+
+    * TV show metadata from TVDB (episodes, ratings, descriptions)
+    * Movie metadata from TMDB (overview, ratings, release dates)
+    * Poster images for shows and movies
+    * Logo artwork for marquee display
+    * Caches all metadata for later generate step
+    """
+    from pathlib import Path
+    from mpv_scraper.scanner import scan_directory
+    from mpv_scraper.scraper import scrape_tv, scrape_movie
+    from mpv_scraper.transaction import TransactionLogger
+
+    root = Path(path)
+    logger = TransactionLogger(root / "transaction.log")
+
+    def _log_creation(p: Path) -> None:
+        if p.exists():
+            logger.log_create(p)
+
+    # 1. Scan directory
+    result = scan_directory(root)
+    click.echo(
+        f"Found {len(result.shows)} show folders and {len(result.movies)} movies."
+    )
+
+    # 2. Scrape TV shows
+    for show in result.shows:
+        click.echo(f"Scraping {show.path.name}...")
+        try:
+            scrape_tv(show.path)
+            click.echo(f"✓ Scraped {show.path.name}")
+        except Exception as e:
+            click.echo(f"✗ Failed to scrape {show.path.name}: {e}")
+
+    # 3. Scrape movies
+    for movie in result.movies:
+        click.echo(f"Scraping {movie.path.name}...")
+        try:
+            scrape_movie(movie.path)
+            click.echo(f"✓ Scraped {movie.path.name}")
+        except Exception as e:
+            click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")
+
+    click.echo("Scraping completed.")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 def generate(path):
     """Generate gamelist XML for DIRECTORY.
 
@@ -210,7 +262,7 @@ def run(ctx, path):
     """End-to-end scan → scrape → generate workflow for DIRECTORY."""
     ctx = click.get_current_context()
     ctx.invoke(scan, path=path)
-    # Scrape step would go here (TVDB/TMDB calls) – mocked in tests.
+    ctx.invoke(scrape, path=path)
     ctx.invoke(generate, path=path)
 
 
