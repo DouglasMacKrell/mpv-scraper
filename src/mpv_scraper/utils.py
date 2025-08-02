@@ -6,10 +6,12 @@ __all__ = [
     "normalize_rating",
 ]
 
+from typing import Union
+
 _MAX_RAW: Final[float] = 10.0
 
 
-def normalize_rating(raw: float | int | None) -> float:
+def normalize_rating(raw: Union[float, int, None]) -> float:
     """Convert a 0–10 rating to 0–1, clamped to range.
 
     Parameters
