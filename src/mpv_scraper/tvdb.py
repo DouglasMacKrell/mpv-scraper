@@ -170,6 +170,23 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
 
         rating_raw = record.get("siteRating")
         record["siteRating"] = normalize_rating(rating_raw)
+
+        # Ensure long descriptions are present. If an episode is missing an
+        # ``overview`` field we fall back to the shorter ``synopsis`` or
+        # ``shortDescription`` keys when available.
+        episodes = record.get("episodes", [])
+        for ep in episodes:
+            if not ep.get("overview"):
+                fallback = ep.get("synopsis") or ep.get("shortDescription")
+                if fallback:
+                    ep["overview"] = fallback
+
+        # Fallback for the series-level overview as well.
+        if not record.get("overview"):
+            record["overview"] = (
+                record.get("synopsis") or record.get("shortDescription") or ""
+            )
+
         _set_to_cache(cache_key, record)
 
     return record

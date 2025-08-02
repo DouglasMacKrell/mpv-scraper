@@ -101,6 +101,10 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
     vote_average = details.get("vote_average", 0.0)
     details["vote_average"] = normalize_rating(vote_average)
 
+    # Ensure a useful long description is always present.
+    if not details.get("overview"):
+        details["overview"] = details.get("tagline", "")
+
     _set_to_cache(cache_key, details)
 
     return details
