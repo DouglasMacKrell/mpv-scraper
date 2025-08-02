@@ -81,17 +81,33 @@ This means your scraping will complete successfully even with poor network condi
 
 ## Running the Scraper
 
-Assuming your media lives in `/mpv`:
+The scraper provides several commands for different workflows:
 
+### Full Workflow (Recommended)
 ```bash
 python -m mpv_scraper.cli run /mpv
 ```
 
-The command will:
+This performs the complete workflow:
+1. **Scan** the directory for TV shows and movies
+2. **Scrape** metadata and artwork from TVDB/TMDB
+3. **Generate** EmulationStation-compatible `gamelist.xml` files
 
-1. Scan the directory for TV shows and movies.
-2. Fetch metadata and artwork (prompting if ambiguous titles are found).
-3. Generate EmulationStation‐compatible `gamelist.xml` files and PNG images.
+### Individual Commands
+You can also run each step separately:
+
+```bash
+# Step 1: Scan directory (debug helper)
+python -m mpv_scraper.cli scan /mpv
+
+# Step 2: Scrape metadata and artwork
+python -m mpv_scraper.cli scrape /mpv
+
+# Step 3: Generate XML files
+python -m mpv_scraper.cli generate /mpv
+```
+
+The scraper will prompt for ambiguous titles and automatically retry failed downloads.
 
 You should end up with a structure like:
 
@@ -108,9 +124,17 @@ You should end up with a structure like:
 
 ---
 
-## Common Flags (coming soon)
+## Available Commands
 
-Additional CLI flags will be introduced in later sprints—for example `--dry-run`, `--verbose`, and `undo`—keep an eye on the README for updates.
+The scraper provides these commands:
+
+- **`scan`** - Discover shows and movies in a directory
+- **`scrape`** - Download metadata and artwork from TVDB/TMDB
+- **`generate`** - Create gamelist.xml files from scraped data
+- **`run`** - Complete workflow (scan → scrape → generate)
+- **`undo`** - Revert the last run using transaction.log
+
+All commands support the `--help` flag for detailed usage information.
 
 ---
 

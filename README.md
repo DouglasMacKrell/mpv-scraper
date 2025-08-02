@@ -58,12 +58,14 @@ The scraper expects and generates the following structure within the main media 
 │   ├── gamelist.xml          # Gamelist for all movies
 │   ├── Movie Title (Year).mp4
 │   └── images/
-│       └── Movie Title (Year).png
+│       ├── Movie Title (Year).png
+│       └── logo.png              # Movie collection logo (marquee)
 └── <Show Name>/
     ├── gamelist.xml          # Gamelist for this show's episodes
     ├── Show - S01E01 - Title.mp4
     └── images/
         ├── poster.png        # Show poster
+        ├── logo.png          # Show logo (marquee)
         └── S01E01.png        # Episode thumbnail
 ```
 
@@ -75,10 +77,13 @@ After installing the package and activating your virtual-environment you can inv
 # View help
 python -m mpv_scraper.cli --help
 
-# Scan a directory (dry information only)
+# Scan a directory (discover shows and movies)
 python -m mpv_scraper.cli scan /mpv
 
-# Generate gamelist.xml files (expects scraped metadata)
+# Scrape metadata and artwork from TVDB/TMDB
+python -m mpv_scraper.cli scrape /mpv
+
+# Generate gamelist.xml files (requires scraped metadata)
 python -m mpv_scraper.cli generate /mpv
 
 # Undo (rollback the last run)
