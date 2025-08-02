@@ -265,3 +265,6 @@ error.log
 test_*.xml
 temp_*
 scratch/
+
+# macOS resource forks
+mocks/**/._*
