@@ -13,11 +13,13 @@ from unittest.mock import patch
 import importlib
 
 scraper = importlib.import_module("mpv_scraper.scraper")  # type: ignore
+images = importlib.import_module("mpv_scraper.images")  # type: ignore
 
 
+@patch("mpv_scraper.scraper.download_marquee")
 @patch("mpv_scraper.scraper.download_image")
 @patch("mpv_scraper.scraper.tvdb")
-def test_episode_metadata_downloaded(mock_tvdb, mock_dl, tmp_path: Path):
+def test_episode_metadata_downloaded(mock_tvdb, mock_dl, mock_marquee, tmp_path: Path):
     """scrape_tv should cache series + episode metadata JSON."""
 
     show_dir = tmp_path / "Test Show"
@@ -41,8 +43,15 @@ def test_episode_metadata_downloaded(mock_tvdb, mock_dl, tmp_path: Path):
         "siteRating": 8.0,
     }
 
-    # Pretend download_image succeeds
-    mock_dl.side_effect = lambda url, dest: dest.write_bytes(b"png")
+    # Create proper PNG files for the mocks
+    from PIL import Image
+
+    mock_dl.side_effect = lambda url, dest: Image.new(
+        "RGBA", (32, 32), (0, 0, 0, 0)
+    ).save(dest, format="PNG")
+    mock_marquee.side_effect = lambda url, dest: Image.new(
+        "RGBA", (32, 32), (0, 0, 0, 0)
+    ).save(dest, format="PNG")
 
     # Act
     scraper.scrape_tv(show_dir)
@@ -67,7 +76,12 @@ def test_logo_saved(mock_tvdb, mock_dl, mock_marquee, tmp_path: Path):
         "artworks": {"clearLogo": "https://art/logo.png"},
     }
 
-    mock_marquee.side_effect = lambda url, dest: dest.write_bytes(b"png")
+    # Create a proper PNG file for the mock
+    from PIL import Image
+
+    mock_marquee.side_effect = lambda url, dest: Image.new(
+        "RGBA", (32, 32), (0, 0, 0, 0)
+    ).save(dest, format="PNG")
 
     scraper.scrape_tv(show_dir)
 
