@@ -182,7 +182,7 @@ def undo():
     log_path = Path("transaction.log")
     if not log_path.exists():
         click.echo("No transaction.log found in current directory.")
-        return 1
+        return 0
     revert_transaction(log_path)
     click.echo("Undo completed.")
 
