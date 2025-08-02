@@ -114,6 +114,7 @@ def generate(path):
     from mpv_scraper.scanner import scan_directory
     from mpv_scraper.xml_writer import write_top_gamelist, write_show_gamelist
     from mpv_scraper.transaction import TransactionLogger
+    import json
 
     root = Path(path)
     logger = TransactionLogger(root / "transaction.log")
@@ -121,6 +122,15 @@ def generate(path):
     def _log_creation(p: Path) -> None:
         if p.exists():
             logger.log_create(p)
+
+    def _load_scrape_cache(cache_path: Path) -> dict | None:
+        """Load scrape cache if it exists."""
+        if cache_path.exists():
+            try:
+                return json.loads(cache_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                return None
+        return None
 
     # 1. Scan directory
     result = scan_directory(root)
@@ -151,6 +161,9 @@ def generate(path):
             }
         )
 
+        # Load scrape cache for this show
+        show_cache = _load_scrape_cache(show.path / ".scrape_cache.json")
+
         games = []
         for file_path in show.files:
             meta = parse_tv_filename(file_path.name)
@@ -172,15 +185,39 @@ def generate(path):
             create_placeholder_png(img_path)
             _log_creation(img_path)
 
-            games.append(
-                {
-                    "path": f"./{file_path.relative_to(root)}",
-                    "name": name,
-                    "image": f"./images/{img_name}",
-                    "rating": 0.0,
-                    "marquee": "./images/logo.png",
-                }
-            )
+            # Get metadata from scrape cache if available
+            desc = None
+            rating = 0.0
+            marquee = "./images/logo.png"
+
+            if show_cache and meta:
+                # Find episode in cache
+                for episode in show_cache.get("episodes", []):
+                    if (
+                        episode.get("seasonNumber") == meta.season
+                        and episode.get("number") == meta.start_ep
+                    ):
+                        desc = episode.get("overview")
+                        # Rating is already normalized 0-1 from scraper
+                        rating = episode.get("siteRating", 0.0)
+                        break
+
+                # Get series rating if no episode rating
+                if rating == 0.0:
+                    rating = show_cache.get("siteRating", 0.0)
+
+            game_entry = {
+                "path": f"./{file_path.relative_to(root)}",
+                "name": name,
+                "image": f"./images/{img_name}",
+                "rating": rating,
+                "marquee": marquee,
+            }
+
+            if desc:
+                game_entry["desc"] = desc
+
+            games.append(game_entry)
 
         show_gamelist_path = show.path / "gamelist.xml"
         write_show_gamelist(games, show_gamelist_path)
@@ -211,6 +248,9 @@ def generate(path):
             }
         )
 
+        # Load scrape cache for movies
+        movies_cache = _load_scrape_cache(movies_dir / ".scrape_cache.json")
+
         games = []
         for movie_file in result.movies:
             meta = parse_movie_filename(movie_file.path.name)
@@ -220,15 +260,28 @@ def generate(path):
             create_placeholder_png(img_path)
             _log_creation(img_path)
 
-            games.append(
-                {
-                    "path": f"./{movie_file.path.relative_to(root)}",
-                    "name": name,
-                    "image": f"./images/{img_name}",
-                    "rating": 0.0,
-                    "marquee": "./images/logo.png",
-                }
-            )
+            # Get metadata from scrape cache if available
+            desc = None
+            rating = 0.0
+            marquee = "./images/logo.png"
+
+            if movies_cache:
+                desc = movies_cache.get("overview")
+                # TMDB ratings are already normalized 0-1
+                rating = movies_cache.get("vote_average", 0.0)
+
+            game_entry = {
+                "path": f"./{movie_file.path.relative_to(root)}",
+                "name": name,
+                "image": f"./images/{img_name}",
+                "rating": rating,
+                "marquee": marquee,
+            }
+
+            if desc:
+                game_entry["desc"] = desc
+
+            games.append(game_entry)
         movies_gamelist_path = movies_dir / "gamelist.xml"
         write_show_gamelist(games, movies_gamelist_path)
         _log_creation(movies_gamelist_path)
