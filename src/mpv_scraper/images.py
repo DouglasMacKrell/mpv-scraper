@@ -15,7 +15,7 @@ from typing import Final
 import requests
 from PIL import Image
 
-__all__ = ["download_image", "ensure_png_size"]
+__all__ = ["download_image", "ensure_png_size", "create_placeholder_png"]
 
 # PIL recommends using RGBA for universal compatibility.
 PNG_MODE: Final[str] = "RGBA"
@@ -100,3 +100,27 @@ def ensure_png_size(path: Path, *, max_kb: int = 600, max_width: int = 500) -> N
             # Reduce quality by lowering number of colors (quantize)
             img = img.convert("P", palette=Image.ADAPTIVE, colors=256)
             img.save(path, format="PNG", optimize=True)
+
+
+def create_placeholder_png(
+    dest: Path,
+    size: tuple[int, int] = (1, 1),
+    color: tuple[int, int, int, int] | str = (255, 255, 255, 0),
+) -> None:
+    """Create a minimal placeholder PNG.
+
+    This helper is useful for tests where real artwork is mocked. The resulting
+    image will always satisfy the ≤600 KB size constraint.
+    """
+
+    # Ensure the path has a .png suffix for consistency.
+    if dest.suffix.lower() != ".png":
+        dest = dest.with_suffix(".png")
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    img = Image.new("RGBA", size, color)  # type: ignore[arg-type]
+    img.save(dest, format="PNG", optimize=True)
+
+    # Final sanity: enforce size limit.
+    ensure_png_size(dest)
