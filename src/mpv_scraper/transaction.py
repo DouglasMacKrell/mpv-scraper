@@ -86,7 +86,10 @@ def revert_transaction(log_path: Path) -> None:
 
         if op == "create":
             if target.exists():
-                target.unlink()
+                if target.is_file():
+                    target.unlink()
+                elif target.is_dir():
+                    shutil.rmtree(target)
         elif op == "modify":
             if backup and backup.exists():
                 shutil.move(str(backup), str(target))

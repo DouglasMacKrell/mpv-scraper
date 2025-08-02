@@ -61,8 +61,14 @@ def generate(path):
     from mpv_scraper.parser import parse_tv_filename, parse_movie_filename
     from mpv_scraper.scanner import scan_directory
     from mpv_scraper.xml_writer import write_top_gamelist, write_show_gamelist
+    from mpv_scraper.transaction import TransactionLogger
 
     root = Path(path)
+    logger = TransactionLogger(root / "transaction.log")
+
+    def _log_creation(p: Path) -> None:
+        if p.exists():
+            logger.log_create(p)
 
     # 1. Scan directory
     result = scan_directory(root)
@@ -72,9 +78,12 @@ def generate(path):
     # 2. Per-show gamelists and posters
     for show in result.shows:
         images_dir = show.path / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
+        if not images_dir.exists():
+            images_dir.mkdir(parents=True, exist_ok=True)
+            _log_creation(images_dir)
         poster_path = images_dir / "poster.png"
         create_placeholder_png(poster_path)
+        _log_creation(poster_path)
 
         folder_entries.append(
             {
@@ -103,6 +112,7 @@ def generate(path):
             )
             img_path = images_dir / img_name
             create_placeholder_png(img_path)
+            _log_creation(img_path)
 
             games.append(
                 {
@@ -112,15 +122,20 @@ def generate(path):
                 }
             )
 
-        write_show_gamelist(games, show.path / "gamelist.xml")
+        show_gamelist_path = show.path / "gamelist.xml"
+        write_show_gamelist(games, show_gamelist_path)
+        _log_creation(show_gamelist_path)
 
     # 3. Movies folder (optional)
     movies_dir = root / "Movies"
     if movies_dir.exists():
         images_dir = movies_dir / "images"
-        images_dir.mkdir(parents=True, exist_ok=True)
+        if not images_dir.exists():
+            images_dir.mkdir(parents=True, exist_ok=True)
+            _log_creation(images_dir)
         poster_path = images_dir / "poster.png"
         create_placeholder_png(poster_path)
+        _log_creation(poster_path)
 
         folder_entries.append(
             {
@@ -137,6 +152,7 @@ def generate(path):
             img_name = f"{movie_file.path.stem}.png"
             img_path = images_dir / img_name
             create_placeholder_png(img_path)
+            _log_creation(img_path)
 
             games.append(
                 {
@@ -145,10 +161,14 @@ def generate(path):
                     "image": f"./images/{img_name}",
                 }
             )
-        write_show_gamelist(games, movies_dir / "gamelist.xml")
+        movies_gamelist_path = movies_dir / "gamelist.xml"
+        write_show_gamelist(games, movies_gamelist_path)
+        _log_creation(movies_gamelist_path)
 
     # 4. Top-level gamelist
-    write_top_gamelist(folder_entries, root / "gamelist.xml")
+    top_gamelist_path = root / "gamelist.xml"
+    write_top_gamelist(folder_entries, top_gamelist_path)
+    _log_creation(top_gamelist_path)
 
     click.echo("gamelist.xml files generated.")
 
