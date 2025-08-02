@@ -103,6 +103,23 @@ Additional CLI flags will be introduced in later sprints—for example `--dry-ru
 
 ---
 
+## Running the Test Suite
+
+After installing dev dependencies you can execute all tests with:
+
+```bash
+pytest -q
+```
+
+Common filters:
+
+* Only end-to-end pipeline: `pytest -k e2e`
+* Only smoke tests: `pytest -k smoke`
+
+Refer to [docs/TESTING.md](TESTING.md) for detailed guidance.
+
+---
+
 ## Troubleshooting
 
 * **Environment variable errors** – ensure `TVDB_API_KEY` and `TMDB_API_KEY` are exported.
