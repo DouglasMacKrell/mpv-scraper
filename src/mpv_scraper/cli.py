@@ -37,9 +37,110 @@ def scan(path):
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 def generate(path):
-    """Generate gamelist XML for DIRECTORY based on previously scraped data."""
-    # Placeholder: In MVP we just echo; actual wiring occurs in Sprint 6.3.
-    click.echo(f"Generating gamelist XML for {path} (stub).")
+    """Generate gamelist XML for DIRECTORY.
+
+    Scans *path* and writes:
+
+    * Top-level ``gamelist.xml`` listing show folders + *Movies*
+    * Per-show / *Movies* ``gamelist.xml`` with <game> entries
+    * Minimal placeholder PNG artwork so the test suite can run without real API calls.
+    """
+    from pathlib import Path
+
+    from mpv_scraper.images import create_placeholder_png
+    from mpv_scraper.parser import parse_tv_filename, parse_movie_filename
+    from mpv_scraper.scanner import scan_directory
+    from mpv_scraper.xml_writer import write_top_gamelist, write_show_gamelist
+
+    root = Path(path)
+
+    # 1. Scan directory
+    result = scan_directory(root)
+
+    folder_entries = []  # Data for the top-level gamelist
+
+    # 2. Per-show gamelists and posters
+    for show in result.shows:
+        images_dir = show.path / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        poster_path = images_dir / "poster.png"
+        create_placeholder_png(poster_path)
+
+        folder_entries.append(
+            {
+                "path": f"./{show.path.name}",
+                "name": show.path.name,
+                "image": f"./{show.path.name}/images/poster.png",
+            }
+        )
+
+        games = []
+        for file_path in show.files:
+            meta = parse_tv_filename(file_path.name)
+            if meta and meta.titles:
+                title_part = " & ".join(meta.titles)
+                ep_span = f"S{meta.season:02d}E{meta.start_ep:02d}"
+                if meta.end_ep != meta.start_ep:
+                    ep_span += f"-E{meta.end_ep:02d}"
+                name = f"{title_part} – {ep_span}"
+            else:
+                name = file_path.stem
+
+            img_name = (
+                f"S{meta.season:02d}E{meta.start_ep:02d}.png"
+                if meta
+                else f"{file_path.stem}.png"
+            )
+            img_path = images_dir / img_name
+            create_placeholder_png(img_path)
+
+            games.append(
+                {
+                    "path": f"./{file_path.relative_to(root)}",
+                    "name": name,
+                    "image": f"./images/{img_name}",
+                }
+            )
+
+        write_show_gamelist(games, show.path / "gamelist.xml")
+
+    # 3. Movies folder (optional)
+    movies_dir = root / "Movies"
+    if movies_dir.exists():
+        images_dir = movies_dir / "images"
+        images_dir.mkdir(parents=True, exist_ok=True)
+        poster_path = images_dir / "poster.png"
+        create_placeholder_png(poster_path)
+
+        folder_entries.append(
+            {
+                "path": "./Movies",
+                "name": "Movies",
+                "image": "./Movies/images/poster.png",
+            }
+        )
+
+        games = []
+        for movie_file in result.movies:
+            meta = parse_movie_filename(movie_file.path.name)
+            name = meta.title if meta else movie_file.path.stem
+            img_name = f"{movie_file.path.stem}.png"
+            img_path = images_dir / img_name
+            create_placeholder_png(img_path)
+
+            games.append(
+                {
+                    "path": f"./{movie_file.path.relative_to(root)}",
+                    "name": name,
+                    "image": f"./images/{img_name}",
+                }
+            )
+        write_show_gamelist(games, movies_dir / "gamelist.xml")
+
+    # 4. Top-level gamelist
+    write_top_gamelist(folder_entries, root / "gamelist.xml")
+
+    click.echo("gamelist.xml files generated.")
 
 
 @main.command()
