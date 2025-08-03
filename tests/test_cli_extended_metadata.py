@@ -132,7 +132,7 @@ class TestGenerateExtendedMetadata:
             }
 
             # Write mock cache file
-            cache_file = movies_dir / ".scrape_cache_Test Movie (2023).json"
+            cache_file = movies_dir / ".scrape_cache.json"
             import json
 
             cache_file.write_text(json.dumps(cache_data))

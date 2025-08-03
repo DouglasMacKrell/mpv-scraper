@@ -45,9 +45,54 @@ def test_full_pipeline_generates_expected_files():
         movies_dir.mkdir(parents=True, exist_ok=True)
         (movies_dir / "Sample Movie (1999).mkv").touch()
 
-        # Execute: mpv-scraper run <library>
-        result = runner.invoke(cli_main, ["run", str(library_root)])
-        assert result.exit_code == 0, result.output
+        # Mock the scraper functions to prevent real API calls
+        from unittest.mock import patch
+
+        with patch("mpv_scraper.scraper.tvdb") as mock_tvdb, patch(
+            "mpv_scraper.scraper.tmdb"
+        ) as mock_tmdb, patch("mpv_scraper.scraper.download_image") as mock_dl, patch(
+            "mpv_scraper.scraper.download_marquee"
+        ) as mock_marquee:
+            # Mock TVDB responses
+            mock_tvdb.search_show.return_value = [{"id": 1, "name": "Test Show"}]
+            mock_tvdb.get_series_extended.return_value = {
+                "episodes": [
+                    {
+                        "seasonNumber": 1,
+                        "number": 1,
+                        "overview": "Test episode description.",
+                        "image": "https://art/ep.png",
+                    }
+                ],
+                "image": "https://art/poster.png",
+                "artworks": {"clearLogo": "https://art/logo.png"},
+                "siteRating": 8.5,
+            }
+
+            # Mock TMDB responses
+            mock_tmdb.search_movie.return_value = [{"id": 1, "title": "Sample Movie"}]
+            mock_tmdb.get_movie_details.return_value = {
+                "id": 1,
+                "title": "Sample Movie",
+                "overview": "Test movie description.",
+                "vote_average": 0.75,
+                "poster_url": "https://image.tmdb.org/t/p/original/poster.jpg",
+                "logo_url": "https://image.tmdb.org/t/p/original/logo.png",
+            }
+
+            # Mock image downloads to create small placeholder files
+            from PIL import Image
+
+            mock_dl.side_effect = lambda url, dest, headers=None: Image.new(
+                "RGBA", (32, 32), (0, 0, 0, 0)
+            ).save(dest, format="PNG")
+            mock_marquee.side_effect = lambda url, dest, headers=None: Image.new(
+                "RGBA", (32, 32), (0, 0, 0, 0)
+            ).save(dest, format="PNG")
+
+            # Execute: mpv-scraper run <library>
+            result = runner.invoke(cli_main, ["run", str(library_root)])
+            assert result.exit_code == 0, result.output
 
         # --- Validation helpers --------------------------------------------------
         def _iter_xml_files(base: Path) -> List[Path]:

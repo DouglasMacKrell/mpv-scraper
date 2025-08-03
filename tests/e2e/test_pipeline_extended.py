@@ -49,9 +49,72 @@ def test_full_pipeline_multi_season():
         movies.mkdir(parents=True)
         (movies / "Epic Film (2020).mp4").touch()
 
-        # Execute workflow
-        result = runner.invoke(cli_main, ["run", str(root)])
-        assert result.exit_code == 0, result.output
+        # Mock the scraper functions to prevent real API calls
+        from unittest.mock import patch
+
+        with patch("mpv_scraper.scraper.tvdb") as mock_tvdb, patch(
+            "mpv_scraper.scraper.tmdb"
+        ) as mock_tmdb, patch("mpv_scraper.scraper.download_image") as mock_dl, patch(
+            "mpv_scraper.scraper.download_marquee"
+        ) as mock_marquee:
+            # Mock TVDB responses
+            mock_tvdb.search_show.return_value = [{"id": 1, "name": "Mega Show"}]
+            mock_tvdb.get_series_extended.return_value = {
+                "episodes": [
+                    {
+                        "seasonNumber": 1,
+                        "number": 1,
+                        "overview": "The beginning episode.",
+                        "image": "https://art/ep1.png",
+                    },
+                    {
+                        "seasonNumber": 1,
+                        "number": 2,
+                        "overview": "Part A episode.",
+                        "image": "https://art/ep2.png",
+                    },
+                    {
+                        "seasonNumber": 1,
+                        "number": 3,
+                        "overview": "Part B episode.",
+                        "image": "https://art/ep3.png",
+                    },
+                    {
+                        "seasonNumber": 2,
+                        "number": 5,
+                        "overview": "The return episode.",
+                        "image": "https://art/ep5.png",
+                    },
+                ],
+                "image": "https://art/poster.png",
+                "artworks": {"clearLogo": "https://art/logo.png"},
+                "siteRating": 8.5,
+            }
+
+            # Mock TMDB responses
+            mock_tmdb.search_movie.return_value = [{"id": 1, "title": "Epic Film"}]
+            mock_tmdb.get_movie_details.return_value = {
+                "id": 1,
+                "title": "Epic Film",
+                "overview": "An epic film description.",
+                "vote_average": 0.75,
+                "poster_url": "https://image.tmdb.org/t/p/original/poster.jpg",
+                "logo_url": "https://image.tmdb.org/t/p/original/logo.png",
+            }
+
+            # Mock image downloads to create small placeholder files
+            from PIL import Image
+
+            mock_dl.side_effect = lambda url, dest, headers=None: Image.new(
+                "RGBA", (32, 32), (0, 0, 0, 0)
+            ).save(dest, format="PNG")
+            mock_marquee.side_effect = lambda url, dest, headers=None: Image.new(
+                "RGBA", (32, 32), (0, 0, 0, 0)
+            ).save(dest, format="PNG")
+
+            # Execute workflow
+            result = runner.invoke(cli_main, ["run", str(root)])
+            assert result.exit_code == 0, result.output
 
         # Helper: walk XML files
         xml_files = list(root.rglob("gamelist.xml"))
