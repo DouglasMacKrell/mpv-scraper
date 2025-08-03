@@ -322,7 +322,12 @@ def generate(path):
             _log_creation(images_dir)
 
         # Copy movies-poster.jpg to top-level images directory if it exists
-        movies_poster_source = root / "public" / "images" / "movies-poster.jpg"
+        # Look for the file in the project's public/images directory
+
+        project_root = Path(
+            __file__
+        ).parent.parent.parent  # Go up from src/mpv_scraper/cli.py to project root
+        movies_poster_source = project_root / "public" / "images" / "movies-poster.jpg"
         if movies_poster_source.exists():
             top_movies_poster = top_images_dir / "movies-poster.jpg"
             if not top_movies_poster.exists():
