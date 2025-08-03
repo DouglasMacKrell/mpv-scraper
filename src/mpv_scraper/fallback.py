@@ -116,6 +116,11 @@ class FallbackScraper:
                         else ""
                     )
                 },
+                "studio": [
+                    {"name": company.get("name", "")}
+                    for company in details.get("production_companies", [])
+                    if company.get("name")
+                ],
                 "firstAired": details.get("first_air_date"),
                 "source": "tmdb_fallback",
             }

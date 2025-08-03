@@ -73,6 +73,11 @@ def scrape_tv(
                 if not record.get("artworks"):
                     record["artworks"] = {}
                 record["artworks"]["clearLogo"] = tmdb_record["artworks"]["clearLogo"]
+
+                # Also merge studio data for publisher field
+                if tmdb_record.get("studio"):
+                    record["studio"] = tmdb_record["studio"]
+
                 record["source"] = "tvdb_with_tmdb_logo_fallback"
             else:
                 logger.info(f"TMDB fallback also has no logo for {show_dir.name}")
