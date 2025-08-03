@@ -20,6 +20,11 @@ def test_tmdb_cache(mock_get_cache, _set_cache, mock_http):
     mock_get_cache.side_effect = [
         None,
         {"vote_average": 7.5, "id": 123, "overview": "Test movie"},
+        {
+            "vote_average": 7.5,
+            "id": 123,
+            "overview": "Test movie",
+        },  # Third call also cached
     ]
 
     mock_http.return_value.status_code = 200

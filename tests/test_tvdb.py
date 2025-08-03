@@ -31,7 +31,6 @@ def test_episode_description_fallback(
     # Mock series, artwork, and episodes calls with v3 API structure
     mock_get.return_value.json.side_effect = [
         {"data": {"id": 99, "seriesName": "Test Show", "siteRating": 5.0}},
-        {"data": [{"keyType": "poster", "fileName": "/poster.jpg"}]},
         {
             "data": [
                 {
@@ -43,6 +42,7 @@ def test_episode_description_fallback(
                 }
             ]
         },
+        {"data": [{"keyType": "poster", "fileName": "/poster.jpg"}]},
     ]
 
     record = get_series_extended(99, "token")
