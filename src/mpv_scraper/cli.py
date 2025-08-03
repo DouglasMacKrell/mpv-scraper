@@ -13,6 +13,11 @@ run PATH
 """
 
 import click
+from dotenv import load_dotenv
+from mpv_scraper.images import create_placeholder_png
+
+# Load environment variables from .env file
+load_dotenv()
 
 # --- Test-only placeholder hook ---------------------------------------------
 
@@ -21,8 +26,6 @@ def _noop_placeholder(*_args, **_kwargs):
     """No-op; real implementation is monkey-patched in tests."""
 
 
-# Points to the active placeholder factory used by generate(); overridden in tests.
-create_placeholder_png = _noop_placeholder
 # -----------------------------------------------------------------------------
 
 
@@ -64,11 +67,10 @@ def scrape(path):
     from mpv_scraper.transaction import TransactionLogger
 
     root = Path(path)
-    logger = TransactionLogger(root / "transaction.log")
+    logger = TransactionLogger(root / "transaction.log")  # Create in target directory
 
     def _log_creation(p: Path) -> None:
-        if p.exists():
-            logger.log_create(p)
+        logger.log_create(p.resolve())
 
     # 1. Scan directory
     result = scan_directory(root)
@@ -80,7 +82,7 @@ def scrape(path):
     for show in result.shows:
         click.echo(f"Scraping {show.path.name}...")
         try:
-            scrape_tv(show.path)
+            scrape_tv(show.path, logger)
             click.echo(f"✓ Scraped {show.path.name}")
         except Exception as e:
             click.echo(f"✗ Failed to scrape {show.path.name}: {e}")
@@ -89,7 +91,7 @@ def scrape(path):
     for movie in result.movies:
         click.echo(f"Scraping {movie.path.name}...")
         try:
-            scrape_movie(movie.path)
+            scrape_movie(movie.path, logger)
             click.echo(f"✓ Scraped {movie.path.name}")
         except Exception as e:
             click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")
@@ -118,11 +120,10 @@ def generate(path):
     import json
 
     root = Path(path)
-    logger = TransactionLogger(root / "transaction.log")
+    logger = TransactionLogger(root / "transaction.log")  # Create in target directory
 
     def _log_creation(p: Path) -> None:
-        if p.exists():
-            logger.log_create(p)
+        logger.log_create(p.resolve())
 
     def _load_scrape_cache(cache_path: Path) -> Union[dict, None]:
         """Load scrape cache if it exists."""
@@ -133,32 +134,54 @@ def generate(path):
                 return None
         return None
 
-    # 1. Scan directory
+    # 1. Create top-level images directory for folder-level images
+    top_images_dir = root / "images"
+    if not top_images_dir.exists():
+        top_images_dir.mkdir(parents=True, exist_ok=True)
+        _log_creation(top_images_dir)
+
+    # 2. Scan directory
     result = scan_directory(root)
 
     folder_entries = []  # Data for the top-level gamelist
 
-    # 2. Per-show gamelists and posters
+    # 3. Per-show gamelists and posters
     for show in result.shows:
         images_dir = show.path / "images"
         if not images_dir.exists():
             images_dir.mkdir(parents=True, exist_ok=True)
             _log_creation(images_dir)
-        poster_path = images_dir / "poster.png"
-        create_placeholder_png(poster_path)
-        _log_creation(poster_path)
 
-        # Create placeholder logo for marquee
+        # Create show poster (use real image if available, otherwise placeholder)
+        poster_path = images_dir / "poster.png"
+        if not poster_path.exists():
+            create_placeholder_png(poster_path)
+            _log_creation(poster_path)
+
+        # Create show logo (use real image if available, otherwise placeholder)
         logo_path = images_dir / "logo.png"
         if not logo_path.exists():
             create_placeholder_png(logo_path)
             _log_creation(logo_path)
 
+        # Create top-level image for this series folder
+        top_show_poster = top_images_dir / f"{show.path.name}.png"
+        if not top_show_poster.exists() and poster_path.exists():
+            # Copy the show's poster to top-level
+            import shutil
+
+            shutil.copy2(poster_path, top_show_poster)
+            _log_creation(top_show_poster)
+
         folder_entries.append(
             {
                 "path": f"./{show.path.name}",
                 "name": show.path.name,
-                "image": f"./{show.path.name}/images/poster.png",
+                "image": (
+                    f"./images/{show.path.name}.png"
+                    if top_show_poster.exists()
+                    else f"./{show.path.name}/images/poster.png"
+                ),
             }
         )
 
@@ -183,13 +206,18 @@ def generate(path):
                 else f"{file_path.stem}.png"
             )
             img_path = images_dir / img_name
-            create_placeholder_png(img_path)
-            _log_creation(img_path)
+            if not img_path.exists():
+                create_placeholder_png(img_path)
+                _log_creation(img_path)
 
             # Get metadata from scrape cache if available
             desc = None
             rating = 0.0
             marquee = "./images/logo.png"
+            releasedate = None
+            genre = None
+            developer = None
+            publisher = None
 
             if show_cache and meta:
                 # Find episode in cache
@@ -201,11 +229,35 @@ def generate(path):
                         desc = episode.get("overview")
                         # Rating is already normalized 0-1 from scraper
                         rating = episode.get("siteRating", 0.0)
+                        # Format release date
+                        from mpv_scraper.utils import format_release_date
+
+                        releasedate = format_release_date(episode.get("firstAired"))
                         break
 
                 # Get series rating if no episode rating
                 if rating == 0.0:
                     rating = show_cache.get("siteRating", 0.0)
+
+                # Use series firstAired as fallback if episode doesn't have one
+                if not releasedate and show_cache.get("firstAired"):
+                    from mpv_scraper.utils import format_release_date
+
+                    releasedate = format_release_date(show_cache.get("firstAired"))
+
+                # Get series-level metadata
+                if show_cache.get("genre"):
+                    genre = ", ".join(show_cache.get("genre", []))
+                if show_cache.get("network", {}).get("name"):
+                    developer = show_cache.get("network", {}).get("name")
+                if show_cache.get("studio"):
+                    publisher = ", ".join(
+                        [
+                            s.get("name", "")
+                            for s in show_cache.get("studio", [])
+                            if s.get("name")
+                        ]
+                    )
 
             game_entry = {
                 "path": f"./{file_path.relative_to(root)}",
@@ -217,6 +269,14 @@ def generate(path):
 
             if desc:
                 game_entry["desc"] = desc
+            if releasedate:
+                game_entry["releasedate"] = releasedate
+            if genre:
+                game_entry["genre"] = genre
+            if developer:
+                game_entry["developer"] = developer
+            if publisher:
+                game_entry["publisher"] = publisher
 
             games.append(game_entry)
 
@@ -224,33 +284,49 @@ def generate(path):
         write_show_gamelist(games, show_gamelist_path)
         _log_creation(show_gamelist_path)
 
-    # 3. Movies folder (optional)
+    # 4. Movies folder (optional)
     movies_dir = root / "Movies"
     if movies_dir.exists():
         images_dir = movies_dir / "images"
         if not images_dir.exists():
             images_dir.mkdir(parents=True, exist_ok=True)
             _log_creation(images_dir)
-        poster_path = images_dir / "poster.png"
-        create_placeholder_png(poster_path)
-        _log_creation(poster_path)
 
-        # Create placeholder logo for marquee
-        logo_path = images_dir / "logo.png"
-        if not logo_path.exists():
-            create_placeholder_png(logo_path)
-            _log_creation(logo_path)
+        # Copy movies-poster.jpg to top-level images directory if it exists
+        movies_poster_source = root / "public" / "images" / "movies-poster.jpg"
+        if movies_poster_source.exists():
+            top_movies_poster = top_images_dir / "movies-poster.jpg"
+            if not top_movies_poster.exists():
+                import shutil
+
+                shutil.copy2(movies_poster_source, top_movies_poster)
+                _log_creation(top_movies_poster)
+
+            # Also copy to Movies/images/poster.png for consistency
+            movies_poster_dest = images_dir / "poster.png"
+            if not movies_poster_dest.exists():
+                shutil.copy2(movies_poster_source, movies_poster_dest)
+                _log_creation(movies_poster_dest)
+        else:
+            # Fallback: Create a custom movies folder image if the stock image doesn't exist
+            poster_path = images_dir / "poster.png"
+            if not poster_path.exists():
+                from mpv_scraper.images import create_movies_folder_image
+
+                create_movies_folder_image(poster_path)
+                _log_creation(poster_path)
 
         folder_entries.append(
             {
                 "path": "./Movies",
                 "name": "Movies",
-                "image": "./Movies/images/poster.png",
+                "image": (
+                    "./images/movies-poster.jpg"
+                    if (top_images_dir / "movies-poster.jpg").exists()
+                    else "./Movies/images/poster.png"
+                ),
             }
         )
-
-        # Load scrape cache for movies
-        movies_cache = _load_scrape_cache(movies_dir / ".scrape_cache.json")
 
         games = []
         for movie_file in result.movies:
@@ -258,36 +334,73 @@ def generate(path):
             name = meta.title if meta else movie_file.path.stem
             img_name = f"{movie_file.path.stem}.png"
             img_path = images_dir / img_name
-            create_placeholder_png(img_path)
-            _log_creation(img_path)
 
-            # Get metadata from scrape cache if available
+            # Only create placeholder if no real image exists
+            if not img_path.exists():
+                create_placeholder_png(img_path)
+                _log_creation(img_path)
+
+            # Get metadata from individual movie cache if available
             desc = None
             rating = 0.0
-            marquee = "./images/logo.png"
+            marquee = None  # Will be set below if logo exists
+            releasedate = None
+            genre = None
+            developer = None
+            publisher = None
 
-            if movies_cache:
-                desc = movies_cache.get("overview")
+            movie_cache_file = movies_dir / f".scrape_cache_{movie_file.path.stem}.json"
+            movie_cache = _load_scrape_cache(movie_cache_file)
+            if movie_cache:
+                desc = movie_cache.get("overview")
                 # TMDB ratings are already normalized 0-1
-                rating = movies_cache.get("vote_average", 0.0)
+                rating = movie_cache.get("vote_average", 0.0)
+                # Format release date
+                from mpv_scraper.utils import format_release_date
+
+                releasedate = format_release_date(movie_cache.get("release_date"))
+                # Get genre
+                if movie_cache.get("genre_names"):
+                    genre = ", ".join(movie_cache.get("genre_names", []))
+                # Get production company as developer
+                if movie_cache.get("production_company_names"):
+                    developer = movie_cache.get("production_company_names", [])[0]
+                # Get distributor as publisher
+                if movie_cache.get("distributor"):
+                    publisher = movie_cache.get("distributor")
+
+            # Check if movie-specific logo exists
+            logo_name = f"{movie_file.path.stem}-logo.png"
+            logo_path = images_dir / logo_name
+            if logo_path.exists():
+                marquee = f"./images/{logo_name}"
 
             game_entry = {
                 "path": f"./{movie_file.path.relative_to(root)}",
                 "name": name,
                 "image": f"./images/{img_name}",
                 "rating": rating,
-                "marquee": marquee,
             }
 
             if desc:
                 game_entry["desc"] = desc
+            if marquee:
+                game_entry["marquee"] = marquee
+            if releasedate:
+                game_entry["releasedate"] = releasedate
+            if genre:
+                game_entry["genre"] = genre
+            if developer:
+                game_entry["developer"] = developer
+            if publisher:
+                game_entry["publisher"] = publisher
 
             games.append(game_entry)
         movies_gamelist_path = movies_dir / "gamelist.xml"
         write_show_gamelist(games, movies_gamelist_path)
         _log_creation(movies_gamelist_path)
 
-    # 4. Top-level gamelist
+    # 5. Top-level gamelist
     top_gamelist_path = root / "gamelist.xml"
     write_top_gamelist(folder_entries, top_gamelist_path)
     _log_creation(top_gamelist_path)
@@ -301,10 +414,15 @@ def undo():
     from pathlib import Path
     from mpv_scraper.transaction import revert_transaction
 
+    # Look for transaction.log in current directory first, then parent
     log_path = Path("transaction.log")
     if not log_path.exists():
-        click.echo("No transaction.log found in current directory.")
-        return 0
+        log_path = Path("../transaction.log")
+        if not log_path.exists():
+            click.echo(
+                "No transaction.log found in current directory or parent directory."
+            )
+            return 0
     revert_transaction(log_path)
     click.echo("Undo completed.")
 

@@ -87,14 +87,33 @@ def parse_movie_filename(filename: str) -> Optional[MovieMeta]:
     if tv_pattern.search(filename):
         return None
 
-    # Regex to capture movie title and optional year
-    pattern = re.compile(r"^(.+?)(?:\s\((\d{4})\))?(\.\w+)?$")
-    match = pattern.match(Path(filename).stem)
+    # Clean filename by removing quality tags and other metadata
+    clean_filename = Path(filename).stem
 
-    if not match:
+    # First, extract year if present in parentheses
+    year_match = re.search(r"\((\d{4})\)", clean_filename)
+    year = int(year_match.group(1)) if year_match else None
+
+    # Remove year from filename for further cleaning
+    if year_match:
+        clean_filename = clean_filename.replace(year_match.group(0), "")
+
+    # Remove common quality tags and metadata
+    quality_patterns = [
+        r"\s+(?:Bluray|WEBRip|HDRip|BRRip|DVDRip|HDTV|PDTV|WEB-DL|BluRay|Blu-Ray|WEB|HD|1080p|720p|480p|2160p|4K|UHD)",
+        r"\s+(?:x264|x265|HEVC|AVC|AAC|AC3|DTS|FLAC|MP3)",
+        r"\s+(?:REPACK|PROPER|INTERNAL|EXTENDED|DIRFIX|SUBFIX|AUDIOFIX)",
+        r"\s+\[.*?\]",  # Remove anything in brackets
+        r"\s*-\s*(?:1080p|720p|480p|2160p|4K|UHD)",  # Remove quality tags after dashes
+    ]
+
+    for pattern in quality_patterns:
+        clean_filename = re.sub(pattern, "", clean_filename, flags=re.IGNORECASE)
+
+    # Clean up extra spaces and dashes
+    title = clean_filename.strip().rstrip("-").strip()
+
+    if not title:
         return None
-
-    title = match.group(1).strip()
-    year = int(match.group(2)) if match.group(2) else None
 
     return MovieMeta(title=title, year=year)

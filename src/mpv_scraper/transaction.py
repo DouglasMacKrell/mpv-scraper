@@ -44,7 +44,7 @@ class TransactionLogger:
         entry: _LogEntry = {
             "timestamp": time.time(),
             "op": op,
-            "path": str(path),
+            "path": str(path.resolve()),  # Use absolute path
             "backup": backup,
         }
         self.entries.append(entry)

@@ -8,6 +8,14 @@ object listing all discovered media.
 from pathlib import Path
 from .types import ScanResult, ShowDirectory, MovieFile
 
+# Common video file extensions
+VIDEO_EXTENSIONS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v"}
+
+
+def is_video_file(file_path: Path) -> bool:
+    """Check if a file is a video file based on its extension."""
+    return file_path.suffix.lower() in VIDEO_EXTENSIONS
+
 
 def scan_directory(path: Path) -> ScanResult:
     """
@@ -37,13 +45,17 @@ def scan_directory(path: Path) -> ScanResult:
         if item.is_dir():
             if item.name == "Movies":
                 for movie_file in item.iterdir():
-                    if movie_file.is_file() and not movie_file.name.startswith("."):
+                    if (
+                        movie_file.is_file()
+                        and not movie_file.name.startswith(".")
+                        and is_video_file(movie_file)
+                    ):
                         movies.append(MovieFile(path=movie_file))
             else:
                 show_files = [
                     f
                     for f in item.iterdir()
-                    if f.is_file() and not f.name.startswith(".")
+                    if f.is_file() and not f.name.startswith(".") and is_video_file(f)
                 ]
                 if show_files:
                     shows.append(ShowDirectory(path=item, files=show_files))

@@ -22,6 +22,24 @@ def _ensure_relative(path: Path | str) -> str:
     return path_str
 
 
+def _write_xml_with_pretty_print(element: ET.Element, dest: Path) -> None:
+    """Write XML with proper formatting and encoding."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create a pretty-printed XML string
+    rough_string = ET.tostring(element, encoding="unicode")
+
+    # Parse it back to get pretty formatting
+    reparsed = ET.fromstring(rough_string)
+
+    # Write with proper XML declaration and encoding
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+        # Write the element with proper formatting
+        ET.indent(reparsed, space="  ")  # Add indentation
+        f.write(ET.tostring(reparsed, encoding="unicode"))
+
+
 def write_top_gamelist(folders: List[Dict[str, Any]], dest: Path) -> None:
     """Write the top-level ``gamelist.xml``.
 
@@ -42,16 +60,23 @@ def write_top_gamelist(folders: List[Dict[str, Any]], dest: Path) -> None:
         if folder.get("image"):
             ET.SubElement(folder_el, "image").text = _ensure_relative(folder["image"])
 
-    tree = ET.ElementTree(root)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tree.write(dest, encoding="utf-8", xml_declaration=True)
+    _write_xml_with_pretty_print(root, dest)
 
 
 def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
     """Write ``gamelist.xml`` for a specific show or Movies folder.
 
-    Each *game* dict supports ``path`` (str), ``name`` (str), ``desc`` (str),
-    and ``image`` (str).  Desc and image are optional but recommended.
+    Each *game* dict supports:
+    - ``path`` (str): Path to the media file
+    - ``name`` (str): Display name
+    - ``desc`` (str): Description (optional)
+    - ``image`` (str): Path to poster image (optional)
+    - ``rating`` (float): Rating 0.0-1.0 (optional)
+    - ``marquee`` (str): Path to logo image (optional)
+    - ``releasedate`` (str): Release date in YYYYMMDDT000000 format (optional)
+    - ``developer`` (str): Production company/Network (optional)
+    - ``publisher`` (str): Distributor/Studio (optional)
+    - ``genre`` (str): Genre (optional)
     """
 
     root = ET.Element("gameList")
@@ -71,7 +96,13 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
             ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
         if game.get("marquee"):
             ET.SubElement(game_el, "marquee").text = _ensure_relative(game["marquee"])
+        if game.get("releasedate"):
+            ET.SubElement(game_el, "releasedate").text = game["releasedate"]
+        if game.get("developer"):
+            ET.SubElement(game_el, "developer").text = game["developer"]
+        if game.get("publisher"):
+            ET.SubElement(game_el, "publisher").text = game["publisher"]
+        if game.get("genre"):
+            ET.SubElement(game_el, "genre").text = game["genre"]
 
-    tree = ET.ElementTree(root)
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    tree.write(dest, encoding="utf-8", xml_declaration=True)
+    _write_xml_with_pretty_print(root, dest)

@@ -7,6 +7,7 @@ from typing import Any, Callable, Final, Type, Union
 __all__ = [
     "normalize_rating",
     "retry_with_backoff",
+    "format_release_date",
 ]
 
 _MAX_RAW: Final[float] = 10.0
@@ -83,3 +84,35 @@ def retry_with_backoff(
         return wrapper
 
     return decorator
+
+
+def format_release_date(date_str: str | None) -> str | None:
+    """Convert a date string to EmulationStation format (YYYYMMDDT000000).
+
+    Parameters
+    ----------
+    date_str
+        Date string in YYYY-MM-DD format (e.g., "2023-01-15")
+
+    Returns
+    -------
+    str | None
+        Date in EmulationStation format (YYYYMMDDT000000) or None if invalid
+    """
+    if not date_str:
+        return None
+
+    try:
+        # Parse YYYY-MM-DD format
+        if len(date_str) >= 10 and date_str[4] == "-" and date_str[7] == "-":
+            year = date_str[:4]
+            month = date_str[5:7]
+            day = date_str[8:10]
+
+            # Validate components
+            if year.isdigit() and month.isdigit() and day.isdigit():
+                return f"{year}{month}{day}T000000"
+    except (IndexError, ValueError):
+        pass
+
+    return None

@@ -248,6 +248,8 @@ api_keys.txt
 *.gif
 *.bmp
 *.webp
+# Allow program assets
+!public/images/movies-poster.jpg
 
 # Scraped data and output
 gamelist.xml

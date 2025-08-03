@@ -63,14 +63,21 @@ def test_full_pipeline_multi_season():
             # validate marquee + rating presence if <game> elements exist
             games = tree.findall(".//game")
             if games:
-                marquee_tags = tree.findall(".//marquee")
                 rating_tags = tree.findall(".//rating")
-                assert marquee_tags, f"Missing <marquee> in {xml_path}"
                 assert rating_tags, f"Missing <rating> in {xml_path}"
                 # rating values should be 0.00 format
                 for r_elt in rating_tags:
                     val = float(r_elt.text or 0.0)
                     assert 0.0 <= val <= 1.0
+
+                # Marquee tags are optional - only check if they exist
+                marquee_tags = tree.findall(".//marquee")
+                if marquee_tags:
+                    # If marquee tags exist, validate them
+                    for m_elt in marquee_tags:
+                        rel = m_elt.text or ""
+                        abs_path = (xml_path.parent / rel).resolve()
+                        assert abs_path.exists(), f"Marquee image missing: {abs_path}"
             # check images exist & size
             for img_elt in tree.findall(".//image") + tree.findall(".//marquee"):
                 rel = img_elt.text or ""

@@ -21,6 +21,7 @@ __all__ = [
     "download_image",
     "ensure_png_size",
     "create_placeholder_png",
+    "create_movies_folder_image",
     "download_marquee",
 ]
 
@@ -31,7 +32,7 @@ PNG_MODE: Final[str] = "RGBA"
 @retry_with_backoff(
     max_attempts=3, base_delay=1.0, exceptions=(requests.RequestException,)
 )
-def download_image(url: str, dest: Path) -> None:
+def download_image(url: str, dest: Path, headers: dict = None) -> None:
     """Download an image and save it as PNG.
 
     The function will create the *parent* directories for *dest* if they do
@@ -43,6 +44,8 @@ def download_image(url: str, dest: Path) -> None:
         The remote image URL.
     dest:
         Full destination path, including the desired ``.png`` filename.
+    headers:
+        Optional HTTP headers for authentication (e.g., for TVDB artwork).
 
     Raises
     ------
@@ -58,7 +61,7 @@ def download_image(url: str, dest: Path) -> None:
 
     dest.parent.mkdir(parents=True, exist_ok=True)
 
-    response = requests.get(url, timeout=15)
+    response = requests.get(url, timeout=15, headers=headers)
     response.raise_for_status()
 
     # Load the image into Pillow.
@@ -77,7 +80,7 @@ def download_image(url: str, dest: Path) -> None:
 @retry_with_backoff(
     max_attempts=3, base_delay=1.0, exceptions=(requests.RequestException,)
 )
-def download_marquee(url: str, dest: Path) -> None:
+def download_marquee(url: str, dest: Path, headers: dict = None) -> None:
     """Download a logo image suitable for the <marquee> XML tag.
 
     This is a thin wrapper around :pyfunc:`download_image` that additionally
@@ -86,7 +89,7 @@ def download_marquee(url: str, dest: Path) -> None:
     """
 
     # Re-use the core download logic and then ensure constraints.
-    download_image(url, dest)
+    download_image(url, dest, headers)
     ensure_png_size(dest)
 
 
@@ -150,3 +153,68 @@ def create_placeholder_png(
 
     # Final sanity: enforce size limit.
     ensure_png_size(dest)  # guarantee size constraints
+
+
+def create_movies_folder_image(dest: Path) -> None:
+    """Create a movies folder image with a film reel icon.
+
+    This creates a proper movies folder image instead of a placeholder.
+    The image will be a film reel icon on a dark background.
+    """
+    # Ensure the path has a .png suffix for consistency.
+    if dest.suffix.lower() != ".png":
+        dest = dest.with_suffix(".png")
+
+    dest.parent.mkdir(parents=True, exist_ok=True)
+
+    # Create a 400x300 image with a dark background
+    width, height = 400, 300
+    img = Image.new("RGBA", (width, height), (20, 20, 20, 255))
+
+    # Draw a simple film reel icon (simplified representation)
+    # This is a basic implementation - you could make it more sophisticated
+    from PIL import ImageDraw
+
+    draw = ImageDraw.Draw(img)
+
+    # Draw a large circle for the film reel
+    center_x, center_y = width // 2, height // 2
+    radius = 80
+    draw.ellipse(
+        [center_x - radius, center_y - radius, center_x + radius, center_y + radius],
+        outline=(255, 255, 255, 255),
+        width=3,
+    )
+
+    # Draw small circles around the edge (film perforations)
+    for i in range(8):
+        angle = i * (360 / 8)
+        x = center_x + int(radius * 0.8 * (angle / 360) * 2 * 3.14159)
+        y = center_y + int(radius * 0.8 * (angle / 360) * 2 * 3.14159)
+        draw.ellipse([x - 5, y - 5, x + 5, y + 5], fill=(255, 255, 255, 255))
+
+    # Add "MOVIES" text
+    try:
+        from PIL import ImageFont
+
+        # Try to use a system font, fallback to default if not available
+        try:
+            font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 36)
+        except Exception:
+            font = ImageFont.load_default()
+        draw.text(
+            (center_x - 60, center_y + radius + 20),
+            "MOVIES",
+            fill=(255, 255, 255, 255),
+            font=font,
+        )
+    except ImportError:
+        # If ImageFont is not available, just draw text without font
+        draw.text(
+            (center_x - 60, center_y + radius + 20), "MOVIES", fill=(255, 255, 255, 255)
+        )
+
+    img.save(dest, format="PNG", optimize=True)
+
+    # Ensure size constraints
+    ensure_png_size(dest)

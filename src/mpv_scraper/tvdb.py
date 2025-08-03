@@ -57,11 +57,12 @@ def authenticate_tvdb() -> str:
         return cached_token["token"]
 
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+    # Use legacy v3 API instead of v4
     response = requests.post(
-        "https://api4.thetvdb.com/v4/login", json={"apikey": api_key}, timeout=10
+        "https://api.thetvdb.com/login", json={"apikey": api_key}, timeout=10
     )
     response.raise_for_status()
-    token = response.json()["data"]["token"]
+    token = response.json()["token"]
 
     # Cache the new token
     _set_to_cache("tvdb_token", {"token": token})
@@ -81,7 +82,7 @@ def search_show(name: str, token: str) -> List[Dict[str, Any]]:
         A list of candidate shows from the API.
     """
     headers = {"Authorization": f"Bearer {token}"}
-    params = {"query": name}
+    params = {"name": name}
 
     # Check cache
     cache_key = f"search_{name.lower().replace(' ', '_')}"
@@ -90,8 +91,12 @@ def search_show(name: str, token: str) -> List[Dict[str, Any]]:
         return cached_search
 
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+    # Use legacy v3 API instead of v4
     response = requests.get(
-        "https://api4.thetvdb.com/v4/search", headers=headers, params=params, timeout=10
+        "https://api.thetvdb.com/search/series",
+        headers=headers,
+        params=params,
+        timeout=10,
     )
     response.raise_for_status()
     search_results = response.json().get("data", [])
@@ -143,6 +148,7 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     Returns:
         A dictionary containing the full series record, or None if not found.
     """
+    # Based on namegnome working implementation, use legacy v3 API
     headers = {"Authorization": f"Bearer {token}"}
 
     # Check cache
@@ -152,40 +158,102 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
         return cached_record
 
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
-    response = requests.get(
-        f"https://api4.thetvdb.com/v4/series/{series_id}/extended",
+
+    # Legacy v3 API - get series and episodes separately
+    series_response = requests.get(
+        f"https://api.thetvdb.com/series/{series_id}",
         headers=headers,
         timeout=10,
     )
 
-    if response.status_code == 404:
+    if series_response.status_code == 404:
         return None
 
-    response.raise_for_status()
-    record = response.json().get("data")
+    series_response.raise_for_status()
+    series_data = series_response.json().get("data", {})
+
+    # Get episodes
+    episodes_response = requests.get(
+        f"https://api.thetvdb.com/series/{series_id}/episodes",
+        headers=headers,
+        timeout=10,
+    )
+    episodes_response.raise_for_status()
+    episodes_data = episodes_response.json().get("data", [])
+
+    # Get image URLs from series data
+    poster_url = None
+    logo_url = None
+    if series_data.get("poster"):
+        poster_url = f"https://www.thetvdb.com/banners/{series_data.get('poster')}"
+
+    # Get ClearLogo from artwork endpoint
+    try:
+        artwork_response = requests.get(
+            f"https://api.thetvdb.com/series/{series_id}/images/query?keyType=clearlogo",
+            headers=headers,
+            timeout=10,
+        )
+        if artwork_response.status_code == 200:
+            artwork_data = artwork_response.json().get("data", [])
+            if artwork_data:
+                # Get the first ClearLogo (usually the best one)
+                logo_url = f"https://www.thetvdb.com/banners/{artwork_data[0].get('fileName', '')}"
+    except Exception:
+        # Fallback to banner if ClearLogo fetch fails
+        if series_data.get("banner"):
+            logo_url = f"https://www.thetvdb.com/banners/{series_data.get('banner')}"
+
+    # Transform episodes to match expected format
+    transformed_episodes = []
+    for ep in episodes_data:
+        if isinstance(ep, dict):
+            # Get episode image from filename field
+            episode_image = None
+            if ep.get("filename"):
+                episode_image = f"https://www.thetvdb.com/banners/{ep.get('filename')}"
+
+            transformed_ep = {
+                "seasonNumber": ep.get("airedSeason"),
+                "number": ep.get("airedEpisodeNumber"),
+                "image": episode_image,  # Use episode image from filename field
+                "overview": ep.get("overview")
+                or ep.get("synopsis")
+                or ep.get("shortDescription")
+                or "",
+                "episodeName": ep.get("episodeName", ""),
+                "id": ep.get("id"),
+                "firstAired": ep.get("firstAired"),  # Air date for release date
+            }
+            transformed_episodes.append(transformed_ep)
+
+    # Transform series data to match expected format
+    transformed_series = {
+        "id": series_data.get("id"),
+        "name": series_data.get("seriesName"),
+        "overview": series_data.get("overview") or series_data.get("synopsis") or "",
+        "siteRating": series_data.get("siteRating"),
+        "image": poster_url,  # Use poster from artwork API
+        "artworks": {"clearLogo": logo_url},  # Use logo from artwork API
+        "episodes": transformed_episodes,
+        # Additional metadata for EmulationStation
+        "genre": series_data.get("genre", []),  # List of genres
+        "network": {
+            "name": series_data.get("network", "")
+        },  # Network as string, convert to object
+        "firstAired": series_data.get("firstAired"),  # Series first aired date
+        # Note: studio information is not available in the basic series response
+    }
+
+    # Combine into expected format
+    record = transformed_series
 
     if record:
         # Normalize siteRating (0-10) ➜ 0-1
-        from mpv_scraper.utils import normalize_rating  # type: ignore
+        from mpv_scraper.utils import normalize_rating
 
         rating_raw = record.get("siteRating")
         record["siteRating"] = normalize_rating(rating_raw)
-
-        # Ensure long descriptions are present. If an episode is missing an
-        # ``overview`` field we fall back to the shorter ``synopsis`` or
-        # ``shortDescription`` keys when available.
-        episodes = record.get("episodes", [])
-        for ep in episodes:
-            if not ep.get("overview"):
-                fallback = ep.get("synopsis") or ep.get("shortDescription")
-                if fallback:
-                    ep["overview"] = fallback
-
-        # Fallback for the series-level overview as well.
-        if not record.get("overview"):
-            record["overview"] = (
-                record.get("synopsis") or record.get("shortDescription") or ""
-            )
 
         _set_to_cache(cache_key, record)
 

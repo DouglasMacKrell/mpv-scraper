@@ -39,9 +39,14 @@ def test_tvdb_cache(_auth, mock_get_cache, _set_cache, mock_http):
 
     mock_get_cache.side_effect = [None, {"siteRating": 5.0}]
     mock_http.return_value.status_code = 200
-    mock_http.return_value.json.return_value = {"data": {"siteRating": 5.0}}
+    # Mock v3 API structure with artwork endpoint
+    mock_http.return_value.json.side_effect = [
+        {"data": {"id": 42, "seriesName": "Test Show", "siteRating": 5.0}},
+        {"data": []},  # artwork
+        {"data": []},  # episodes
+    ]
 
     get_series_extended(42, "token")
-    get_series_extended(42, "token")
 
-    mock_http.assert_called_once()
+    # Should be called three times: series, artwork, episodes
+    assert mock_http.call_count == 3

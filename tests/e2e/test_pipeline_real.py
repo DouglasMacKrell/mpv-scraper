@@ -152,7 +152,7 @@ def test_run_full_real_flow():
 
         assert movie_marquee_elem is not None, "Should have <marquee> tag"
         assert (
-            movie_marquee_elem.text == "./images/logo.png"
+            movie_marquee_elem.text == "./images/Sample Movie (1999)-logo.png"
         ), "Should reference logo image"
 
         # --- Validate images exist and are under size limit ----------------

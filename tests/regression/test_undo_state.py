@@ -1,5 +1,6 @@
 from pathlib import Path
 import shutil
+from unittest.mock import patch
 
 from click.testing import CliRunner
 
@@ -48,10 +49,13 @@ def test_run_then_undo_restores_checksum(tmp_path: Path, monkeypatch):
 
     runner = CliRunner()
 
-    # 4. Run the full workflow
-    result_run = runner.invoke(cli_main, ["run", str(dst_library)])
-    assert result_run.exit_code == 0, result_run.output
-    assert (dst_library / "transaction.log").exists()
+    # 4. Run the full workflow with mocked scrapers to prevent real API calls
+    with patch("mpv_scraper.scraper.scrape_tv"), patch(
+        "mpv_scraper.scraper.scrape_movie"
+    ):
+        result_run = runner.invoke(cli_main, ["run", str(dst_library)])
+        assert result_run.exit_code == 0, result_run.output
+        assert (dst_library / "transaction.log").exists()
 
     # 5. Undo inside the library directory
     # Change working directory to the library root before undo

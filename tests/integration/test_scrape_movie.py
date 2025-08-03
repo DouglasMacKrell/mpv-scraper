@@ -59,11 +59,11 @@ def test_movie_metadata_downloaded(mock_tmdb, mock_dl, mock_marquee, tmp_path: P
     assert images_dir.exists(), "Images directory should be created"
 
     # Assert poster downloaded
-    poster_path = images_dir / "Back to the Future.png"
+    poster_path = images_dir / "Back to the Future (1985).png"
     assert poster_path.exists(), "Poster should be downloaded"
 
     # Assert logo downloaded
-    logo_path = images_dir / "logo.png"
+    logo_path = images_dir / "Back to the Future (1985)-logo.png"
     assert logo_path.exists(), "Logo should be downloaded"
 
     # Verify TMDB was called correctly
@@ -109,11 +109,11 @@ def test_movie_scraping_no_collection_logo(
     assert cache_path.exists(), "Cache JSON should be saved"
 
     # Assert poster downloaded
-    poster_path = movie_file.parent / "images" / "The Matrix.png"
+    poster_path = movie_file.parent / "images" / "The Matrix (1999).png"
     assert poster_path.exists(), "Poster should be downloaded"
 
     # Assert logo was NOT downloaded (no collection)
-    logo_path = movie_file.parent / "images" / "logo.png"
+    logo_path = movie_file.parent / "images" / "The Matrix (1999)-logo.png"
     assert not logo_path.exists(), "Logo should not be downloaded when no collection"
 
     # Verify download_marquee was not called

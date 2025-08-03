@@ -28,12 +28,22 @@ def test_episode_description_fallback(
     monkeypatch.setenv("TVDB_API_KEY", "dummy")
 
     mock_get.return_value.status_code = 200
-    mock_get.return_value.json.return_value = {
-        "data": {
-            "siteRating": 5.0,
-            "episodes": [{"id": 1, "overview": "", "synopsis": "A short synopsis."}],
-        }
-    }
+    # Mock series, artwork, and episodes calls with v3 API structure
+    mock_get.return_value.json.side_effect = [
+        {"data": {"id": 99, "seriesName": "Test Show", "siteRating": 5.0}},
+        {"data": [{"keyType": "poster", "fileName": "/poster.jpg"}]},
+        {
+            "data": [
+                {
+                    "id": 1,
+                    "airedSeason": 1,
+                    "airedEpisodeNumber": 1,
+                    "overview": "",
+                    "synopsis": "A short synopsis.",
+                }
+            ]
+        },
+    ]
 
     record = get_series_extended(99, "token")
     assert record["episodes"][0]["overview"] == "A short synopsis."
