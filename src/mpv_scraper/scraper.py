@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Union
 
 from mpv_scraper.images import download_image, download_marquee
 from mpv_scraper.utils import normalize_rating
@@ -67,7 +67,7 @@ def scrape_tv(
         transaction_logger.log_create(images_dir)
 
     # 2. Poster
-    poster_url: str | None = record.get("image")
+    poster_url: Union[str, None] = record.get("image")
     if poster_url:
         try:
             logger.info(f"Downloading poster for {show_dir.name}")
@@ -86,7 +86,7 @@ def scrape_tv(
             logger.info(f"Created placeholder poster for {show_dir.name}")
 
     # 3. Logo (clearLogo)
-    logo_url: str | None = (
+    logo_url: Union[str, None] = (
         record.get("artworks", {}).get("clearLogo") if record.get("artworks") else None
     )
     if logo_url:

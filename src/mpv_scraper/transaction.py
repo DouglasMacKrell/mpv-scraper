@@ -10,7 +10,7 @@ import json
 import shutil
 import time
 from pathlib import Path
-from typing import Literal, TypedDict, List
+from typing import Literal, TypedDict, List, Union
 
 OperationType = Literal["create", "modify"]
 
@@ -19,7 +19,7 @@ class _LogEntry(TypedDict):
     timestamp: float
     op: OperationType
     path: str
-    backup: str | None
+    backup: Union[str, None]
 
 
 class TransactionLogger:
@@ -40,7 +40,7 @@ class TransactionLogger:
 
     # ------------------------------------------------------------------
     # Internals
-    def _record(self, op: OperationType, path: Path, backup: str | None):
+    def _record(self, op: OperationType, path: Path, backup: Union[str, None]):
         entry: _LogEntry = {
             "timestamp": time.time(),
             "op": op,

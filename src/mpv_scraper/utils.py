@@ -86,7 +86,7 @@ def retry_with_backoff(
     return decorator
 
 
-def format_release_date(date_str: str | None) -> str | None:
+def format_release_date(date_str: Union[str, None]) -> Union[str, None]:
     """Convert a date string to EmulationStation format (YYYYMMDDT000000).
 
     Parameters
@@ -96,7 +96,7 @@ def format_release_date(date_str: str | None) -> str | None:
 
     Returns
     -------
-    str | None
+    Union[str, None]
         Date in EmulationStation format (YYYYMMDDT000000) or None if invalid
     """
     if not date_str:
