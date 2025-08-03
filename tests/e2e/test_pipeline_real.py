@@ -73,17 +73,17 @@ def test_run_full_real_flow():
                 "title": "Sample Movie",
                 "overview": "This is a test movie description.",
                 "vote_average": 0.75,  # Already normalized
-                "poster_path": "/poster.jpg",
-                "belongs_to_collection": {"poster_path": "/logo.png"},
+                "poster_url": "https://image.tmdb.org/t/p/original/poster.jpg",
+                "logo_url": "https://image.tmdb.org/t/p/original/logo.png",
             }
 
             # Mock image downloads to create real files
             from PIL import Image
 
-            mock_dl.side_effect = lambda url, dest: Image.new(
+            mock_dl.side_effect = lambda url, dest, headers=None: Image.new(
                 "RGBA", (32, 32), (0, 0, 0, 0)
             ).save(dest, format="PNG")
-            mock_marquee.side_effect = lambda url, dest: Image.new(
+            mock_marquee.side_effect = lambda url, dest, headers=None: Image.new(
                 "RGBA", (32, 32), (0, 0, 0, 0)
             ).save(dest, format="PNG")
 

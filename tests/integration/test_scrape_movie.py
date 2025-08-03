@@ -33,17 +33,17 @@ def test_movie_metadata_downloaded(mock_tmdb, mock_dl, mock_marquee, tmp_path: P
         "title": "Back to the Future",
         "overview": "A teenager is accidentally sent 30 years into the past...",
         "vote_average": 0.85,  # Already normalized
-        "poster_path": "/poster.jpg",
-        "belongs_to_collection": {"poster_path": "/logo.png"},
+        "poster_url": "https://image.tmdb.org/t/p/original/poster.jpg",
+        "logo_url": "https://image.tmdb.org/t/p/original/logo.png",
     }
 
     # Create proper PNG files for the mocks
     from PIL import Image
 
-    mock_dl.side_effect = lambda url, dest: Image.new(
+    mock_dl.side_effect = lambda url, dest, headers=None: Image.new(
         "RGBA", (32, 32), (0, 0, 0, 0)
     ).save(dest, format="PNG")
-    mock_marquee.side_effect = lambda url, dest: Image.new(
+    mock_marquee.side_effect = lambda url, dest, headers=None: Image.new(
         "RGBA", (32, 32), (0, 0, 0, 0)
     ).save(dest, format="PNG")
 
@@ -90,14 +90,14 @@ def test_movie_scraping_no_collection_logo(
         "title": "The Matrix",
         "overview": "A computer hacker learns from mysterious rebels...",
         "vote_average": 0.84,
-        "poster_path": "/poster.jpg",
-        # No belongs_to_collection
+        "poster_url": "https://image.tmdb.org/t/p/original/poster.jpg",
+        # No logo_url
     }
 
     # Create proper PNG files for the mocks
     from PIL import Image
 
-    mock_dl.side_effect = lambda url, dest: Image.new(
+    mock_dl.side_effect = lambda url, dest, headers=None: Image.new(
         "RGBA", (32, 32), (0, 0, 0, 0)
     ).save(dest, format="PNG")
 

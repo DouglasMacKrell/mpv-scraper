@@ -76,8 +76,8 @@ def test_movie_missing_artwork_placeholder():
                 "title": "Test Movie",
                 "overview": "Test movie description",
                 "vote_average": 0.75,
-                "poster_path": None,  # No poster URL
-                "belongs_to_collection": None,  # No collection/logo
+                "poster_url": None,  # No poster URL
+                "logo_url": None,  # No logo URL
             }
 
             # This should not crash - should handle missing artwork gracefully

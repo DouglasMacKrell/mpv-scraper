@@ -223,8 +223,8 @@ def scrape_movie(
             logger.info(f"Skipped logo for {movie_meta.title}")
 
     # 7. Cache raw record for later generate step
-    # Store each movie's data in a separate cache file to avoid overwriting
-    movie_cache_file = movie_path.parent / f".scrape_cache_{movie_path.stem}.json"
+    # Store in standard .scrape_cache.json file for consistency with TV shows
+    movie_cache_file = movie_path.parent / ".scrape_cache.json"
     _safe_write_json(movie_cache_file, record)
     if transaction_logger:
         transaction_logger.log_create(movie_cache_file)

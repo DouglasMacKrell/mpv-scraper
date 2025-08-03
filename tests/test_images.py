@@ -40,7 +40,9 @@ def test_download_and_convert_png(mock_get, tmp_path: Path, monkeypatch):
         assert img.format == "PNG"
         assert img.size == (10, 10)
 
-    mock_get.assert_called_once_with("https://example.com/test.jpg", timeout=15)
+    mock_get.assert_called_once_with(
+        "https://example.com/test.jpg", timeout=15, headers=None
+    )
 
 
 def test_resize_under_threshold(tmp_path: Path):
