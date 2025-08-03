@@ -349,7 +349,7 @@ def generate(path):
             developer = None
             publisher = None
 
-            movie_cache_file = movies_dir / f".scrape_cache_{movie_file.path.stem}.json"
+            movie_cache_file = movies_dir / ".scrape_cache.json"
             movie_cache = _load_scrape_cache(movie_cache_file)
             if movie_cache:
                 desc = movie_cache.get("overview")

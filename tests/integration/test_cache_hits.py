@@ -17,7 +17,10 @@ def test_tmdb_cache(mock_get_cache, _set_cache, mock_http):
     from mpv_scraper.tmdb import get_movie_details
 
     # First call: no cache; Second call: cached dict returned
-    mock_get_cache.side_effect = [None, {"vote_average": 7.5, "id": 123}]
+    mock_get_cache.side_effect = [
+        None,
+        {"vote_average": 7.5, "id": 123, "overview": "Test movie"},
+    ]
 
     mock_http.return_value.status_code = 200
     mock_http.return_value.json.return_value = {"vote_average": 7.5}

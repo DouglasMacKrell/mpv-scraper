@@ -38,7 +38,7 @@ def test_episode_description_fallback(
                     "id": 1,
                     "airedSeason": 1,
                     "airedEpisodeNumber": 1,
-                    "overview": "",
+                    "overview": None,  # Explicitly None to test fallback
                     "synopsis": "A short synopsis.",
                 }
             ]
