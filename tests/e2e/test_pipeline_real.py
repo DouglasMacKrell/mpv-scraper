@@ -152,8 +152,8 @@ def test_run_full_real_flow():
 
         assert movie_marquee_elem is not None, "Should have <marquee> tag"
         assert (
-            movie_marquee_elem.text == "./images/Sample Movie (1999)-logo.png"
-        ), "Should reference logo image"
+            movie_marquee_elem.text == "./images/Sample Movie (1999)-marquee.png"
+        ), "Should reference marquee image"
 
         # --- Validate images exist and are under size limit ----------------
         for xml_path in [show_gamelist, movies_gamelist]:
