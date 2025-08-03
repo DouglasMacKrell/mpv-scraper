@@ -44,6 +44,7 @@ def scrape_tv(
         Optional transaction logger for undo operations.
     """
 
+    # Try TVDB first
     token = tvdb.authenticate_tvdb()
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -56,6 +57,27 @@ def scrape_tv(
     record = tvdb.get_series_extended(series_id, token)
     if not record:
         raise RuntimeError(f"Failed to fetch extended record for id {series_id}")
+
+    # Check if TVDB has poor logo data and try TMDB fallback
+    has_good_logo = bool(record.get("artworks", {}).get("clearLogo"))
+    if not has_good_logo:
+        logger.info(f"TVDB has no logo for {show_dir.name}, trying TMDB fallback...")
+        try:
+            from .fallback import FallbackScraper
+
+            fallback_scraper = FallbackScraper()
+            tmdb_record = fallback_scraper._try_tmdb_for_tv_show(show_dir.name)
+            if tmdb_record and tmdb_record.get("artworks", {}).get("clearLogo"):
+                logger.info(f"✓ TMDB fallback found logo for {show_dir.name}")
+                # Merge TMDB logo into TVDB record
+                if not record.get("artworks"):
+                    record["artworks"] = {}
+                record["artworks"]["clearLogo"] = tmdb_record["artworks"]["clearLogo"]
+                record["source"] = "tvdb_with_tmdb_logo_fallback"
+            else:
+                logger.info(f"TMDB fallback also has no logo for {show_dir.name}")
+        except Exception as e:
+            logger.warning(f"TMDB fallback failed for {show_dir.name}: {e}")
 
     # Normalise rating if present
     if "siteRating" in record:
