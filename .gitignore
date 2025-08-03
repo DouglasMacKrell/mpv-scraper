@@ -235,6 +235,8 @@ api_keys.txt
 *.mp4
 # Allow mock media samples in test fixtures
 !mocks/**/*.mp4
+# Ignore example gamelist files
+mocks/example_gamelists/
 *.mkv
 *.avi
 *.mov

@@ -59,7 +59,8 @@ class TestGenerateExtendedMetadata:
             images_dir.mkdir()
             (images_dir / "poster.png").touch()
             (images_dir / "logo.png").touch()
-            (images_dir / "S01E01.png").touch()
+            (images_dir / "S01E01-image.png").touch()
+            (images_dir / "S01E01-thumb.png").touch()
 
             # Mock the scan_directory function to return our test data
             with patch("mpv_scraper.scanner.scan_directory") as mock_scan:
@@ -96,7 +97,7 @@ class TestGenerateExtendedMetadata:
             )
             assert game.find("name").text == "Pilot – S01E01"
             assert game.find("desc").text == "A pilot episode"
-            assert game.find("image").text == "./images/S01E01.png"
+            assert game.find("image").text == "./images/S01E01-image.png"
             assert game.find("rating").text == "0.75"
             assert game.find("marquee").text == "./images/logo.png"
 
@@ -140,7 +141,8 @@ class TestGenerateExtendedMetadata:
             # Create images directory and placeholder images
             images_dir = movies_dir / "images"
             images_dir.mkdir()
-            (images_dir / "Test Movie (2023).png").touch()
+            (images_dir / "Test Movie (2023)-image.png").touch()
+            (images_dir / "Test Movie (2023)-thumb.png").touch()
             (images_dir / "Test Movie (2023)-logo.png").touch()
 
             # Mock the scan_directory function to return our test data
@@ -175,7 +177,7 @@ class TestGenerateExtendedMetadata:
             assert game.find("path").text == "./Movies/Test Movie (2023).mp4"
             assert game.find("name").text == "Test Movie"
             assert game.find("desc").text == "A test movie"
-            assert game.find("image").text == "./images/Test Movie (2023).png"
+            assert game.find("image").text == "./images/Test Movie (2023)-image.png"
             assert game.find("rating").text == "0.85"
             assert game.find("marquee").text == "./images/Test Movie (2023)-logo.png"
 

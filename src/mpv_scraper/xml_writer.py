@@ -77,6 +77,14 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
     - ``developer`` (str): Production company/Network (optional)
     - ``publisher`` (str): Distributor/Studio (optional)
     - ``genre`` (str): Genre (optional)
+    - ``video`` (str): Path to video preview/trailer (optional)
+    - ``thumbnail`` (str): Path to thumbnail image (optional)
+    - ``fanart`` (str): Path to fan art (optional)
+    - ``titleshot`` (str): Path to title shot (optional)
+    - ``lang`` (str): Language code (optional)
+    - ``region`` (str): Region code (optional)
+    - ``favorite`` (bool): Favorite status (optional)
+    - ``hidden`` (bool): Hidden status (optional)
     """
 
     root = ET.Element("gameList")
@@ -85,6 +93,8 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
         game_el = ET.SubElement(root, "game")
         ET.SubElement(game_el, "path").text = _ensure_relative(game["path"])
         ET.SubElement(game_el, "name").text = game["name"]
+
+        # Core metadata fields
         if game.get("desc"):
             ET.SubElement(game_el, "desc").text = game["desc"]
         if game.get("image"):
@@ -104,5 +114,27 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
             ET.SubElement(game_el, "publisher").text = game["publisher"]
         if game.get("genre"):
             ET.SubElement(game_el, "genre").text = game["genre"]
+
+        # Additional EmulationStation fields
+        if game.get("video"):
+            ET.SubElement(game_el, "video").text = _ensure_relative(game["video"])
+        if game.get("thumbnail"):
+            ET.SubElement(game_el, "thumbnail").text = _ensure_relative(
+                game["thumbnail"]
+            )
+        if game.get("fanart"):
+            ET.SubElement(game_el, "fanart").text = _ensure_relative(game["fanart"])
+        if game.get("titleshot"):
+            ET.SubElement(game_el, "titleshot").text = _ensure_relative(
+                game["titleshot"]
+            )
+        if game.get("lang"):
+            ET.SubElement(game_el, "lang").text = game["lang"]
+        if game.get("region"):
+            ET.SubElement(game_el, "region").text = game["region"]
+        if game.get("favorite") is not None:
+            ET.SubElement(game_el, "favorite").text = str(game["favorite"]).lower()
+        if game.get("hidden") is not None:
+            ET.SubElement(game_el, "hidden").text = str(game["hidden"]).lower()
 
     _write_xml_with_pretty_print(root, dest)

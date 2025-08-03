@@ -201,23 +201,48 @@ def generate(path):
                 name = file_path.stem
 
             img_name = (
-                f"S{meta.season:02d}E{meta.start_ep:02d}.png"
+                f"S{meta.season:02d}E{meta.start_ep:02d}-image.png"
                 if meta
-                else f"{file_path.stem}.png"
+                else f"{file_path.stem}-image.png"
             )
             img_path = images_dir / img_name
             if not img_path.exists():
                 create_placeholder_png(img_path)
                 _log_creation(img_path)
 
+            # Create thumbnail version
+            thumb_name = (
+                f"S{meta.season:02d}E{meta.start_ep:02d}-thumb.png"
+                if meta
+                else f"{file_path.stem}-thumb.png"
+            )
+            thumb_path = images_dir / thumb_name
+            if not thumb_path.exists():
+                create_placeholder_png(thumb_path)
+                _log_creation(thumb_path)
+
             # Get metadata from scrape cache if available
             desc = None
             rating = 0.0
-            marquee = "./images/logo.png"
+            marquee = (
+                "./images/logo.png"  # Will be updated below if proper marquee exists
+            )
             releasedate = None
             genre = None
             developer = None
             publisher = None
+            video = None
+            lang = "en"
+
+            # Check if show-specific marquee exists
+            marquee_path = images_dir / "logo.png"
+            if marquee_path.exists():
+                marquee = "./images/logo.png"
+            else:
+                # Try the proper EmulationStation naming convention
+                proper_marquee_path = images_dir / f"{show.path.name}-marquee.png"
+                if proper_marquee_path.exists():
+                    marquee = f"./images/{show.path.name}-marquee.png"
 
             if show_cache and meta:
                 # Find episode in cache
@@ -265,6 +290,8 @@ def generate(path):
                 "image": f"./images/{img_name}",
                 "rating": rating,
                 "marquee": marquee,
+                "thumbnail": f"./images/{thumb_name}",
+                "lang": lang,
             }
 
             if desc:
@@ -277,6 +304,8 @@ def generate(path):
                 game_entry["developer"] = developer
             if publisher:
                 game_entry["publisher"] = publisher
+            if video:
+                game_entry["video"] = video
 
             games.append(game_entry)
 
@@ -332,13 +361,20 @@ def generate(path):
         for movie_file in result.movies:
             meta = parse_movie_filename(movie_file.path.name)
             name = meta.title if meta else movie_file.path.stem
-            img_name = f"{movie_file.path.stem}.png"
+            img_name = f"{movie_file.path.stem}-image.png"
             img_path = images_dir / img_name
 
             # Only create placeholder if no real image exists
             if not img_path.exists():
                 create_placeholder_png(img_path)
                 _log_creation(img_path)
+
+            # Create thumbnail version
+            thumb_name = f"{movie_file.path.stem}-thumb.png"
+            thumb_path = images_dir / thumb_name
+            if not thumb_path.exists():
+                create_placeholder_png(thumb_path)
+                _log_creation(thumb_path)
 
             # Get metadata from individual movie cache if available
             desc = None
@@ -348,6 +384,8 @@ def generate(path):
             genre = None
             developer = None
             publisher = None
+            video = None
+            lang = "en"
 
             movie_cache_file = movies_dir / ".scrape_cache.json"
             movie_cache = _load_scrape_cache(movie_cache_file)
@@ -372,7 +410,12 @@ def generate(path):
             # Check if movie-specific logo exists
             logo_name = f"{movie_file.path.stem}-logo.png"
             logo_path = images_dir / logo_name
-            if logo_path.exists():
+            marquee_name = f"{movie_file.path.stem}-marquee.png"
+            marquee_path = images_dir / marquee_name
+
+            if marquee_path.exists():
+                marquee = f"./images/{marquee_name}"
+            elif logo_path.exists():
                 marquee = f"./images/{logo_name}"
 
             game_entry = {
@@ -380,6 +423,8 @@ def generate(path):
                 "name": name,
                 "image": f"./images/{img_name}",
                 "rating": rating,
+                "thumbnail": f"./images/{thumb_name}",
+                "lang": lang,
             }
 
             if desc:
@@ -394,6 +439,8 @@ def generate(path):
                 game_entry["developer"] = developer
             if publisher:
                 game_entry["publisher"] = publisher
+            if video:
+                game_entry["video"] = video
 
             games.append(game_entry)
         movies_gamelist_path = movies_dir / "gamelist.xml"

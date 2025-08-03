@@ -121,7 +121,7 @@ def scrape_tv(
 
         if not (season and number and img_url):
             continue
-        dest = images_dir / f"S{season:02d}E{number:02d}.png"
+        dest = images_dir / f"S{season:02d}E{number:02d}-image.png"
         try:
             download_image(img_url, dest, headers)
             if transaction_logger:
@@ -190,37 +190,59 @@ def scrape_movie(
     if poster_url:
         try:
             logger.info(f"Downloading poster for {movie_meta.title}")
-            # Use filename stem for consistency with generate command
-            download_image(poster_url, images_dir / f"{movie_path.stem}.png")
+            # Use proper EmulationStation naming convention
+            download_image(poster_url, images_dir / f"{movie_path.stem}-image.png")
             if transaction_logger:
-                transaction_logger.log_create(images_dir / f"{movie_path.stem}.png")
+                transaction_logger.log_create(
+                    images_dir / f"{movie_path.stem}-image.png"
+                )
             logger.info(f"✓ Downloaded poster for {movie_meta.title}")
         except Exception as e:
             logger.warning(f"Failed to download poster for {movie_meta.title}: {e}")
             # Create placeholder if poster download fails
             from mpv_scraper.images import create_placeholder_png
 
-            create_placeholder_png(images_dir / f"{movie_path.stem}.png")
+            create_placeholder_png(images_dir / f"{movie_path.stem}-image.png")
             if transaction_logger:
-                transaction_logger.log_create(images_dir / f"{movie_path.stem}.png")
+                transaction_logger.log_create(
+                    images_dir / f"{movie_path.stem}-image.png"
+                )
             logger.info(f"Created placeholder poster for {movie_meta.title}")
 
-    # 6. Download logo (alpha logo for overlay)
+    # 6. Download logo/marquee
     logo_url = record.get("logo_url")
     if logo_url:
         try:
             logger.info(f"Downloading logo for {movie_meta.title}")
-            # Use unique logo name per movie
-            download_marquee(logo_url, images_dir / f"{movie_path.stem}-logo.png")
+            # Use proper EmulationStation naming convention
+            download_marquee(logo_url, images_dir / f"{movie_path.stem}-marquee.png")
             if transaction_logger:
                 transaction_logger.log_create(
-                    images_dir / f"{movie_path.stem}-logo.png"
+                    images_dir / f"{movie_path.stem}-marquee.png"
                 )
             logger.info(f"✓ Downloaded logo for {movie_meta.title}")
         except Exception as e:
             logger.warning(f"Failed to download logo for {movie_meta.title}: {e}")
-            # Don't create placeholder logo if download fails - just skip it
-            logger.info(f"Skipped logo for {movie_meta.title}")
+            # Create placeholder if logo download fails
+            from mpv_scraper.images import create_placeholder_png
+
+            create_placeholder_png(images_dir / f"{movie_path.stem}-marquee.png")
+            if transaction_logger:
+                transaction_logger.log_create(
+                    images_dir / f"{movie_path.stem}-marquee.png"
+                )
+            logger.info(f"Created placeholder logo for {movie_meta.title}")
+
+    # 7. Create thumbnail version
+    try:
+        from mpv_scraper.images import create_placeholder_png
+
+        create_placeholder_png(images_dir / f"{movie_path.stem}-thumb.png")
+        if transaction_logger:
+            transaction_logger.log_create(images_dir / f"{movie_path.stem}-thumb.png")
+        logger.info(f"Created thumbnail for {movie_meta.title}")
+    except Exception as e:
+        logger.warning(f"Failed to create thumbnail for {movie_meta.title}: {e}")
 
     # 7. Cache raw record for later generate step
     # Store in standard .scrape_cache.json file for consistency with TV shows
