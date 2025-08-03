@@ -2,3 +2,4 @@ click
 lxml
 Pillow
 requests
+python-dotenv
