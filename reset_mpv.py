@@ -31,6 +31,12 @@ def find_generated_files(mpv_dir: Path) -> List[Path]:
         if file_path.exists():
             generated_files.append(file_path)
 
+    # Check for images directory in root
+    for dir_name in dirs_to_remove:
+        dir_path = mpv_dir / dir_name
+        if dir_path.exists():
+            generated_files.append(dir_path)
+
     # Check subdirectories (show folders and Movies)
     for item in mpv_dir.iterdir():
         if item.is_dir():
@@ -49,7 +55,7 @@ def find_generated_files(mpv_dir: Path) -> List[Path]:
     return generated_files
 
 
-def reset_mpv_directory(mpv_path: str) -> None:
+def reset_mpv_directory(mpv_path: str, auto_confirm: bool = False) -> None:
     """Reset an MPV directory by removing all generated files."""
     mpv_dir = Path(mpv_path)
 
@@ -72,11 +78,12 @@ def reset_mpv_directory(mpv_path: str) -> None:
     for file_path in generated_files:
         print(f"  - {file_path}")
 
-    # Confirm deletion
-    response = input("\nDo you want to delete these files? (y/N): ").strip().lower()
-    if response not in ["y", "yes"]:
-        print("Reset cancelled.")
-        return
+    # Confirm deletion (unless auto_confirm is True)
+    if not auto_confirm:
+        response = input("\nDo you want to delete these files? (y/N): ").strip().lower()
+        if response not in ["y", "yes"]:
+            print("Reset cancelled.")
+            return
 
     # Delete files
     deleted_count = 0
@@ -97,12 +104,14 @@ def reset_mpv_directory(mpv_path: str) -> None:
 
 def main():
     """Main entry point."""
-    if len(sys.argv) != 2:
-        print("Usage: python reset_mpv.py /path/to/mpv/directory")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("Usage: python reset_mpv.py /path/to/mpv/directory [-y]")
         sys.exit(1)
 
     mpv_path = sys.argv[1]
-    reset_mpv_directory(mpv_path)
+    auto_confirm = len(sys.argv) == 3 and sys.argv[2] == "-y"
+
+    reset_mpv_directory(mpv_path, auto_confirm)
 
 
 if __name__ == "__main__":

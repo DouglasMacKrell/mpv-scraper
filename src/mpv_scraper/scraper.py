@@ -112,7 +112,7 @@ def scrape_tv(
                 transaction_logger.log_create(images_dir / "poster.png")
             logger.info(f"Created placeholder poster for {show_dir.name}")
 
-    # 3. Logo (clearLogo)
+    # 3. Logo (clearLogo) - duplicate across marquee and box for theme compatibility
     logo_url: Union[str, None] = (
         record.get("artworks", {}).get("clearLogo") if record.get("artworks") else None
     )
@@ -123,6 +123,17 @@ def scrape_tv(
             if transaction_logger:
                 transaction_logger.log_create(images_dir / "logo.png")
             logger.info(f"✓ Downloaded logo for {show_dir.name}")
+
+            # Duplicate logo for marquee and box fields (theme compatibility)
+            import shutil
+
+            shutil.copy2(images_dir / "logo.png", images_dir / "marquee.png")
+            if transaction_logger:
+                transaction_logger.log_create(images_dir / "marquee.png")
+            shutil.copy2(images_dir / "logo.png", images_dir / "box.png")
+            if transaction_logger:
+                transaction_logger.log_create(images_dir / "box.png")
+            logger.info("✓ Duplicated logo for marquee and box fields")
         except Exception as e:
             logger.warning(f"Failed to download logo for {show_dir.name}: {e}")
             # Create placeholder if logo download fails
@@ -131,7 +142,13 @@ def scrape_tv(
             create_placeholder_png(images_dir / "logo.png")
             if transaction_logger:
                 transaction_logger.log_create(images_dir / "logo.png")
-            logger.info(f"Created placeholder logo for {show_dir.name}")
+            create_placeholder_png(images_dir / "marquee.png")
+            if transaction_logger:
+                transaction_logger.log_create(images_dir / "marquee.png")
+            create_placeholder_png(images_dir / "box.png")
+            if transaction_logger:
+                transaction_logger.log_create(images_dir / "box.png")
+            logger.info(f"Created placeholder logos for {show_dir.name}")
 
     # 4. Episode images (best-effort)
     episode_count = 0

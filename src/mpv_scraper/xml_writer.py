@@ -106,6 +106,8 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
             ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
         if game.get("marquee"):
             ET.SubElement(game_el, "marquee").text = _ensure_relative(game["marquee"])
+        if game.get("box"):
+            ET.SubElement(game_el, "box").text = _ensure_relative(game["box"])
         if game.get("releasedate"):
             ET.SubElement(game_el, "releasedate").text = game["releasedate"]
         if game.get("developer"):

@@ -200,23 +200,23 @@ def generate(path):
             else:
                 name = file_path.stem
 
-            img_name = (
-                f"S{meta.season:02d}E{meta.start_ep:02d}-image.png"
-                if meta
-                else f"{file_path.stem}-image.png"
-            )
-            img_path = images_dir / img_name
+            # Create images in top-level images directory
+            img_name = f"{file_path.stem}-image.png"
+            img_path = top_images_dir / img_name
             if not img_path.exists():
                 create_placeholder_png(img_path)
                 _log_creation(img_path)
 
-            # Create thumbnail version
-            thumb_name = (
-                f"S{meta.season:02d}E{meta.start_ep:02d}-thumb.png"
-                if meta
-                else f"{file_path.stem}-thumb.png"
-            )
-            thumb_path = images_dir / thumb_name
+            # Create marquee image (for logo overlay - theme maps marquee to LOGO)
+            marquee_name = f"{file_path.stem}-marquee.png"
+            marquee_path = top_images_dir / marquee_name
+            if not marquee_path.exists():
+                create_placeholder_png(marquee_path)
+                _log_creation(marquee_path)
+
+            # Create thumbnail version (theme maps thumbnail to BOX)
+            thumb_name = f"{file_path.stem}-thumb.png"
+            thumb_path = top_images_dir / thumb_name
             if not thumb_path.exists():
                 create_placeholder_png(thumb_path)
                 _log_creation(thumb_path)
@@ -233,16 +233,6 @@ def generate(path):
             publisher = None
             video = None
             lang = "en"
-
-            # Check if show-specific marquee exists
-            marquee_path = images_dir / "logo.png"
-            if marquee_path.exists():
-                marquee = "./images/logo.png"
-            else:
-                # Try the proper EmulationStation naming convention
-                proper_marquee_path = images_dir / f"{show.path.name}-marquee.png"
-                if proper_marquee_path.exists():
-                    marquee = f"./images/{show.path.name}-marquee.png"
 
             if show_cache and meta:
                 # Find episode in cache
@@ -284,13 +274,38 @@ def generate(path):
                         ]
                     )
 
+            # Copy show logo files to top-level images directory for episode use
+            show_marquee = images_dir / "marquee.png"
+            show_box = images_dir / "box.png"
+
+            if show_marquee.exists():
+                top_marquee = top_images_dir / f"{show.path.name}-marquee.png"
+                if not top_marquee.exists():
+                    import shutil
+
+                    shutil.copy2(show_marquee, top_marquee)
+                    _log_creation(top_marquee)
+
+            if show_box.exists():
+                top_box = top_images_dir / f"{show.path.name}-box.png"
+                if not top_box.exists():
+                    import shutil
+
+                    shutil.copy2(show_box, top_box)
+                    _log_creation(top_box)
+
+            # Use show's logo files for marquee and box (duplicated alpha logo)
+            show_marquee_path = f"./images/{show.path.name}-marquee.png"
+            show_box_path = f"./images/{show.path.name}-box.png"
+
             game_entry = {
-                "path": f"./{file_path.relative_to(root)}",
+                "path": f"./{file_path.name}",
                 "name": name,
-                "image": f"./images/{img_name}",
+                "image": f"./images/{file_path.stem}-image.png",
                 "rating": rating,
-                "marquee": marquee,
-                "thumbnail": f"./images/{thumb_name}",
+                "marquee": show_marquee_path,  # Use show's logo for marquee
+                "box": show_box_path,  # Use show's logo for box
+                "thumbnail": f"./images/{file_path.stem}-thumb.png",
                 "lang": lang,
             }
 
