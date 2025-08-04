@@ -147,6 +147,48 @@ For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/
     export TMDB_API_KEY="YOUR_TMDB_API_KEY"
     ```
 
+5.  **Install pre-commit hooks (recommended):**
+    ```bash
+    pip install pre-commit
+    pre-commit install
+    ```
+
+## Development Workflow
+
+### Pre-commit Hooks
+
+This project uses pre-commit hooks to ensure code quality and test coverage:
+
+- **Code Formatting:** Black and Ruff automatically format and lint your code
+- **Tests:** Pytest runs automatically before each commit
+- **Smart Test Selection:** The pre-commit hook intelligently runs only relevant tests based on changed files
+
+### Pre-push Hooks
+
+A Git pre-push hook ensures all tests pass before pushing to remote:
+
+- **Full Test Suite:** Runs the complete test suite before allowing push
+- **Automatic Blocking:** Push is blocked if any tests fail
+- **Helpful Error Messages:** Provides clear guidance on fixing test failures
+
+### Running Tests Manually
+
+```bash
+# Run all tests
+python -m pytest
+
+# Run specific test categories
+python -m pytest tests/e2e/          # End-to-end tests
+python -m pytest tests/integration/  # Integration tests
+python -m pytest tests/smoke/        # Smoke tests
+
+# Run with verbose output
+python -m pytest -v
+
+# Run with coverage
+python -m pytest --cov=mpv_scraper
+```
+
 ## Usage
 
 The tool will provide several commands to manage the scraping process. The primary command will be `run`, which executes the entire workflow.

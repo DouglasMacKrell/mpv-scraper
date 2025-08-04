@@ -16,3 +16,11 @@ repos:
     -   id: ruff
         args: [--fix, --exit-non-zero-on-fix]
     -   id: ruff-format
+-   repo: local
+    hooks:
+    -   id: pytest
+        name: pytest
+        entry: scripts/run_tests.py
+        language: system
+        pass_filenames: false
+        always_run: true
