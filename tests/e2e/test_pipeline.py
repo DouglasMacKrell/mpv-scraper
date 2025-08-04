@@ -119,7 +119,14 @@ def test_full_pipeline_generates_expected_files():
             for img_elt in tree.findall(".//image"):
                 rel_img_path = img_elt.text or ""
                 # Paths are stored relative to the XML location.
-                abs_img_path = (xml_path.parent / rel_img_path).resolve()
+                # For top-level gamelist.xml, images are in ./images/
+                # For show-specific gamelist.xml, images are also in top-level ./images/
+                if xml_path == library_root / "gamelist.xml":
+                    # Top-level gamelist references images in ./images/
+                    abs_img_path = (xml_path.parent / rel_img_path).resolve()
+                else:
+                    # Show-specific gamelist references images in top-level ./images/
+                    abs_img_path = (library_root / rel_img_path.lstrip("./")).resolve()
                 assert (
                     abs_img_path.exists()
                 ), f"Image not found: {abs_img_path} (referenced in {xml_path})"

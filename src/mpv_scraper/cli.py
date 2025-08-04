@@ -381,8 +381,10 @@ def generate(path):
         for movie_file in result.movies:
             meta = parse_movie_filename(movie_file.path.name)
             name = meta.title if meta else movie_file.path.stem
+
+            # Create images in top-level images directory
             img_name = f"{movie_file.path.stem}-image.png"
-            img_path = images_dir / img_name
+            img_path = top_images_dir / img_name
 
             # Only create placeholder if no real image exists
             if not img_path.exists():
@@ -391,7 +393,7 @@ def generate(path):
 
             # Create thumbnail version
             thumb_name = f"{movie_file.path.stem}-thumb.png"
-            thumb_path = images_dir / thumb_name
+            thumb_path = top_images_dir / thumb_name
             if not thumb_path.exists():
                 create_placeholder_png(thumb_path)
                 _log_creation(thumb_path)
@@ -427,11 +429,11 @@ def generate(path):
                 if movie_cache.get("distributor"):
                     publisher = movie_cache.get("distributor")
 
-            # Check if movie-specific logo exists
+            # Check if movie-specific logo exists in top-level directory
             logo_name = f"{movie_file.path.stem}-logo.png"
-            logo_path = images_dir / logo_name
+            logo_path = top_images_dir / logo_name
             marquee_name = f"{movie_file.path.stem}-marquee.png"
-            marquee_path = images_dir / marquee_name
+            marquee_path = top_images_dir / marquee_name
 
             if marquee_path.exists():
                 marquee = f"./images/{marquee_name}"

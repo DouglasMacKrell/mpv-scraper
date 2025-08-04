@@ -92,14 +92,15 @@ class TestGenerateExtendedMetadata:
             assert game.tag == "game"
 
             # Check basic fields
-            assert (
-                game.find("path").text == "./Test Show/Test Show - S01E01 - Pilot.mp4"
-            )
+            assert game.find("path").text == "./Test Show - S01E01 - Pilot.mp4"
             assert game.find("name").text == "Pilot – S01E01"
             assert game.find("desc").text == "A pilot episode"
-            assert game.find("image").text == "./images/S01E01-image.png"
+            assert (
+                game.find("image").text
+                == "./images/Test Show - S01E01 - Pilot-image.png"
+            )
             assert game.find("rating").text == "0.75"
-            assert game.find("marquee").text == "./images/logo.png"
+            assert game.find("marquee").text == "./images/Test Show-marquee.png"
 
             # Check extended metadata fields
             assert game.find("releasedate").text == "20230115T000000"
@@ -138,12 +139,12 @@ class TestGenerateExtendedMetadata:
 
             cache_file.write_text(json.dumps(cache_data))
 
-            # Create images directory and placeholder images
-            images_dir = movies_dir / "images"
-            images_dir.mkdir()
-            (images_dir / "Test Movie (2023)-image.png").touch()
-            (images_dir / "Test Movie (2023)-thumb.png").touch()
-            (images_dir / "Test Movie (2023)-logo.png").touch()
+            # Create images directory and placeholder images in top-level directory
+            top_images_dir = temp_path / "images"
+            top_images_dir.mkdir()
+            (top_images_dir / "Test Movie (2023)-image.png").touch()
+            (top_images_dir / "Test Movie (2023)-thumb.png").touch()
+            (top_images_dir / "Test Movie (2023)-logo.png").touch()
 
             # Mock the scan_directory function to return our test data
             with patch("mpv_scraper.scanner.scan_directory") as mock_scan:

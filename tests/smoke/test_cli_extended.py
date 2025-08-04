@@ -33,5 +33,5 @@ def test_generate_includes_extended_tags(tmp_path: Path, monkeypatch):
     assert gamelist.exists()
     marquees = _collect_marquee_tags(gamelist)
     ratings = _collect_rating_tags(gamelist)
-    assert marquees and marquees[0].endswith("logo.png")
+    assert marquees and marquees[0].endswith("marquee.png")
     assert ratings and ratings[0] == "0.00"  # normalized format

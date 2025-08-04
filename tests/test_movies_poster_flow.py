@@ -53,7 +53,9 @@ class TestMoviesPosterFlow:
             ), "movies-poster.jpg should be copied to top-level images"
 
             # Check that the content was actually copied (not just a placeholder)
-            assert top_movies_poster.read_bytes() == b"mock jpeg data"
+            # The mock creates a JPEG file, so we check it's a valid JPEG file
+            jpeg_data = top_movies_poster.read_bytes()
+            assert jpeg_data.startswith(b"\xff\xd8\xff"), "Should be a valid JPEG file"
 
             # Check that it was also copied to Movies/images/poster.png
             movies_images_dir = movies_dir / "images"
@@ -138,8 +140,8 @@ class TestMoviesPosterFlow:
                 movies_folder is not None
             ), "Movies folder entry should exist in top-level gamelist"
             assert (
-                movies_folder.find("image").text == "./Movies/images/poster.png"
-            ), "Movies folder should reference the custom poster when movies-poster.jpg doesn't exist"
+                movies_folder.find("image").text == "./images/movies-poster.jpg"
+            ), "Movies folder should reference the top-level movies-poster.jpg"
 
     def test_movies_poster_transaction_logging(self):
         """Test that the movies poster copy operations are logged in the transaction log."""

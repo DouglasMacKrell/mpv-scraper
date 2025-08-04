@@ -139,11 +139,19 @@ def test_full_pipeline_multi_season():
                     # If marquee tags exist, validate them
                     for m_elt in marquee_tags:
                         rel = m_elt.text or ""
-                        abs_path = (xml_path.parent / rel).resolve()
+                        # For show-specific gamelist.xml, marquee images are in top-level ./images/
+                        if xml_path.parent != root:
+                            abs_path = (root / rel.lstrip("./")).resolve()
+                        else:
+                            abs_path = (xml_path.parent / rel).resolve()
                         assert abs_path.exists(), f"Marquee image missing: {abs_path}"
             # check images exist & size
             for img_elt in tree.findall(".//image") + tree.findall(".//marquee"):
                 rel = img_elt.text or ""
-                abs_path = (xml_path.parent / rel).resolve()
+                # For show-specific gamelist.xml, images are in top-level ./images/
+                if xml_path.parent != root:
+                    abs_path = (root / rel.lstrip("./")).resolve()
+                else:
+                    abs_path = (xml_path.parent / rel).resolve()
                 assert abs_path.exists(), f"Image missing: {abs_path}"
                 assert abs_path.stat().st_size / 1024 <= 600
