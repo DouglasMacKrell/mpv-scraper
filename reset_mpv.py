@@ -19,11 +19,11 @@ def find_generated_files(mpv_dir: Path) -> List[Path]:
     """Find all generated files and directories in the MPV directory."""
     generated_files = []
 
-    # Files to remove
+    # Files to remove from root directory
     files_to_remove = ["gamelist.xml", ".scrape_cache.json", "transaction.log"]
 
-    # Directories to remove
-    dirs_to_remove = ["images"]
+    # Directories to remove from root directory
+    dirs_to_remove = ["images", "public"]
 
     # Check root directory
     for file_name in files_to_remove:
@@ -31,11 +31,16 @@ def find_generated_files(mpv_dir: Path) -> List[Path]:
         if file_path.exists():
             generated_files.append(file_path)
 
-    # Check for images directory in root
+    # Check for directories in root
     for dir_name in dirs_to_remove:
         dir_path = mpv_dir / dir_name
         if dir_path.exists():
             generated_files.append(dir_path)
+
+    # Check for macOS metadata files in root
+    for item in mpv_dir.iterdir():
+        if item.is_file() and item.name.startswith("._"):
+            generated_files.append(item)
 
     # Check subdirectories (show folders and Movies)
     for item in mpv_dir.iterdir():
@@ -51,6 +56,11 @@ def find_generated_files(mpv_dir: Path) -> List[Path]:
                 dir_path = item / dir_name
                 if dir_path.exists():
                     generated_files.append(dir_path)
+
+            # Check for macOS metadata files in subdirectories
+            for subitem in item.iterdir():
+                if subitem.is_file() and subitem.name.startswith("._"):
+                    generated_files.append(subitem)
 
     return generated_files
 
@@ -100,12 +110,14 @@ def reset_mpv_directory(mpv_path: str, auto_confirm: bool = False) -> None:
             print(f"Error deleting {file_path}: {e}")
 
     print(f"\nReset completed. Deleted {deleted_count} items.")
+    print("The MPV directory is now ready for a fresh scrape.")
 
 
 def main():
     """Main entry point."""
     if len(sys.argv) < 2 or len(sys.argv) > 3:
         print("Usage: python reset_mpv.py /path/to/mpv/directory [-y]")
+        print("  -y: Auto-confirm deletion without prompting")
         sys.exit(1)
 
     mpv_path = sys.argv[1]
