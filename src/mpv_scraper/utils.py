@@ -1,13 +1,16 @@
 """Miscellaneous utility helpers for mpv_scraper."""
 
 import functools
+import re
 import time
-from typing import Any, Callable, Final, Type, Union
+from datetime import datetime
+from typing import Any, Callable, Final, Type, Union, Optional
 
 __all__ = [
     "normalize_rating",
     "retry_with_backoff",
     "format_release_date",
+    "normalize_text",
 ]
 
 _MAX_RAW: Final[float] = 10.0
@@ -103,16 +106,83 @@ def format_release_date(date_str: Union[str, None]) -> Union[str, None]:
         return None
 
     try:
-        # Parse YYYY-MM-DD format
-        if len(date_str) >= 10 and date_str[4] == "-" and date_str[7] == "-":
-            year = date_str[:4]
-            month = date_str[5:7]
-            day = date_str[8:10]
-
-            # Validate components
-            if year.isdigit() and month.isdigit() and day.isdigit():
-                return f"{year}{month}{day}T000000"
-    except (IndexError, ValueError):
+        # Parse various date formats
+        for fmt in ["%Y-%m-%d", "%Y-%m", "%Y"]:
+            try:
+                date_obj = datetime.strptime(date_str, fmt)
+                return date_obj.strftime("%Y%m%dT000000")
+            except ValueError:
+                continue
+    except Exception:
         pass
 
     return None
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normalize text by replacing special characters with ASCII equivalents.
+    
+    This function handles common special characters that can cause display
+    issues in various systems, particularly umlauts and other diacritics.
+    
+    Args:
+        text: The text to normalize
+        
+    Returns:
+        Normalized text with special characters replaced
+    """
+    if not text:
+        return text
+    
+    # Character mapping for common special characters
+    char_map = {
+        # German umlauts
+        'ä': 'a', 'ö': 'o', 'ü': 'u', 'ß': 'ss',
+        'Ä': 'A', 'Ö': 'O', 'Ü': 'U',
+        
+        # French accents
+        'à': 'a', 'â': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
+        'î': 'i', 'ï': 'i', 'ô': 'o', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ÿ': 'y',
+        'À': 'A', 'Â': 'A', 'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E',
+        'Î': 'I', 'Ï': 'I', 'Ô': 'O', 'Ù': 'U', 'Û': 'U', 'Ü': 'U',
+        
+        # Spanish characters
+        'ñ': 'n', 'Ñ': 'N',
+        
+        # Scandinavian characters
+        'å': 'a', 'æ': 'ae', 'ø': 'o',
+        'Å': 'A', 'Æ': 'AE', 'Ø': 'O',
+        
+        # Other common special characters
+        'ç': 'c', 'Ç': 'C',
+        'š': 's', 'Š': 'S',
+        'ž': 'z', 'Ž': 'Z',
+        'č': 'c', 'Č': 'C',
+        'ć': 'c', 'Ć': 'C',
+        'ń': 'n', 'Ń': 'N',
+        'ł': 'l', 'Ł': 'L',
+        'ś': 's', 'Ś': 'S',
+        'ź': 'z', 'Ź': 'Z',
+        'ż': 'z', 'Ż': 'Z',
+        
+        # Smart quotes and dashes
+        '"': '"', '"': '"',
+        ''': "'", ''': "'",
+        '–': '-', '—': '-',
+        '…': '...',
+    }
+    
+    # Replace special characters
+    normalized = text
+    for special, replacement in char_map.items():
+        normalized = normalized.replace(special, replacement)
+    
+    # Remove any remaining non-ASCII characters that might cause issues
+    # Keep basic punctuation and alphanumeric characters
+    normalized = re.sub(r'[^\x00-\x7F\s\-\.\,\!\?\&\'\"\(\)]', '', normalized)
+    
+    # Clean up multiple spaces
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+    
+    return normalized

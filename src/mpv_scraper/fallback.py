@@ -66,7 +66,7 @@ class FallbackScraper:
             # Search for TV show on TMDB
             search_results = requests.get(
                 "https://api.themoviedb.org/3/search/tv",
-                params={"api_key": self.api_keys["tmdb"], "query": title, "year": year},
+                params={"api_key": self.api_keys["tmdb"], "query": title, "year": year, "language": "en-US"},
                 timeout=10,
             ).json()
 
@@ -79,14 +79,14 @@ class FallbackScraper:
             # Get detailed TV show info
             details = requests.get(
                 f"https://api.themoviedb.org/3/tv/{show_id}",
-                params={"api_key": self.api_keys["tmdb"]},
+                params={"api_key": self.api_keys["tmdb"], "language": "en-US"},
                 timeout=10,
             ).json()
 
             # Get images
             images = requests.get(
                 f"https://api.themoviedb.org/3/tv/{show_id}/images",
-                params={"api_key": self.api_keys["tmdb"]},
+                params={"api_key": self.api_keys["tmdb"], "include_image_language": "en,en-US,null"},
                 timeout=10,
             ).json()
 
@@ -95,10 +95,50 @@ class FallbackScraper:
             logo_url = None
 
             if images.get("posters"):
-                poster_url = f"https://image.tmdb.org/t/p/original{images['posters'][0]['file_path']}"
+                # More aggressive English filtering - prioritize US region and exclude known non-English
+                us_posters = [p for p in images["posters"] if p.get("iso_3166_1") == "US"]
+                english_posters = [p for p in images["posters"] if p.get("iso_639_1") == "en"]
+                
+                # Priority order: US posters first, then English posters, then all others
+                if us_posters:
+                    poster_candidates = us_posters
+                elif english_posters:
+                    poster_candidates = english_posters
+                else:
+                    # If no language info, try to filter by excluding known non-English patterns
+                    poster_candidates = [
+                        p for p in images["posters"] 
+                        if not any(non_eng in p.get("file_path", "").lower() 
+                                 for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                    ]
+                    # If still no good candidates, use all posters
+                    if not poster_candidates:
+                        poster_candidates = images["posters"]
+                
+                poster_url = f"https://image.tmdb.org/t/p/original{poster_candidates[0]['file_path']}"
 
             if images.get("logos"):
-                logo_url = f"https://image.tmdb.org/t/p/original{images['logos'][0]['file_path']}"
+                # More aggressive English filtering - prioritize US region and exclude known non-English
+                us_logos = [l for l in images["logos"] if l.get("iso_3166_1") == "US"]
+                english_logos = [l for l in images["logos"] if l.get("iso_639_1") == "en"]
+                
+                # Priority order: US logos first, then English logos, then all others
+                if us_logos:
+                    logo_candidates = us_logos
+                elif english_logos:
+                    logo_candidates = english_logos
+                else:
+                    # If no language info, try to filter by excluding known non-English patterns
+                    logo_candidates = [
+                        l for l in images["logos"] 
+                        if not any(non_eng in l.get("file_path", "").lower() 
+                                 for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                    ]
+                    # If still no good candidates, use all logos
+                    if not logo_candidates:
+                        logo_candidates = images["logos"]
+                
+                logo_url = f"https://image.tmdb.org/t/p/original{logo_candidates[0]['file_path']}"
 
             return {
                 "id": details.get("id"),

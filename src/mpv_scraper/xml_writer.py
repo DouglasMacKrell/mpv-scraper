@@ -33,32 +33,84 @@ def _write_xml_with_pretty_print(element: ET.Element, dest: Path) -> None:
     reparsed = ET.fromstring(rough_string)
 
     # Write with proper XML declaration and encoding
-    with open(dest, "w", encoding="utf-8") as f:
-        f.write('<?xml version="1.0" encoding="utf-8"?>\n')
+    with open(dest, "w", encoding="UTF-8") as f:
+        f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         # Write the element with proper formatting
         ET.indent(reparsed, space="  ")  # Add indentation
         f.write(ET.tostring(reparsed, encoding="unicode"))
 
 
-def write_top_gamelist(folders: List[Dict[str, Any]], dest: Path) -> None:
+def write_top_gamelist(entries: List[Dict[str, Any]], dest: Path) -> None:
     """Write the top-level ``gamelist.xml``.
 
     Parameters
     ----------
-    folders
-        List of dicts with keys ``path``, ``name``, ``image``.
+    entries
+        List of dicts with keys for folders (``path``, ``name``, ``image``) and games (all game metadata).
     dest
         File path where the XML will be written.
     """
-
     root = ET.Element("gameList")
+    
+    for entry in entries:
+        # Check if this is a folder entry (has 'path' and 'name' but no game-specific fields like 'rating', 'releasedate', etc.)
+        if "path" in entry and "name" in entry and not any(key in entry for key in ["desc", "rating", "releasedate", "developer", "publisher", "genre"]):
+            # This is a folder entry
+            folder_el = ET.SubElement(root, "folder")
+            ET.SubElement(folder_el, "path").text = _ensure_relative(entry["path"])
+            ET.SubElement(folder_el, "name").text = entry["name"]
+            if entry.get("image"):
+                ET.SubElement(folder_el, "image").text = _ensure_relative(entry["image"])
+        else:
+            # This is a game entry - use the same logic as write_show_gamelist
+            game_el = ET.SubElement(root, "game", id=str(len(root.findall("game")) + 1))
+            ET.SubElement(game_el, "path").text = _ensure_relative(entry["path"])
+            ET.SubElement(game_el, "name").text = entry["name"]
 
-    for folder in folders:
-        folder_el = ET.SubElement(root, "folder")
-        ET.SubElement(folder_el, "path").text = _ensure_relative(folder["path"])
-        ET.SubElement(folder_el, "name").text = folder["name"]
-        if folder.get("image"):
-            ET.SubElement(folder_el, "image").text = _ensure_relative(folder["image"])
+            # Core metadata fields
+            if entry.get("desc"):
+                ET.SubElement(game_el, "desc").text = entry["desc"]
+            if entry.get("image"):
+                ET.SubElement(game_el, "image").text = entry["image"]  # Don't modify relative paths
+            if entry.get("rating") is not None:
+                rating_val = float(entry["rating"])
+                if not 0.0 <= rating_val <= 1.0:
+                    raise ValueError("rating must be between 0 and 1")
+                ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
+            if entry.get("marquee"):
+                ET.SubElement(game_el, "marquee").text = entry["marquee"]  # Don't modify relative paths
+
+            if entry.get("releasedate"):
+                ET.SubElement(game_el, "releasedate").text = entry["releasedate"]
+            if entry.get("developer"):
+                ET.SubElement(game_el, "developer").text = entry["developer"]
+            if entry.get("publisher"):
+                ET.SubElement(game_el, "publisher").text = entry["publisher"]
+            if entry.get("genre"):
+                ET.SubElement(game_el, "genre").text = entry["genre"]
+
+            # Additional EmulationStation fields
+            if entry.get("video"):
+                ET.SubElement(game_el, "video").text = _ensure_relative(entry["video"])
+            if entry.get("thumbnail"):
+                ET.SubElement(game_el, "thumbnail").text = entry["thumbnail"]  # Don't modify relative paths
+            if entry.get("fanart"):
+                ET.SubElement(game_el, "fanart").text = entry["fanart"]  # Don't modify relative paths
+            if entry.get("titleshot"):
+                ET.SubElement(game_el, "titleshot").text = entry["titleshot"]  # Don't modify relative paths
+            if entry.get("lang"):
+                ET.SubElement(game_el, "lang").text = entry["lang"]
+            if entry.get("region"):
+                ET.SubElement(game_el, "region").text = entry["region"]
+            if entry.get("favorite") is not None:
+                ET.SubElement(game_el, "favorite").text = str(entry["favorite"]).lower()
+            if entry.get("hidden") is not None:
+                ET.SubElement(game_el, "hidden").text = str(entry["hidden"]).lower()
+
+            # Add scraping metadata like Genesis system
+            scrap_el = ET.SubElement(game_el, "scrap")
+            scrap_el.set("name", "MPV-Scraper")
+            scrap_el.set("date", "20250101T000000")
 
     _write_xml_with_pretty_print(root, dest)
 
@@ -89,8 +141,8 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
 
     root = ET.Element("gameList")
 
-    for game in games:
-        game_el = ET.SubElement(root, "game")
+    for i, game in enumerate(games):
+        game_el = ET.SubElement(root, "game", id=str(i + 1))
         ET.SubElement(game_el, "path").text = _ensure_relative(game["path"])
         ET.SubElement(game_el, "name").text = game["name"]
 
@@ -98,16 +150,16 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
         if game.get("desc"):
             ET.SubElement(game_el, "desc").text = game["desc"]
         if game.get("image"):
-            ET.SubElement(game_el, "image").text = _ensure_relative(game["image"])
+            ET.SubElement(game_el, "image").text = game["image"]  # Don't modify relative paths
         if game.get("rating") is not None:
             rating_val = float(game["rating"])
             if not 0.0 <= rating_val <= 1.0:
                 raise ValueError("rating must be between 0 and 1")
             ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
         if game.get("marquee"):
-            ET.SubElement(game_el, "marquee").text = _ensure_relative(game["marquee"])
-        if game.get("box"):
-            ET.SubElement(game_el, "box").text = _ensure_relative(game["box"])
+            ET.SubElement(game_el, "marquee").text = game["marquee"]  # Don't modify relative paths
+        if game.get("boxart"):
+            ET.SubElement(game_el, "boxart").text = game["boxart"]  # Don't modify relative paths
         if game.get("releasedate"):
             ET.SubElement(game_el, "releasedate").text = game["releasedate"]
         if game.get("developer"):
@@ -121,15 +173,11 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
         if game.get("video"):
             ET.SubElement(game_el, "video").text = _ensure_relative(game["video"])
         if game.get("thumbnail"):
-            ET.SubElement(game_el, "thumbnail").text = _ensure_relative(
-                game["thumbnail"]
-            )
+            ET.SubElement(game_el, "thumbnail").text = game["thumbnail"]  # Don't modify relative paths
         if game.get("fanart"):
-            ET.SubElement(game_el, "fanart").text = _ensure_relative(game["fanart"])
+            ET.SubElement(game_el, "fanart").text = game["fanart"]  # Don't modify relative paths
         if game.get("titleshot"):
-            ET.SubElement(game_el, "titleshot").text = _ensure_relative(
-                game["titleshot"]
-            )
+            ET.SubElement(game_el, "titleshot").text = game["titleshot"]  # Don't modify relative paths
         if game.get("lang"):
             ET.SubElement(game_el, "lang").text = game["lang"]
         if game.get("region"):
@@ -138,5 +186,10 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
             ET.SubElement(game_el, "favorite").text = str(game["favorite"]).lower()
         if game.get("hidden") is not None:
             ET.SubElement(game_el, "hidden").text = str(game["hidden"]).lower()
+
+        # Add scraping metadata like Genesis system
+        scrap_el = ET.SubElement(game_el, "scrap")
+        scrap_el.set("name", "MPV-Scraper")
+        scrap_el.set("date", "20250101T000000")
 
     _write_xml_with_pretty_print(root, dest)

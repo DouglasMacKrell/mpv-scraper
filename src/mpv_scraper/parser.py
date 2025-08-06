@@ -56,6 +56,22 @@ def parse_tv_filename(filename: str) -> Optional[TVMeta]:
     # Split titles for anthology episodes
     title_part = match.group(6).strip()
     if title_part:
+        # Clean quality metadata from titles (same as movie parser)
+        quality_patterns = [
+            r"\s+(?:Bluray|WEBRip|HDRip|BRRip|DVDRip|HDTV|PDTV|WEB-DL|BluRay|Blu-Ray|WEB|HD|1080p|720p|480p|2160p|4K|UHD)",
+            r"\s+(?:x264|x265|HEVC|AVC|AAC|AC3|DTS|FLAC|MP3)",
+            r"\s+(?:REPACK|PROPER|INTERNAL|EXTENDED|DIRFIX|SUBFIX|AUDIOFIX)",
+            r"\s+\[.*?\]",  # Remove anything in brackets
+            r"\s*-\s*(?:1080p|720p|480p|2160p|4K|UHD)",  # Remove quality tags after dashes
+            r"\s+(?:Remux|REMUX|Remastered|REMUX)",  # Remove remux tags
+        ]
+
+        for pattern in quality_patterns:
+            title_part = re.sub(pattern, "", title_part, flags=re.IGNORECASE)
+        
+        # Clean up extra spaces and dashes
+        title_part = title_part.strip().rstrip("-").strip()
+        
         # Split titles by common delimiters like ' & '
         titles = [
             t.strip() for t in re.split(r"\s*&\s*|\s*–\s*", title_part) if t.strip()

@@ -54,6 +54,10 @@ def search_movie(title: str, year: Optional[int] = None) -> List[Dict[str, Any]]
             params["year"] = year
 
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+    # Add language preference for English content
+    if not is_bearer_token:
+        params["language"] = "en-US"
+    
     response = requests.get(
         "https://api.themoviedb.org/3/search/movie",
         headers=headers,
@@ -102,6 +106,10 @@ def get_movie_images(movie_id: int) -> Optional[Dict[str, Any]]:
         headers = {}
         params = {"api_key": api_key}
 
+    # Add language preference for English content
+    if not is_bearer_token:
+        params["include_image_language"] = "en,en-US,null"
+    
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.get(
         f"https://api.themoviedb.org/3/movie/{movie_id}/images",
@@ -153,6 +161,10 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
         headers = {}
         params = {"api_key": api_key}
 
+    # Add language preference for English content
+    if not is_bearer_token:
+        params["language"] = "en-US"
+    
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.get(
         f"https://api.themoviedb.org/3/movie/{movie_id}",
@@ -169,24 +181,65 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
     # Get images to add poster and logo URLs
     images = get_movie_images(movie_id)
     if images:
-        # Get best poster (highest vote_average, prefer USA region)
+        # Get best poster (highest vote_average, prefer USA region, filter for English)
         posters = images.get("posters", [])
         if posters:
-            # Sort by vote_average descending and prefer USA region (iso_3166_1 == "US")
+            # More aggressive English filtering - prioritize US region and exclude known non-English
+            us_posters = [p for p in posters if p.get("iso_3166_1") == "US"]
+            english_posters = [p for p in posters if p.get("iso_639_1") == "en"]
+            
+            # Priority order: US posters first, then English posters, then all others
+            if us_posters:
+                poster_candidates = us_posters
+            elif english_posters:
+                poster_candidates = english_posters
+            else:
+                # If no language info, try to filter by excluding known non-English patterns
+                # Look for posters that don't have obvious non-English indicators
+                poster_candidates = [
+                    p for p in posters 
+                    if not any(non_eng in p.get("file_path", "").lower() 
+                             for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                ]
+                # If still no good candidates, use all posters
+                if not poster_candidates:
+                    poster_candidates = posters
+            
+            # Sort by vote_average descending and prefer USA region
             best_poster = max(
-                posters,
+                poster_candidates,
                 key=lambda x: (x.get("vote_average", 0), x.get("iso_3166_1") == "US"),
             )
             details["poster_url"] = (
                 f"https://image.tmdb.org/t/p/original{best_poster['file_path']}"
             )
 
-        # Get best logo (highest vote_average, prefer PNG for transparency, prefer USA region)
+        # Get best logo (highest vote_average, prefer PNG for transparency, prefer USA region, filter for English)
         logos = images.get("logos", [])
         if logos:
+            # More aggressive English filtering - prioritize US region and exclude known non-English
+            us_logos = [l for l in logos if l.get("iso_3166_1") == "US"]
+            english_logos = [l for l in logos if l.get("iso_639_1") == "en"]
+            
+            # Priority order: US logos first, then English logos, then all others
+            if us_logos:
+                logo_candidates = us_logos
+            elif english_logos:
+                logo_candidates = english_logos
+            else:
+                # If no language info, try to filter by excluding known non-English patterns
+                logo_candidates = [
+                    l for l in logos 
+                    if not any(non_eng in l.get("file_path", "").lower() 
+                             for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                ]
+                # If still no good candidates, use all logos
+                if not logo_candidates:
+                    logo_candidates = logos
+            
             # Sort by vote_average descending, prefer PNG files, and prefer USA region
             best_logo = max(
-                logos,
+                logo_candidates,
                 key=lambda x: (
                     x.get("vote_average", 0),
                     x.get("file_path", "").endswith(".png"),
