@@ -84,4 +84,4 @@ If issues occur, you can easily revert:
 - Report issues with specific error messages
 - Provide feedback on the enhancement proposal
 
-This enhancement transforms KNULLI's basic MPV player into a full-featured media management system while maintaining backward compatibility and performance. 
+This enhancement transforms KNULLI's basic MPV player into a full-featured media management system while maintaining backward compatibility and performance.

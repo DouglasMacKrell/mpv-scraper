@@ -68,10 +68,10 @@ def parse_tv_filename(filename: str) -> Optional[TVMeta]:
 
         for pattern in quality_patterns:
             title_part = re.sub(pattern, "", title_part, flags=re.IGNORECASE)
-        
+
         # Clean up extra spaces and dashes
         title_part = title_part.strip().rstrip("-").strip()
-        
+
         # Split titles by common delimiters like ' & '
         titles = [
             t.strip() for t in re.split(r"\s*&\s*|\s*–\s*", title_part) if t.strip()

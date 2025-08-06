@@ -57,7 +57,7 @@ def search_movie(title: str, year: Optional[int] = None) -> List[Dict[str, Any]]
     # Add language preference for English content
     if not is_bearer_token:
         params["language"] = "en-US"
-    
+
     response = requests.get(
         "https://api.themoviedb.org/3/search/movie",
         headers=headers,
@@ -109,7 +109,7 @@ def get_movie_images(movie_id: int) -> Optional[Dict[str, Any]]:
     # Add language preference for English content
     if not is_bearer_token:
         params["include_image_language"] = "en,en-US,null"
-    
+
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.get(
         f"https://api.themoviedb.org/3/movie/{movie_id}/images",
@@ -164,7 +164,7 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
     # Add language preference for English content
     if not is_bearer_token:
         params["language"] = "en-US"
-    
+
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
     response = requests.get(
         f"https://api.themoviedb.org/3/movie/{movie_id}",
@@ -187,7 +187,7 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
             # More aggressive English filtering - prioritize US region and exclude known non-English
             us_posters = [p for p in posters if p.get("iso_3166_1") == "US"]
             english_posters = [p for p in posters if p.get("iso_639_1") == "en"]
-            
+
             # Priority order: US posters first, then English posters, then all others
             if us_posters:
                 poster_candidates = us_posters
@@ -197,14 +197,27 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
                 # If no language info, try to filter by excluding known non-English patterns
                 # Look for posters that don't have obvious non-English indicators
                 poster_candidates = [
-                    p for p in posters 
-                    if not any(non_eng in p.get("file_path", "").lower() 
-                             for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                    p
+                    for p in posters
+                    if not any(
+                        non_eng in p.get("file_path", "").lower()
+                        for non_eng in [
+                            "ru",
+                            "de",
+                            "fr",
+                            "es",
+                            "it",
+                            "pt",
+                            "ja",
+                            "ko",
+                            "zh",
+                        ]
+                    )
                 ]
                 # If still no good candidates, use all posters
                 if not poster_candidates:
                     poster_candidates = posters
-            
+
             # Sort by vote_average descending and prefer USA region
             best_poster = max(
                 poster_candidates,
@@ -218,9 +231,9 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
         logos = images.get("logos", [])
         if logos:
             # More aggressive English filtering - prioritize US region and exclude known non-English
-            us_logos = [l for l in logos if l.get("iso_3166_1") == "US"]
-            english_logos = [l for l in logos if l.get("iso_639_1") == "en"]
-            
+            us_logos = [logo for logo in logos if logo.get("iso_3166_1") == "US"]
+            english_logos = [logo for logo in logos if logo.get("iso_639_1") == "en"]
+
             # Priority order: US logos first, then English logos, then all others
             if us_logos:
                 logo_candidates = us_logos
@@ -229,14 +242,27 @@ def get_movie_details(movie_id: int) -> Optional[Dict[str, Any]]:
             else:
                 # If no language info, try to filter by excluding known non-English patterns
                 logo_candidates = [
-                    l for l in logos 
-                    if not any(non_eng in l.get("file_path", "").lower() 
-                             for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                    logo
+                    for logo in logos
+                    if not any(
+                        non_eng in logo.get("file_path", "").lower()
+                        for non_eng in [
+                            "ru",
+                            "de",
+                            "fr",
+                            "es",
+                            "it",
+                            "pt",
+                            "ja",
+                            "ko",
+                            "zh",
+                        ]
+                    )
                 ]
                 # If still no good candidates, use all logos
                 if not logo_candidates:
                     logo_candidates = logos
-            
+
             # Sort by vote_average descending, prefer PNG files, and prefer USA region
             best_logo = max(
                 logo_candidates,

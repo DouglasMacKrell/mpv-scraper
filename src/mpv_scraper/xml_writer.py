@@ -51,16 +51,32 @@ def write_top_gamelist(entries: List[Dict[str, Any]], dest: Path) -> None:
         File path where the XML will be written.
     """
     root = ET.Element("gameList")
-    
+
     for entry in entries:
         # Check if this is a folder entry (has 'path' and 'name' but no game-specific fields like 'rating', 'releasedate', etc.)
-        if "path" in entry and "name" in entry and not any(key in entry for key in ["desc", "rating", "releasedate", "developer", "publisher", "genre"]):
+        if (
+            "path" in entry
+            and "name" in entry
+            and not any(
+                key in entry
+                for key in [
+                    "desc",
+                    "rating",
+                    "releasedate",
+                    "developer",
+                    "publisher",
+                    "genre",
+                ]
+            )
+        ):
             # This is a folder entry
             folder_el = ET.SubElement(root, "folder")
             ET.SubElement(folder_el, "path").text = _ensure_relative(entry["path"])
             ET.SubElement(folder_el, "name").text = entry["name"]
             if entry.get("image"):
-                ET.SubElement(folder_el, "image").text = _ensure_relative(entry["image"])
+                ET.SubElement(folder_el, "image").text = _ensure_relative(
+                    entry["image"]
+                )
         else:
             # This is a game entry - use the same logic as write_show_gamelist
             game_el = ET.SubElement(root, "game", id=str(len(root.findall("game")) + 1))
@@ -71,14 +87,16 @@ def write_top_gamelist(entries: List[Dict[str, Any]], dest: Path) -> None:
             if entry.get("desc"):
                 ET.SubElement(game_el, "desc").text = entry["desc"]
             if entry.get("image"):
-                ET.SubElement(game_el, "image").text = entry["image"]  # Don't modify relative paths
+                ET.SubElement(game_el, "image").text = _ensure_relative(entry["image"])
             if entry.get("rating") is not None:
                 rating_val = float(entry["rating"])
                 if not 0.0 <= rating_val <= 1.0:
                     raise ValueError("rating must be between 0 and 1")
                 ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
             if entry.get("marquee"):
-                ET.SubElement(game_el, "marquee").text = entry["marquee"]  # Don't modify relative paths
+                ET.SubElement(game_el, "marquee").text = _ensure_relative(
+                    entry["marquee"]
+                )
 
             if entry.get("releasedate"):
                 ET.SubElement(game_el, "releasedate").text = entry["releasedate"]
@@ -93,11 +111,17 @@ def write_top_gamelist(entries: List[Dict[str, Any]], dest: Path) -> None:
             if entry.get("video"):
                 ET.SubElement(game_el, "video").text = _ensure_relative(entry["video"])
             if entry.get("thumbnail"):
-                ET.SubElement(game_el, "thumbnail").text = entry["thumbnail"]  # Don't modify relative paths
+                ET.SubElement(game_el, "thumbnail").text = _ensure_relative(
+                    entry["thumbnail"]
+                )
             if entry.get("fanart"):
-                ET.SubElement(game_el, "fanart").text = entry["fanart"]  # Don't modify relative paths
+                ET.SubElement(game_el, "fanart").text = _ensure_relative(
+                    entry["fanart"]
+                )
             if entry.get("titleshot"):
-                ET.SubElement(game_el, "titleshot").text = entry["titleshot"]  # Don't modify relative paths
+                ET.SubElement(game_el, "titleshot").text = _ensure_relative(
+                    entry["titleshot"]
+                )
             if entry.get("lang"):
                 ET.SubElement(game_el, "lang").text = entry["lang"]
             if entry.get("region"):
@@ -150,16 +174,15 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
         if game.get("desc"):
             ET.SubElement(game_el, "desc").text = game["desc"]
         if game.get("image"):
-            ET.SubElement(game_el, "image").text = game["image"]  # Don't modify relative paths
+            ET.SubElement(game_el, "image").text = _ensure_relative(game["image"])
         if game.get("rating") is not None:
             rating_val = float(game["rating"])
             if not 0.0 <= rating_val <= 1.0:
                 raise ValueError("rating must be between 0 and 1")
             ET.SubElement(game_el, "rating").text = f"{rating_val:.2f}"
         if game.get("marquee"):
-            ET.SubElement(game_el, "marquee").text = game["marquee"]  # Don't modify relative paths
-        if game.get("boxart"):
-            ET.SubElement(game_el, "boxart").text = game["boxart"]  # Don't modify relative paths
+            ET.SubElement(game_el, "marquee").text = _ensure_relative(game["marquee"])
+
         if game.get("releasedate"):
             ET.SubElement(game_el, "releasedate").text = game["releasedate"]
         if game.get("developer"):
@@ -173,11 +196,15 @@ def write_show_gamelist(games: List[Dict[str, Any]], dest: Path) -> None:
         if game.get("video"):
             ET.SubElement(game_el, "video").text = _ensure_relative(game["video"])
         if game.get("thumbnail"):
-            ET.SubElement(game_el, "thumbnail").text = game["thumbnail"]  # Don't modify relative paths
+            ET.SubElement(game_el, "thumbnail").text = _ensure_relative(
+                game["thumbnail"]
+            )
         if game.get("fanart"):
-            ET.SubElement(game_el, "fanart").text = game["fanart"]  # Don't modify relative paths
+            ET.SubElement(game_el, "fanart").text = _ensure_relative(game["fanart"])
         if game.get("titleshot"):
-            ET.SubElement(game_el, "titleshot").text = game["titleshot"]  # Don't modify relative paths
+            ET.SubElement(game_el, "titleshot").text = _ensure_relative(
+                game["titleshot"]
+            )
         if game.get("lang"):
             ET.SubElement(game_el, "lang").text = game["lang"]
         if game.get("region"):

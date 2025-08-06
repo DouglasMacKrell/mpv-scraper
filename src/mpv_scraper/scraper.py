@@ -25,16 +25,18 @@ logger = logging.getLogger(__name__)
 CACHE_FILE = ".scrape_cache.json"
 
 
-def _try_tmdb_episode_image(show_title: str, season: int, episode: int) -> Optional[str]:
+def _try_tmdb_episode_image(
+    show_title: str, season: int, episode: int
+) -> Optional[str]:
     """Try to get episode image from TMDB."""
     try:
         import os
         import requests
-        
+
         api_key = os.getenv("TMDB_API_KEY")
         if not api_key:
             return None
-            
+
         # Search for TV show on TMDB
         search_results = requests.get(
             "https://api.themoviedb.org/3/search/tv",
@@ -71,11 +73,11 @@ def _try_tmdb_season_images(show_title: str, max_season: int) -> Dict[str, str]:
     try:
         import os
         import requests
-        
+
         api_key = os.getenv("TMDB_API_KEY")
         if not api_key:
             return {}
-            
+
         # Search for TV show on TMDB
         search_results = requests.get(
             "https://api.themoviedb.org/3/search/tv",
@@ -88,27 +90,29 @@ def _try_tmdb_season_images(show_title: str, max_season: int) -> Dict[str, str]:
 
         # Get the first result
         show_id = search_results["results"][0]["id"]
-        
+
         episode_images = {}
-        
+
         # Fetch all episodes for the season
         season_details = requests.get(
             f"https://api.themoviedb.org/3/tv/{show_id}/season/{max_season}",
             params={"api_key": api_key, "language": "en-US"},
             timeout=10,
         ).json()
-        
+
         if not season_details.get("episodes"):
             return {}
-            
+
         # Extract episode images from the season response (no additional API calls needed!)
         for episode in season_details["episodes"]:
             episode_num = episode.get("episode_number")
             still_path = episode.get("still_path")
             if episode_num and still_path:
                 episode_key = f"S{max_season:02d}E{episode_num:02d}"
-                episode_images[episode_key] = f"https://image.tmdb.org/t/p/original{still_path}"
-        
+                episode_images[episode_key] = (
+                    f"https://image.tmdb.org/t/p/original{still_path}"
+                )
+
         return episode_images
 
     except Exception as e:
@@ -211,7 +215,7 @@ def scrape_tv(
             logo_path = images_dir / f"{show_dir.name}-logo.png"
             marquee_path = images_dir / f"{show_dir.name}-marquee.png"
             box_path = images_dir / f"{show_dir.name}-box.png"
-                
+
             download_marquee(logo_url, logo_path, headers)
             if transaction_logger:
                 transaction_logger.log_create(logo_path)
@@ -250,61 +254,69 @@ def scrape_tv(
 
     # First, analyze the actual files to understand the structure
     from mpv_scraper.parser import parse_tv_filename
-    
+
     # Get all episode files and their spans
     episode_files = []
     for file_path in show_dir.glob("*.mp4"):
         meta = parse_tv_filename(file_path.name)
         if meta:
             episode_files.append((file_path, meta))
-    
+
     # Also check for .mkv files (Scooby Doo uses .mkv)
     for file_path in show_dir.glob("*.mkv"):
         meta = parse_tv_filename(file_path.name)
         if meta:
             episode_files.append((file_path, meta))
-    
+
     # Sort by season and episode for consistent ordering
     episode_files.sort(key=lambda x: (x[1].season, x[1].start_ep))
-    
+
     logger.info(f"Found {len(episode_files)} episode files for {show_dir.name}")
-    
+
     # Bulk fetch TMDB episode images for all seasons to avoid API bombing
     tmdb_episode_images = {}
-    all_seasons = list(set([meta.season for _, meta in episode_files]))  # All unique seasons
+    all_seasons = list(
+        set([meta.season for _, meta in episode_files])
+    )  # All unique seasons
     if all_seasons and episode_files:
         try:
             # Use the parsed show name from the first episode file (more accurate than directory name)
             parsed_show_name = episode_files[0][1].show
-            logger.info(f"Using parsed show name for TMDB bulk fetch: '{parsed_show_name}'")
+            logger.info(
+                f"Using parsed show name for TMDB bulk fetch: '{parsed_show_name}'"
+            )
             # Fetch all seasons in bulk
             for season in all_seasons:
                 season_images = _try_tmdb_season_images(parsed_show_name, season)
                 tmdb_episode_images.update(season_images)
-            logger.info(f"Bulk fetched {len(tmdb_episode_images)} TMDB episode images for {parsed_show_name} (seasons {all_seasons})")
+            logger.info(
+                f"Bulk fetched {len(tmdb_episode_images)} TMDB episode images for {parsed_show_name} (seasons {all_seasons})"
+            )
         except Exception as e:
             logger.debug(f"TMDB bulk fetch failed for {parsed_show_name}: {e}")
-    
+
     # Batch collect all images to download
     downloads_to_process = []
-    
+
     for file_path, meta in episode_files:
         # Look for API image for the first episode in the span
         target_season = meta.season
         target_episode = meta.start_ep
-        
+
         # Try TVDB first
         api_episode = None
         img_url = None
         source = "TVDB"
-        
+
         # Find matching episode in TVDB data
         for ep in record.get("episodes", []):
-            if (ep.get("seasonNumber") == target_season and 
-                ep.get("number") == target_episode):
+            if (
+                ep.get("seasonNumber") == target_season
+                and ep.get("number") == target_episode
+            ):
                 api_episode = ep
                 break
-        
+
         if api_episode and api_episode.get("image"):
             img_url = api_episode["image"]
             episodes_with_images += 1
@@ -317,23 +329,36 @@ def scrape_tv(
                 episodes_with_images += 1
                 logger.info(f"Found TMDB episode image for {tmdb_key}")
             else:
-                logger.debug(f"TMDB key {tmdb_key} not found in bulk cache (cache has {len(tmdb_episode_images)} items)")
-        
+                logger.debug(
+                    f"TMDB key {tmdb_key} not found in bulk cache (cache has {len(tmdb_episode_images)} items)"
+                )
+
         if img_url:
             # Create the span filename (e.g., "S04E01-E02" for span)
             if meta.end_ep != meta.start_ep:
                 span_name = f"S{meta.season:02d}E{meta.start_ep:02d}-E{meta.end_ep:02d}"
             else:
                 span_name = f"S{meta.season:02d}E{meta.start_ep:02d}"
-            
+
             dest = images_dir / f"{show_dir.name} - {span_name}-image.png"
-            downloads_to_process.append((img_url, dest, source, span_name, target_season, target_episode))
-    
+            downloads_to_process.append(
+                (img_url, dest, source, span_name, target_season, target_episode)
+            )
+
     # Batch download all images
     if downloads_to_process:
-        logger.info(f"Downloading {len(downloads_to_process)} episode images for {show_dir.name}...")
-        
-        for img_url, dest, source, span_name, target_season, target_episode in downloads_to_process:
+        logger.info(
+            f"Downloading {len(downloads_to_process)} episode images for {show_dir.name}..."
+        )
+
+        for (
+            img_url,
+            dest,
+            source,
+            span_name,
+            target_season,
+            target_episode,
+        ) in downloads_to_process:
             try:
                 download_image(img_url, dest, headers)
                 if transaction_logger:
@@ -341,7 +366,7 @@ def scrape_tv(
                 episode_count += 1
             except Exception as e:
                 logger.warning(f"Failed to download episode image {span_name}: {e}")
-        
+
         logger.info(f"✓ Downloaded {episode_count} episode images for {show_dir.name}")
 
     logger.info(
@@ -448,16 +473,20 @@ def scrape_movie(
         try:
             # Copy the marquee logo to thumbnail
             import shutil
+
             marquee_path = images_dir / f"{movie_path.stem}-marquee.png"
             thumb_path = images_dir / f"{movie_path.stem}-thumb.png"
             if marquee_path.exists():
                 shutil.copy2(marquee_path, thumb_path)
                 if transaction_logger:
                     transaction_logger.log_create(thumb_path)
-                logger.info(f"Created thumbnail for {movie_meta.title} (copied from marquee)")
+                logger.info(
+                    f"Created thumbnail for {movie_meta.title} (copied from marquee)"
+                )
             else:
                 # Fallback to placeholder only if marquee doesn't exist
                 from mpv_scraper.images import create_placeholder_png
+
                 create_placeholder_png(thumb_path)
                 if transaction_logger:
                     transaction_logger.log_create(thumb_path)
@@ -468,9 +497,12 @@ def scrape_movie(
         # Only create placeholder if no logo was downloaded
         try:
             from mpv_scraper.images import create_placeholder_png
+
             create_placeholder_png(images_dir / f"{movie_path.stem}-thumb.png")
             if transaction_logger:
-                transaction_logger.log_create(images_dir / f"{movie_path.stem}-thumb.png")
+                transaction_logger.log_create(
+                    images_dir / f"{movie_path.stem}-thumb.png"
+                )
             logger.info(f"Created placeholder thumbnail for {movie_meta.title}")
         except Exception as e:
             logger.warning(f"Failed to create thumbnail for {movie_meta.title}: {e}")

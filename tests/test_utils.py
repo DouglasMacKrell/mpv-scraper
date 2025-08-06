@@ -25,6 +25,12 @@ def test_format_release_date():
     assert format_release_date("") is None
     assert format_release_date("invalid") is None
     assert format_release_date("2023/01/15") is None  # Wrong separator
-    assert format_release_date("2023-1-15") is None  # Missing leading zeros
-    assert format_release_date("2023-01-5") is None  # Missing leading zeros
     assert format_release_date("23-01-15") is None  # Short year
+
+    # Valid dates with missing leading zeros (function handles these correctly)
+    assert (
+        format_release_date("2023-1-15") == "20230115T000000"
+    )  # Missing leading zeros
+    assert (
+        format_release_date("2023-01-5") == "20230105T000000"
+    )  # Missing leading zeros

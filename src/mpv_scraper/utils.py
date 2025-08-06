@@ -4,7 +4,7 @@ import functools
 import re
 import time
 from datetime import datetime
-from typing import Any, Callable, Final, Type, Union, Optional
+from typing import Any, Callable, Final, Type, Union
 
 __all__ = [
     "normalize_rating",
@@ -122,67 +122,102 @@ def format_release_date(date_str: Union[str, None]) -> Union[str, None]:
 def normalize_text(text: str) -> str:
     """
     Normalize text by replacing special characters with ASCII equivalents.
-    
+
     This function handles common special characters that can cause display
     issues in various systems, particularly umlauts and other diacritics.
-    
+
     Args:
         text: The text to normalize
-        
+
     Returns:
         Normalized text with special characters replaced
     """
     if not text:
         return text
-    
+
     # Character mapping for common special characters
     char_map = {
         # German umlauts
-        'ä': 'a', 'ö': 'o', 'ü': 'u', 'ß': 'ss',
-        'Ä': 'A', 'Ö': 'O', 'Ü': 'U',
-        
+        "ä": "a",
+        "ö": "o",
+        "ü": "u",
+        "ß": "ss",
+        "Ä": "A",
+        "Ö": "O",
+        "Ü": "U",
         # French accents
-        'à': 'a', 'â': 'a', 'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-        'î': 'i', 'ï': 'i', 'ô': 'o', 'ù': 'u', 'û': 'u', 'ü': 'u', 'ÿ': 'y',
-        'À': 'A', 'Â': 'A', 'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E',
-        'Î': 'I', 'Ï': 'I', 'Ô': 'O', 'Ù': 'U', 'Û': 'U', 'Ü': 'U',
-        
+        "à": "a",
+        "â": "a",
+        "é": "e",
+        "è": "e",
+        "ê": "e",
+        "ë": "e",
+        "î": "i",
+        "ï": "i",
+        "ô": "o",
+        "ù": "u",
+        "û": "u",
+        "ÿ": "y",
+        "À": "A",
+        "Â": "A",
+        "É": "E",
+        "È": "E",
+        "Ê": "E",
+        "Ë": "E",
+        "Î": "I",
+        "Ï": "I",
+        "Ô": "O",
+        "Ù": "U",
+        "Û": "U",
         # Spanish characters
-        'ñ': 'n', 'Ñ': 'N',
-        
+        "ñ": "n",
+        "Ñ": "N",
         # Scandinavian characters
-        'å': 'a', 'æ': 'ae', 'ø': 'o',
-        'Å': 'A', 'Æ': 'AE', 'Ø': 'O',
-        
+        "å": "a",
+        "æ": "ae",
+        "ø": "o",
+        "Å": "A",
+        "Æ": "AE",
+        "Ø": "O",
         # Other common special characters
-        'ç': 'c', 'Ç': 'C',
-        'š': 's', 'Š': 'S',
-        'ž': 'z', 'Ž': 'Z',
-        'č': 'c', 'Č': 'C',
-        'ć': 'c', 'Ć': 'C',
-        'ń': 'n', 'Ń': 'N',
-        'ł': 'l', 'Ł': 'L',
-        'ś': 's', 'Ś': 'S',
-        'ź': 'z', 'Ź': 'Z',
-        'ż': 'z', 'Ż': 'Z',
-        
+        "ç": "c",
+        "Ç": "C",
+        "š": "s",
+        "Š": "S",
+        "ž": "z",
+        "Ž": "Z",
+        "č": "c",
+        "Č": "C",
+        "ć": "c",
+        "Ć": "C",
+        "ń": "n",
+        "Ń": "N",
+        "ł": "l",
+        "Ł": "L",
+        "ś": "s",
+        "Ś": "S",
+        "ź": "z",
+        "Ź": "Z",
+        "ż": "z",
+        "Ż": "Z",
         # Smart quotes and dashes
-        '"': '"', '"': '"',
-        ''': "'", ''': "'",
-        '–': '-', '—': '-',
-        '…': '...',
+        '"': '"',
+        """: "'", """: "'",
+        "–": "-",
+        "—": "-",
+        "…": "...",
     }
-    
+
     # Replace special characters
     normalized = text
     for special, replacement in char_map.items():
         normalized = normalized.replace(special, replacement)
-    
+
     # Remove any remaining non-ASCII characters that might cause issues
     # Keep basic punctuation and alphanumeric characters
-    normalized = re.sub(r'[^\x00-\x7F\s\-\.\,\!\?\&\'\"\(\)]', '', normalized)
-    
+    normalized = re.sub(r"[^\x00-\x7F\s\-\.\,\!\?\&\'\"\(\)]", "", normalized)
+
     # Clean up multiple spaces
-    normalized = re.sub(r'\s+', ' ', normalized).strip()
-    
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
     return normalized

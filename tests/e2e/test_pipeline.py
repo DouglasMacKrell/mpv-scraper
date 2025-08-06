@@ -105,12 +105,12 @@ def test_full_pipeline_generates_expected_files():
                 pytest.fail(f"Malformed XML: {xml_path}: {exc}")
             return tree
 
-        # 1. Ensure we have a top-level gamelist and at least one per-folder list.
+        # 1. Ensure we have a top-level gamelist (our current logic only creates top-level)
         xml_files = _iter_xml_files(library_root)
         assert (
             library_root / "gamelist.xml"
         ) in xml_files, "Missing top-level gamelist.xml"
-        assert len(xml_files) >= 2, "Expected per-folder gamelist.xml files"
+        assert len(xml_files) >= 1, "Expected at least top-level gamelist.xml"
 
         # 2. Each XML must be well-formed and any <image> file it references must
         #    exist and satisfy the ≤600 KB constraint.

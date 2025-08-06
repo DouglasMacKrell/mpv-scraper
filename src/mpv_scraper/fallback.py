@@ -66,7 +66,12 @@ class FallbackScraper:
             # Search for TV show on TMDB
             search_results = requests.get(
                 "https://api.themoviedb.org/3/search/tv",
-                params={"api_key": self.api_keys["tmdb"], "query": title, "year": year, "language": "en-US"},
+                params={
+                    "api_key": self.api_keys["tmdb"],
+                    "query": title,
+                    "year": year,
+                    "language": "en-US",
+                },
                 timeout=10,
             ).json()
 
@@ -86,7 +91,10 @@ class FallbackScraper:
             # Get images
             images = requests.get(
                 f"https://api.themoviedb.org/3/tv/{show_id}/images",
-                params={"api_key": self.api_keys["tmdb"], "include_image_language": "en,en-US,null"},
+                params={
+                    "api_key": self.api_keys["tmdb"],
+                    "include_image_language": "en,en-US,null",
+                },
                 timeout=10,
             ).json()
 
@@ -96,9 +104,13 @@ class FallbackScraper:
 
             if images.get("posters"):
                 # More aggressive English filtering - prioritize US region and exclude known non-English
-                us_posters = [p for p in images["posters"] if p.get("iso_3166_1") == "US"]
-                english_posters = [p for p in images["posters"] if p.get("iso_639_1") == "en"]
-                
+                us_posters = [
+                    p for p in images["posters"] if p.get("iso_3166_1") == "US"
+                ]
+                english_posters = [
+                    p for p in images["posters"] if p.get("iso_639_1") == "en"
+                ]
+
                 # Priority order: US posters first, then English posters, then all others
                 if us_posters:
                     poster_candidates = us_posters
@@ -107,21 +119,38 @@ class FallbackScraper:
                 else:
                     # If no language info, try to filter by excluding known non-English patterns
                     poster_candidates = [
-                        p for p in images["posters"] 
-                        if not any(non_eng in p.get("file_path", "").lower() 
-                                 for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                        p
+                        for p in images["posters"]
+                        if not any(
+                            non_eng in p.get("file_path", "").lower()
+                            for non_eng in [
+                                "ru",
+                                "de",
+                                "fr",
+                                "es",
+                                "it",
+                                "pt",
+                                "ja",
+                                "ko",
+                                "zh",
+                            ]
+                        )
                     ]
                     # If still no good candidates, use all posters
                     if not poster_candidates:
                         poster_candidates = images["posters"]
-                
+
                 poster_url = f"https://image.tmdb.org/t/p/original{poster_candidates[0]['file_path']}"
 
             if images.get("logos"):
                 # More aggressive English filtering - prioritize US region and exclude known non-English
-                us_logos = [l for l in images["logos"] if l.get("iso_3166_1") == "US"]
-                english_logos = [l for l in images["logos"] if l.get("iso_639_1") == "en"]
-                
+                us_logos = [
+                    logo for logo in images["logos"] if logo.get("iso_3166_1") == "US"
+                ]
+                english_logos = [
+                    logo for logo in images["logos"] if logo.get("iso_639_1") == "en"
+                ]
+
                 # Priority order: US logos first, then English logos, then all others
                 if us_logos:
                     logo_candidates = us_logos
@@ -130,14 +159,27 @@ class FallbackScraper:
                 else:
                     # If no language info, try to filter by excluding known non-English patterns
                     logo_candidates = [
-                        l for l in images["logos"] 
-                        if not any(non_eng in l.get("file_path", "").lower() 
-                                 for non_eng in ["ru", "de", "fr", "es", "it", "pt", "ja", "ko", "zh"])
+                        logo
+                        for logo in images["logos"]
+                        if not any(
+                            non_eng in logo.get("file_path", "").lower()
+                            for non_eng in [
+                                "ru",
+                                "de",
+                                "fr",
+                                "es",
+                                "it",
+                                "pt",
+                                "ja",
+                                "ko",
+                                "zh",
+                            ]
+                        )
                     ]
                     # If still no good candidates, use all logos
                     if not logo_candidates:
                         logo_candidates = images["logos"]
-                
+
                 logo_url = f"https://image.tmdb.org/t/p/original{logo_candidates[0]['file_path']}"
 
             return {

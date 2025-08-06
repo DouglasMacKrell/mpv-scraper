@@ -153,4 +153,4 @@ Support standard EmulationStation metadata fields:
 - Video quality selection and transcoding
 - Social features (ratings, reviews, recommendations)
 
-This enhancement would transform KNULLI's MPV system from a basic media player into a full-featured media management system that rivals dedicated media center applications while maintaining the simplicity and performance that users expect from KNULLI. 
+This enhancement would transform KNULLI's MPV system from a basic media player into a full-featured media management system that rivals dedicated media center applications while maintaining the simplicity and performance that users expect from KNULLI.
