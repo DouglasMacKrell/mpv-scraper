@@ -119,6 +119,10 @@ For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/
 
 👉 **Error handling details?** See [docs/error_handling.md](docs/error_handling.md) for comprehensive information about retry logic and resilience features.
 
+👉 **API issues?** See [docs/API_TROUBLESHOOTING.md](docs/API_TROUBLESHOOTING.md) for help with TVDB and TMDB authentication problems.
+
+👉 **Performance optimization?** See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for tips on optimizing large library processing.
+
 ---
 
 ## Installation and Setup
