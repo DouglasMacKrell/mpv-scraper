@@ -59,10 +59,16 @@ def scrape(path):
     * Poster images for shows and movies
     * Logo artwork for marquee display
     * Caches all metadata for later generate step
+
+    Uses parallel processing for improved performance.
     """
     from pathlib import Path
     from mpv_scraper.scanner import scan_directory
-    from mpv_scraper.scraper import scrape_tv, scrape_movie
+    from mpv_scraper.scraper import (
+        scrape_tv_parallel,
+        scrape_movie,
+        ParallelDownloadManager,
+    )
     from mpv_scraper.transaction import TransactionLogger
 
     root = Path(path)
@@ -83,16 +89,25 @@ def scrape(path):
         f"Found {len(result.shows)} show folders and {len(result.movies)} movies."
     )
 
-    # 3. Scrape TV shows
+    # 3. Create global parallel download manager
+    download_manager = ParallelDownloadManager(
+        max_workers=12
+    )  # Increased for cross-show parallelization
+
+    # 4. Scrape TV shows (metadata + queue downloads)
+    all_tasks = []
     for show in result.shows:
         click.echo(f"Scraping {show.path.name}...")
         try:
-            scrape_tv(show.path, logger, top_images_dir)
+            tasks = scrape_tv_parallel(
+                show.path, download_manager, logger, top_images_dir
+            )
+            all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
         except Exception as e:
             click.echo(f"✗ Failed to scrape {show.path.name}: {e}")
 
-    # 4. Scrape movies
+    # 5. Scrape movies (sequential for now, could be parallelized later)
     for movie in result.movies:
         click.echo(f"Scraping {movie.path.name}...")
         try:
@@ -101,7 +116,29 @@ def scrape(path):
         except Exception as e:
             click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")
 
-    click.echo("Scraping completed.")
+    # 6. Execute all parallel downloads
+    if all_tasks:
+        click.echo(f"Executing {len(all_tasks)} parallel downloads...")
+        results = download_manager.execute_downloads()
+
+        # Process results
+        successful_downloads = 0
+        failed_downloads = 0
+        for task, success, error in results:
+            if success:
+                successful_downloads += 1
+                logger.log_create(task.dest_path)
+            else:
+                failed_downloads += 1
+                click.echo(
+                    f"✗ Failed to download {task.source} image for {task.episode_info}: {error}"
+                )
+
+        click.echo(
+            f"✓ Completed parallel downloads: {successful_downloads} successful, {failed_downloads} failed"
+        )
+    else:
+        click.echo("No downloads to process.")
 
 
 @main.command()

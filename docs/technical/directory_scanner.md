@@ -73,3 +73,49 @@ except FileNotFoundError:
 ```
 
 This structured approach ensures that the rest of the application receives a predictable and well-organized list of media to process, separating concerns cleanly between scanning and parsing.
+
+# Directory Scanner
+
+Understanding how the MPV Scraper discovers and categorizes media files in your directory structure.
+
+## 🔍 Directory Scanning Flow
+
+```mermaid
+flowchart TD
+    A[Start Scan] --> B[Read Directory]
+    B --> C[Filter Media Files]
+    C --> D{File Type?}
+
+    D -->|Video File| E[Parse Filename]
+    D -->|Non-Video| F[Skip File]
+
+    E --> G{Parse Success?}
+    G -->|Yes| H[Extract Metadata]
+    G -->|No| I[Log Parse Error]
+
+    H --> J{Show or Movie?}
+    J -->|TV Show| K[Add to Shows List]
+    J -->|Movie| L[Add to Movies List]
+    J -->|Unknown| M[Add to Unknown List]
+
+    I --> N[Add to Parse Errors]
+
+    F --> O[Continue Scanning]
+    K --> O
+    L --> O
+    M --> O
+    N --> O
+
+    O --> P{More Files?}
+    P -->|Yes| B
+    P -->|No| Q[Generate Summary]
+
+    Q --> R[Return Results]
+
+    style A fill:#e3f2fd
+    style R fill:#c8e6c9
+    style F fill:#ffcdd2
+    style I fill:#ffcdd2
+```
+
+## File Discovery

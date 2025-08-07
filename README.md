@@ -2,130 +2,59 @@
 
 A command-line tool to automatically scrape metadata for TV shows and movies and generate EmulationStation-compatible `gamelist.xml` files for the Knulli UI.
 
-## Overview
-
-This tool scans a target directory (e.g., `/mpv`) containing TV show and movie media files, fetches metadata from online databases, downloads artwork, and generates the necessary `gamelist.xml` files for a rich media experience in frontends like EmulationStation.
-
-It's designed to work with the Knulli UI's expected directory structure, ensuring that all media is correctly cataloged with titles, descriptions, ratings, release dates, and artwork.
-
-## Project Structure
-The project follows a standard `src` layout to ensure clean imports and a clear separation between the application code and project configuration.
+## 🏗️ System Architecture
 
 ```mermaid
-graph TD
-    A[mpv-scraper] --> B[src];
-    A --> C[tests];
-    A --> D[docs];
-    A --> E[examples];
-    A --> F[setup.py];
-    A --> G[README.md];
-    A --> H[PLANNING.md];
+graph TB
+    A[Media Directory] --> B[Directory Scanner]
+    B --> C[Filename Parser]
+    C --> D{File Type?}
+    D -->|TV Show| E[TVDB API]
+    D -->|Movie| F[TMDB API]
+    E --> G[Metadata Fetcher]
+    F --> G
+    G --> H[Image Downloader]
+    H --> I[Image Processor]
+    I --> J[XML Generator]
+    J --> K[gamelist.xml Files]
 
-    B --> B1[mpv_scraper];
-    B1 --> B2[__init__.py];
-    B1 --> B3[cli.py];
-    B1 --> B4[parser.py];
+    style A fill:#e1f5fe
+    style K fill:#c8e6c9
+    style E fill:#fff3e0
+    style F fill:#fff3e0
 ```
 
-## Key Features
+## 🔄 Workflow Overview
 
-- **TV & Movie Scraping:** Uses TheTVDB for television series and TheMovieDB for movies.
-- **`gamelist.xml` Generation:** Creates EmulationStation-compatible `gamelist.xml` files for the root media folder and each subdirectory.
-- **Smart Filename Parsing:** Robustly parses filenames for both TV shows (`Show - S01E01 - Title.ext`) and movies (`Movie (Year).ext`).
-- **Anthology Span Support:** Correctly handles TV episode ranges (e.g., `S01E09-E10`), combining metadata and titles appropriately.
-- **Image Processing:** Downloads artwork, converts it to PNG, automatically resizes/compresses to stay under 600 KB (max 500 px width) for fast loading.
-- **Error Handling & Retry Logic:** Robust retry mechanism with exponential backoff for network failures, graceful fallbacks for missing artwork.
-- **Interactive Mode:** Prompts the user to resolve ambiguities when multiple search results are found. The user's choice is for the current session only and is not saved.
-- **API Key Management:** Loads API keys securely from environment variables.
+```mermaid
+flowchart LR
+    A[Scan Directory] --> B[Parse Filenames]
+    B --> C[Fetch Metadata]
+    C --> D[Download Images]
+    D --> E[Process Images]
+    E --> F[Generate XML]
+    F --> G[Complete!]
 
-## Tech Stack
+    C --> H{API Failure?}
+    H -->|Yes| I[Fallback Screenshot]
+    H -->|No| D
+    I --> E
 
-- **Language:** Python 3.9+
-- **CLI Framework:** Click
-- **Core Libraries:**
-  - `requests` for API communication
-  - `Pillow` for image processing
-  - `lxml` for XML generation
-
-## Target Directory Structure
-
-The scraper expects and generates the following structure within the main media folder (e.g., `/mpv`):
-
-```
-/mpv
-├── gamelist.xml              # Top-level gamelist with <folder> entries for shows/movies
-├── Movies/
-│   ├── gamelist.xml          # Gamelist for all movies
-│   ├── Movie Title (Year).mp4
-│   └── images/
-│       ├── Movie Title (Year).png
-│       └── logo.png              # Movie collection logo (marquee)
-└── <Show Name>/
-    ├── gamelist.xml          # Gamelist for this show's episodes
-    ├── Show - S01E01 - Title.mp4
-    └── images/
-        ├── poster.png        # Show poster
-        ├── logo.png          # Show logo (marquee)
-        └── S01E01.png        # Episode thumbnail
+    style G fill:#c8e6c9
+    style H fill:#ffcdd2
 ```
 
-## CLI Usage
+## Documentation
 
-After installing the package and activating your virtual-environment you can invoke the scraper via **Click** commands:
+📚 **Comprehensive documentation is available in the [`docs/`](docs/) directory:**
 
-```bash
-# View help
-python -m mpv_scraper.cli --help
+- **[📖 Documentation Index](docs/README.md)** - Complete guide to all documentation
+- **[🚀 Quick Start](docs/user/QUICK_START.md)** - Get up and running in minutes
+- **[🔧 API Troubleshooting](docs/technical/API_TROUBLESHOOTING.md)** - Fix authentication issues
+- **[⚡ Performance Guide](docs/technical/PERFORMANCE.md)** - Optimize for large libraries
+- **[🛠️ Development Guide](docs/technical/DEVELOPMENT.md)** - Contributing to the project
 
-# Scan a directory (discover shows and movies)
-python -m mpv_scraper.cli scan /mpv
-
-# Scrape metadata and artwork from TVDB/TMDB
-python -m mpv_scraper.cli scrape /mpv
-
-# Generate gamelist.xml files (requires scraped metadata)
-python -m mpv_scraper.cli generate /mpv
-
-# Undo (rollback the last run)
-python -m mpv_scraper.cli undo
-
-# Full workflow – scan ➜ scrape ➜ generate
-python -m mpv_scraper.cli run /mpv
-```
-
-### Extended Metadata Example
-
-After the scrape you’ll see additional tags in each `<game>` entry:
-
-```xml
-<game>
-  <path>./Paw Patrol - S04E01-E02 - Pups Save a Blimp &amp; Pups Save the Chili Cook-Off.mp4</path>
-  <name>Pups Save a Blimp &amp; Pups Save the Chili Cook-Off – S04E01-E02</name>
-  <desc>When Mayor Humdinger causes trouble…</desc>
-  <image>./images/S04E01.png</image>
-  <marquee>./images/logo.png</marquee>
-  <rating>0.78</rating>
-</game>
-```
-
-
----
-
-## Quick Start
-
-For the fastest path, read the step-by-step guide in [docs/QUICK_START.md](docs/QUICK_START.md).
-
-👉 **Running tests?** See [docs/TESTING.md](docs/TESTING.md) for details.
-
-👉 **Error handling details?** See [docs/error_handling.md](docs/error_handling.md) for comprehensive information about retry logic and resilience features.
-
-👉 **API issues?** See [docs/API_TROUBLESHOOTING.md](docs/API_TROUBLESHOOTING.md) for help with TVDB and TMDB authentication problems.
-
-👉 **Performance optimization?** See [docs/PERFORMANCE.md](docs/PERFORMANCE.md) for tips on optimizing large library processing.
-
----
-
-## Installation and Setup
+## Installation
 
 1.  **Clone the repository:**
     ```bash

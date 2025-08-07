@@ -1,19 +1,55 @@
 # Performance Optimization Guide
 
-This guide provides tips and best practices for optimizing the MPV Metadata Scraper for large libraries and improving overall performance.
+Optimize the MPV Scraper for large media libraries and faster processing.
 
-## Understanding Performance Factors
+## ⚡ Performance Optimization Flow
 
-### Network Operations
-The scraper's performance is primarily limited by:
-- **API Rate Limits**: TVDB and TMDB have rate limits that affect speed
-- **Image Downloads**: Large artwork files can slow down processing
-- **Network Latency**: Internet connection speed affects download times
+```mermaid
+flowchart TD
+    A[Performance Issue?] --> B{Issue Type?}
 
-### Local Operations
-- **File I/O**: Writing images and XML files
-- **Image Processing**: Resizing and compressing artwork
-- **XML Generation**: Creating gamelist.xml files
+    B -->|Slow Downloads| C[Network Optimization]
+    B -->|High Memory Usage| D[Memory Management]
+    B -->|Long Processing Time| E[Parallel Processing]
+    B -->|Large Library| F[Library Optimization]
+
+    C --> G[Check Internet Speed]
+    C --> H[Use Wired Connection]
+    C --> I[Adjust Timeouts]
+
+    D --> J[Monitor Memory Usage]
+    D --> K[Process in Batches]
+    D --> L[Clear Cache]
+
+    E --> M[Enable Parallel Downloads]
+    E --> N[Use Multiple Workers]
+    E --> O[Optimize Image Processing]
+
+    F --> P[Use SSD Storage]
+    F --> Q[Organize Directory Structure]
+    F --> R[Filter Unwanted Files]
+
+    G --> S[Test Performance]
+    H --> S
+    I --> S
+    J --> S
+    K --> S
+    L --> S
+    M --> S
+    N --> S
+    O --> S
+    P --> S
+    Q --> S
+    R --> S
+
+    S --> T{Improved?}
+    T -->|Yes| U[Success!]
+    T -->|No| V[Try Next Option]
+    V --> S
+
+    style U fill:#c8e6c9
+    style A fill:#ffcdd2
+```
 
 ## Optimization Strategies
 

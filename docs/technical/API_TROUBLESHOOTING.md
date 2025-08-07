@@ -1,18 +1,49 @@
 # API Troubleshooting Guide
 
-This guide helps you resolve common issues with TVDB and TMDB API authentication and usage in the MPV Metadata Scraper.
+Fix common TVDB and TMDB authentication and connectivity issues.
 
-## Quick Diagnosis
+## 🔍 Troubleshooting Flow
 
-Run this command to test your API setup:
+```mermaid
+flowchart TD
+    A[API Error Occurs] --> B{Error Type?}
 
-```bash
-python -m pytest tests/test_api_keys.py -v -s
+    B -->|401 Unauthorized| C[Check API Keys]
+    B -->|429 Rate Limited| D[Wait & Retry]
+    B -->|Network Error| E[Check Internet]
+    B -->|Other| F[Check Logs]
+
+    C --> G{Keys Set?}
+    G -->|No| H[Set Environment Variables]
+    G -->|Yes| I{Keys Valid?}
+    I -->|No| J[Get New Keys]
+    I -->|Yes| K[Check Key Format]
+
+    H --> L[Restart Terminal]
+    J --> M[Update Keys]
+    K --> N[Verify Key Type]
+
+    L --> O[Test Again]
+    M --> O
+    N --> O
+
+    D --> P[Wait 1-5 Minutes]
+    E --> Q[Check Connection]
+    F --> R[Review Error Details]
+
+    P --> O
+    Q --> O
+    R --> O
+
+    O --> S{Working?}
+    S -->|Yes| T[Success!]
+    S -->|No| A
+
+    style T fill:#c8e6c9
+    style A fill:#ffcdd2
 ```
 
-This will test both TVDB and TMDB authentication and provide detailed feedback.
-
-## TVDB API Issues
+## Common Issues
 
 ### Common Error: 401 Unauthorized
 

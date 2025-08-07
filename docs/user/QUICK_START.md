@@ -1,8 +1,30 @@
 # Quick Start Guide
 
-Welcome to **MPV Metadata Scraper**!  This guide walks you through getting the tool running quickly on your machine and integrating it with Knulli UI.
+Get up and running with the MPV Scraper in minutes!
 
----
+## 🚀 Quick Start Flow
+
+```mermaid
+flowchart TD
+    A[Clone Repository] --> B[Create Virtual Environment]
+    B --> C[Install Dependencies]
+    C --> D[Set API Keys]
+    D --> E[Test Installation]
+    E --> F[Run First Scrape]
+    F --> G[Success!]
+
+    E --> H{Installation OK?}
+    H -->|No| I[Check Dependencies]
+    I --> E
+
+    F --> J{API Keys Valid?}
+    J -->|No| K[Check API Keys]
+    K --> F
+
+    style G fill:#c8e6c9
+    style H fill:#ffcdd2
+    style J fill:#ffcdd2
+```
 
 ## Prerequisites
 
@@ -190,7 +212,7 @@ Refer to [docs/TESTING.md](TESTING.md) for detailed guidance.
 
 ### API Issues
 
-For detailed help with TVDB and TMDB API authentication issues, see the [API Troubleshooting Guide](API_TROUBLESHOOTING.md).
+For detailed help with TVDB and TMDB API authentication issues, see the [API Troubleshooting Guide](../technical/API_TROUBLESHOOTING.md).
 
 Common API problems and quick fixes:
 - **401 Unauthorized**: Check API key format and environment variables

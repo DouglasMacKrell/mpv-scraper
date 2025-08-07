@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 
-from mpv_scraper.scraper import scrape_tv, scrape_movie
+from mpv_scraper.scraper import scrape_tv_parallel, scrape_movie
 
 
 def test_missing_artwork_placeholder():
@@ -40,7 +40,10 @@ def test_missing_artwork_placeholder():
             }
 
             # This should not crash - should handle missing artwork gracefully
-            scrape_tv(show_dir)
+            from mpv_scraper.scraper import ParallelDownloadManager
+
+            download_manager = ParallelDownloadManager()
+            scrape_tv_parallel(show_dir, download_manager)
 
             # Verify that the scrape cache was still created despite missing artwork
             cache_file = show_dir / ".scrape_cache.json"
@@ -128,7 +131,7 @@ def test_scraper_continues_on_partial_failures():
             }
 
             # Mock download functions to fail for some URLs but succeed for others
-            def mock_download_side_effect(url, dest):
+            def mock_download_side_effect(url, dest, headers=None):
                 if "episode" in url:
                     raise Exception("Episode image failed")
                 elif "logo" in url:
@@ -140,7 +143,10 @@ def test_scraper_continues_on_partial_failures():
             mock_download_marquee.side_effect = Exception("Logo download failed")
 
             # This should not crash - should handle partial failures gracefully
-            scrape_tv(show_dir)
+            from mpv_scraper.scraper import ParallelDownloadManager
+
+            download_manager = ParallelDownloadManager()
+            tasks = scrape_tv_parallel(show_dir, download_manager)
 
             # Verify that the scrape cache was still created
             cache_file = show_dir / ".scrape_cache.json"
@@ -148,10 +154,13 @@ def test_scraper_continues_on_partial_failures():
                 cache_file.exists()
             ), "Scrape cache should be created despite partial failures"
 
-            # Verify that all download attempts were made
+            # Verify that tasks were queued (parallel system queues instead of immediate execution)
+            assert len(tasks) > 0, "Should queue download tasks for parallel processing"
+
+            # Verify that poster download was attempted (this happens immediately)
             assert (
-                mock_download_image.call_count >= 2
-            ), "Should attempt to download all available images"
+                mock_download_image.call_count >= 1
+            ), "Should attempt to download poster image"
             assert (
                 mock_download_marquee.called
             ), "Should attempt to download logo even if it fails"

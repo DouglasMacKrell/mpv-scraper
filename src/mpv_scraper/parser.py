@@ -22,13 +22,17 @@ def parse_tv_filename(filename: str) -> Optional[TVMeta]:
 
     The regex is designed to capture:
     - Show name (group 1)
-    - Season number (group 2)
+    - Season number or year (group 2)
     - Starting episode number (group 3)
     - Optional ending episode number for spans (group 5)
     - Episode titles (group 6)
 
-    It handles single episodes (SxxEyy), anthology spans (SxxExx-Eyy),
-    and variations in spacing and separators.
+    It handles:
+    - Traditional episodes (S01E01)
+    - Year-based episodes (S1934E03) for shows like Popeye
+    - Alternative format (01x01)
+    - Anthology spans (S01E09-E10)
+    - Variations in spacing and separators
 
     Args:
         filename: The name of the media file (e.g., "Show - S01E01 - Title.mkv").
@@ -36,56 +40,61 @@ def parse_tv_filename(filename: str) -> Optional[TVMeta]:
     Returns:
         A TVMeta object if parsing is successful, otherwise None.
     """
-    # Regex to capture show name, season/episode info, and titles
-    pattern = re.compile(
-        r"^(.*?)[\s\.-]*[Ss](\d{1,2})[Ee](\d{1,2})([\s\.-]*[Ee](\d{1,2}))?[\s\.-]*(.*?)(\.\w+)?$"
-    )
+    # Multiple patterns to handle different formats
+    patterns = [
+        # Traditional format: S01E01 or S1934E03 (year-based)
+        r"^(.*?)[\s\.-]*[Ss](\d{1,4})[Ee](\d{1,3})([\s\.-]*[Ee](\d{1,3}))?[\s\.-]*(.*?)(\.\w+)?$",
+        # Alternative format: 01x01
+        r"^(.*?)[\s\.-]*(\d{1,2})[xX](\d{1,2})([\s\.-]*[xX](\d{1,2}))?[\s\.-]*(.*?)(\.\w+)?$",
+    ]
 
-    match = pattern.match(Path(filename).stem)
+    for pattern in patterns:
+        match = re.match(pattern, Path(filename).stem)
+        if match:
+            show_name = match.group(1).strip()
+            season_or_year = int(match.group(2))
+            start_ep = int(match.group(3))
 
-    if not match:
-        return None
+            # Handle episode spans (e.g., S01E09-E10 or 01x09-10)
+            end_ep = int(match.group(5)) if match.group(5) else start_ep
 
-    show_name = match.group(1).strip()
-    season = int(match.group(2))
-    start_ep = int(match.group(3))
+            # Split titles for anthology episodes
+            title_part = match.group(6).strip()
+            if title_part:
+                # Clean quality metadata from titles (same as movie parser)
+                quality_patterns = [
+                    r"\s+(?:Bluray|WEBRip|HDRip|BRRip|DVDRip|HDTV|PDTV|WEB-DL|BluRay|Blu-Ray|WEB|HD|1080p|720p|480p|2160p|4K|UHD)",
+                    r"\s+(?:x264|x265|HEVC|AVC|AAC|AC3|DTS|FLAC|MP3)",
+                    r"\s+(?:REPACK|PROPER|INTERNAL|EXTENDED|DIRFIX|SUBFIX|AUDIOFIX)",
+                    r"\s+\[.*?\]",  # Remove anything in brackets
+                    r"\s*-\s*(?:1080p|720p|480p|2160p|4K|UHD)",  # Remove quality tags after dashes
+                    r"\s+(?:Remux|REMUX|Remastered|REMUX)",  # Remove remux tags
+                ]
 
-    # Handle episode spans (e.g., S01E09-E10)
-    end_ep = int(match.group(5)) if match.group(5) else start_ep
+                for pattern in quality_patterns:
+                    title_part = re.sub(pattern, "", title_part, flags=re.IGNORECASE)
 
-    # Split titles for anthology episodes
-    title_part = match.group(6).strip()
-    if title_part:
-        # Clean quality metadata from titles (same as movie parser)
-        quality_patterns = [
-            r"\s+(?:Bluray|WEBRip|HDRip|BRRip|DVDRip|HDTV|PDTV|WEB-DL|BluRay|Blu-Ray|WEB|HD|1080p|720p|480p|2160p|4K|UHD)",
-            r"\s+(?:x264|x265|HEVC|AVC|AAC|AC3|DTS|FLAC|MP3)",
-            r"\s+(?:REPACK|PROPER|INTERNAL|EXTENDED|DIRFIX|SUBFIX|AUDIOFIX)",
-            r"\s+\[.*?\]",  # Remove anything in brackets
-            r"\s*-\s*(?:1080p|720p|480p|2160p|4K|UHD)",  # Remove quality tags after dashes
-            r"\s+(?:Remux|REMUX|Remastered|REMUX)",  # Remove remux tags
-        ]
+                # Clean up extra spaces and dashes
+                title_part = title_part.strip().rstrip("-").strip()
 
-        for pattern in quality_patterns:
-            title_part = re.sub(pattern, "", title_part, flags=re.IGNORECASE)
+                # Split titles by common delimiters like ' & '
+                titles = [
+                    t.strip()
+                    for t in re.split(r"\s*&\s*|\s*–\s*", title_part)
+                    if t.strip()
+                ]
+            else:
+                titles = []
 
-        # Clean up extra spaces and dashes
-        title_part = title_part.strip().rstrip("-").strip()
+            return TVMeta(
+                show=show_name,
+                season=season_or_year,
+                start_ep=start_ep,
+                end_ep=end_ep,
+                titles=titles,
+            )
 
-        # Split titles by common delimiters like ' & '
-        titles = [
-            t.strip() for t in re.split(r"\s*&\s*|\s*–\s*", title_part) if t.strip()
-        ]
-    else:
-        titles = []
-
-    return TVMeta(
-        show=show_name,
-        season=season,
-        start_ep=start_ep,
-        end_ep=end_ep,
-        titles=titles,
-    )
+    return None
 
 
 def parse_movie_filename(filename: str) -> Optional[MovieMeta]:
