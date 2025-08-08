@@ -12,30 +12,29 @@ graph TD
     A --> E[CHANGELOG.md]
 
     C --> F[QUICK_START.md]
-    C --> G[FLOW_ASSESSMENT.md]
+    C --> G[VIDEO_PROCESSING.md]
 
     D --> H[API_TROUBLESHOOTING.md]
     D --> I[PERFORMANCE.md]
-    D --> J[error_handling.md]
-    D --> K[DEVELOPMENT.md]
-    D --> L[TESTING.md]
-    D --> M[directory_scanner.md]
-    D --> N[filename_parser.md]
+    D --> J[DEVELOPMENT.md]
+    D --> K[TESTING.md]
+    D --> L[directory_scanner.md]
+    D --> M[filename_parser.md]
 
     style A fill:#e3f2fd
     style C fill:#e8f5e8
     style D fill:#fff3e0
     style B fill:#f3e5f5
+    style G fill:#ffecb3
 ```
 
 ### 🎯 **For End Users**
 - **[Quick Start Guide](user/QUICK_START.md)** - Get up and running in minutes
-- **[Flow Assessment](user/FLOW_ASSESSMENT.md)** - Understanding how the scraper works
+- **[Video Processing Guide](user/VIDEO_PROCESSING.md)** - Video optimization, conversion, and cropping
 
 ### 🔧 **For Developers & Advanced Users**
 - **[API Troubleshooting](technical/API_TROUBLESHOOTING.md)** - Fix TVDB/TMDB authentication issues
 - **[Performance Optimization](technical/PERFORMANCE.md)** - Optimize for large libraries
-- **[Error Handling](technical/error_handling.md)** - Understanding retry logic and fallbacks
 - **[Development Guide](technical/DEVELOPMENT.md)** - Contributing to the project
 - **[Testing Guide](technical/TESTING.md)** - Running tests and quality assurance
 
@@ -47,8 +46,9 @@ graph TD
 
 ### **Getting Started**
 1. **New User?** → [Quick Start Guide](user/QUICK_START.md)
-2. **API Issues?** → [API Troubleshooting](technical/API_TROUBLESHOOTING.md)
-3. **Performance Problems?** → [Performance Guide](technical/PERFORMANCE.md)
+2. **Video Processing?** → [Video Processing Guide](user/VIDEO_PROCESSING.md)
+3. **API Issues?** → [API Troubleshooting](technical/API_TROUBLESHOOTING.md)
+4. **Performance Problems?** → [Performance Guide](technical/PERFORMANCE.md)
 
 ### **Development**
 1. **Contributing?** → [Development Guide](technical/DEVELOPMENT.md)
@@ -60,10 +60,9 @@ graph TD
 | Document | Purpose | Audience |
 |----------|---------|----------|
 | [Quick Start](user/QUICK_START.md) | Basic setup and usage | End users |
-| [Flow Assessment](user/FLOW_ASSESSMENT.md) | System overview | Users & developers |
+| [Video Processing](user/VIDEO_PROCESSING.md) | Video optimization & conversion | End users |
 | [API Troubleshooting](technical/API_TROUBLESHOOTING.md) | Fix authentication issues | Advanced users |
 | [Performance](technical/PERFORMANCE.md) | Optimize large libraries | Advanced users |
-| [Error Handling](technical/error_handling.md) | Understand fallbacks | Developers |
 | [Development](technical/DEVELOPMENT.md) | Contributing guidelines | Developers |
 | [Testing](technical/TESTING.md) | Quality assurance | Developers |
 | [Directory Scanner](technical/directory_scanner.md) | File discovery logic | Developers |
@@ -76,15 +75,38 @@ graph TD
 2. Set up API keys (see [API Troubleshooting](technical/API_TROUBLESHOOTING.md))
 3. Run your first scrape
 
+### **Video Processing**
+1. **Optimize videos** → [Video Processing Guide](user/VIDEO_PROCESSING.md#video-optimization)
+2. **Convert MKV to MP4** → [Video Processing Guide](user/VIDEO_PROCESSING.md#video-format-conversion)
+3. **Crop to 4:3** → [Video Processing Guide](user/VIDEO_PROCESSING.md#video-cropping)
+
 ### **Troubleshooting**
 1. Check [API Troubleshooting](technical/API_TROUBLESHOOTING.md) for authentication issues
-2. Review [Error Handling](technical/error_handling.md) for fallback behavior
+2. Review [Video Processing Guide](user/VIDEO_PROCESSING.md#troubleshooting) for video issues
 3. Consult [Performance Guide](technical/PERFORMANCE.md) for optimization
 
 ### **Development**
 1. Read [Development Guide](technical/DEVELOPMENT.md) for contribution guidelines
 2. Use [Testing Guide](technical/TESTING.md) for quality assurance
 3. Reference technical docs for implementation details
+
+## 🎬 **Video Processing Features**
+
+### **Smart Video Optimization**
+- **Problem Detection**: Automatically identifies problematic videos (HEVC, 10-bit, high bitrate)
+- **Parallel Processing**: 6x faster with multi-core optimization
+- **Hardware Acceleration**: Uses hardware encoders when available
+- **Space Management**: Optional replacement of original files
+
+### **Format Conversion**
+- **MKV to MP4**: Web-optimized conversion with subtitle support
+- **Size Reduction**: ~2/3 file size reduction
+- **Quality Preservation**: Maintains visual quality while optimizing
+
+### **Aspect Ratio Cropping**
+- **4:3 Cropping**: Automatically crop 16:9 videos with letterboxing
+- **Smart Detection**: Uses FFprobe to detect black bars
+- **Quality Options**: Fast, medium, and high-quality presets
 
 ## 📝 **Documentation Standards**
 
@@ -104,4 +126,4 @@ When updating documentation:
 
 ---
 
-**Need help?** Start with the [Quick Start Guide](user/QUICK_START.md) or check the [API Troubleshooting](technical/API_TROUBLESHOOTING.md) for common issues.
+**Need help?** Start with the [Quick Start Guide](user/QUICK_START.md) or check the [Video Processing Guide](user/VIDEO_PROCESSING.md) for video-related features.

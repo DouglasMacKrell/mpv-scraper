@@ -62,6 +62,7 @@ class ParallelDownloadManager:
             try:
                 task = self.download_queue.get(timeout=1)
                 if task is None:  # Shutdown signal
+                    self.download_queue.task_done()
                     break
 
                 try:
@@ -88,12 +89,11 @@ class ParallelDownloadManager:
                     with self.lock:
                         self.results.append((task, False, str(e)))
 
+                # Mark task as done only after processing
+                self.download_queue.task_done()
+
             except queue.Empty:
                 break
-            finally:
-                # Mark task as done only if we got a task
-                if "task" in locals():
-                    self.download_queue.task_done()
 
     def execute_downloads(self) -> List[Tuple[DownloadTask, bool, Optional[str]]]:
         """Execute all queued downloads in parallel."""
