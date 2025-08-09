@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def capture_video_frame(
     video_path: Path,
     output_path: Path,
-    timestamp: str = "25%",
+    timestamp: str = "00:01:00",
     width: int = 640,
     height: int = 480,
 ) -> bool:
@@ -26,7 +26,7 @@ def capture_video_frame(
     Args:
         video_path: Path to the input video file
         output_path: Path where the screenshot will be saved
-        timestamp: When to capture the frame (e.g., "25%", "00:01:30", "60")
+        timestamp: When to capture the frame (e.g., "00:01:00", "00:01:30", "60")
         width: Output image width
         height: Output image height
 

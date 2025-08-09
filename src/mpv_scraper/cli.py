@@ -59,10 +59,16 @@ def scrape(path):
     * Poster images for shows and movies
     * Logo artwork for marquee display
     * Caches all metadata for later generate step
+
+    Uses parallel processing for improved performance.
     """
     from pathlib import Path
     from mpv_scraper.scanner import scan_directory
-    from mpv_scraper.scraper import scrape_tv, scrape_movie
+    from mpv_scraper.scraper import (
+        scrape_tv_parallel,
+        scrape_movie,
+        ParallelDownloadManager,
+    )
     from mpv_scraper.transaction import TransactionLogger
 
     root = Path(path)
@@ -83,16 +89,25 @@ def scrape(path):
         f"Found {len(result.shows)} show folders and {len(result.movies)} movies."
     )
 
-    # 3. Scrape TV shows
+    # 3. Create global parallel download manager
+    download_manager = ParallelDownloadManager(
+        max_workers=12
+    )  # Increased for cross-show parallelization
+
+    # 4. Scrape TV shows (metadata + queue downloads)
+    all_tasks = []
     for show in result.shows:
         click.echo(f"Scraping {show.path.name}...")
         try:
-            scrape_tv(show.path, logger, top_images_dir)
+            tasks = scrape_tv_parallel(
+                show.path, download_manager, logger, top_images_dir
+            )
+            all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
         except Exception as e:
             click.echo(f"✗ Failed to scrape {show.path.name}: {e}")
 
-    # 4. Scrape movies
+    # 5. Scrape movies (sequential for now, could be parallelized later)
     for movie in result.movies:
         click.echo(f"Scraping {movie.path.name}...")
         try:
@@ -101,7 +116,29 @@ def scrape(path):
         except Exception as e:
             click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")
 
-    click.echo("Scraping completed.")
+    # 6. Execute all parallel downloads
+    if all_tasks:
+        click.echo(f"Executing {len(all_tasks)} parallel downloads...")
+        results = download_manager.execute_downloads()
+
+        # Process results
+        successful_downloads = 0
+        failed_downloads = 0
+        for task, success, error in results:
+            if success:
+                successful_downloads += 1
+                logger.log_create(task.dest_path)
+            else:
+                failed_downloads += 1
+                click.echo(
+                    f"✗ Failed to download {task.source} image for {task.episode_info}: {error}"
+                )
+
+        click.echo(
+            f"✓ Completed parallel downloads: {successful_downloads} successful, {failed_downloads} failed"
+        )
+    else:
+        click.echo("No downloads to process.")
 
 
 @main.command()
@@ -476,6 +513,482 @@ def undo():
             return 0
     revert_transaction(log_path)
     click.echo("Undo completed.")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--quality",
+    type=click.Choice(["fast", "medium", "high"]),
+    default="medium",
+    help="Encoding quality (fast=lower quality, high=better quality but slower)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be cropped without actually processing videos",
+)
+def crop(path, quality, dry_run):
+    """Crop videos in DIRECTORY to 4:3 aspect ratio.
+
+    Detects videos with letterboxing (black bars on left/right) and crops them
+    to proper 4:3 aspect ratio for better display on 4:3 devices.
+
+    This is useful for older content like Scooby-Doo episodes that were
+    originally 4:3 but are stored in 16:9 containers with letterboxing.
+    """
+    from pathlib import Path
+    from mpv_scraper.video_crop import batch_crop_videos_to_4_3
+
+    directory = Path(path)
+
+    if dry_run:
+        click.echo(f"DRY RUN: Analyzing {directory} for videos to crop...")
+    else:
+        click.echo(f"Cropping videos in {directory} to 4:3 aspect ratio...")
+
+    processed, successful = batch_crop_videos_to_4_3(
+        directory, quality=quality, dry_run=dry_run
+    )
+
+    if dry_run:
+        click.echo(f"DRY RUN: Would process {processed} videos")
+    else:
+        click.echo(
+            f"Crop processing complete: {successful}/{processed} videos processed successfully"
+        )
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be converted without actually processing videos",
+)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite existing MP4 files",
+)
+def convert_with_subs(path, dry_run, overwrite):
+    """Convert MKV files in DIRECTORY to web-optimized MP4 with subtitles.
+
+    Converts MKV files to MP4 format with web optimization and subtitle support.
+    Reduces file size by ~2/3 while maintaining quality and including soft subtitles.
+
+    Features:
+    - 2 channel audio, soft subs, web optimized
+    - Shrink file size by ~2/3
+    - H.264 encoding with faststart for web streaming
+    """
+    from pathlib import Path
+    from mpv_scraper.video_convert import (
+        batch_convert_mkv_to_mp4_with_fallback,
+    )
+
+    directory = Path(path)
+
+    if dry_run:
+        click.echo(
+            f"DRY RUN: Analyzing {directory} for MKV files to convert with subtitles..."
+        )
+        click.echo(
+            "Will attempt with subtitles first, fallback to no subtitles if conversion fails"
+        )
+    else:
+        click.echo(f"Converting MKV files in {directory} to MP4 with subtitles...")
+        click.echo(
+            "Will attempt with subtitles first, fallback to no subtitles if conversion fails"
+        )
+
+    processed, successful = batch_convert_mkv_to_mp4_with_fallback(
+        directory, dry_run=dry_run, overwrite=overwrite
+    )
+
+    if dry_run:
+        click.echo(f"DRY RUN: Would convert {processed} MKV files")
+    else:
+        click.echo(
+            f"Conversion complete: {successful}/{processed} videos converted successfully"
+        )
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be analyzed without actually processing videos",
+)
+def analyze(path, dry_run):
+    """Analyze videos in DIRECTORY for handheld playback compatibility.
+
+    Scans video files to identify those that may cause playback issues on handheld
+    devices (slow frame rate, audio sync problems). Provides detailed analysis and
+    optimization recommendations.
+
+    Detects issues like:
+    - HEVC/H.265 codecs (CPU intensive)
+    - 10-bit color depth (requires more processing)
+    - High bitrates (>3 Mbps)
+    - High resolutions (>720p)
+    - Complex encoding profiles
+    - Large file sizes relative to duration
+    """
+    from pathlib import Path
+    from mpv_scraper.video_cleaner import (
+        batch_analyze_videos,
+        get_optimization_recommendation,
+    )
+
+    directory = Path(path)
+
+    if dry_run:
+        click.echo(
+            f"DRY RUN: Would analyze videos in {directory} for compatibility issues"
+        )
+        return
+
+    click.echo(f"Analyzing videos in {directory} for handheld compatibility...")
+
+    all_videos, problematic_videos = batch_analyze_videos(directory, dry_run)
+
+    if not all_videos:
+        click.echo("No video files found to analyze")
+        return
+
+    click.echo("\nAnalysis Summary:")
+    click.echo(f"  Total videos: {len(all_videos)}")
+    click.echo(f"  Problematic: {len(problematic_videos)}")
+    click.echo(f"  Good: {len(all_videos) - len(problematic_videos)}")
+
+    if problematic_videos:
+        click.echo("\nProblematic Videos:")
+        for analysis in problematic_videos:
+            click.echo(f"  📁 {analysis.file_path.name}")
+            click.echo(f"     Codec: {analysis.codec} ({analysis.profile})")
+            click.echo(f"     Resolution: {analysis.width}x{analysis.height}")
+            click.echo(f"     Bitrate: {analysis.bitrate/1000000:.1f} Mbps")
+            click.echo(f"     File size: {analysis.file_size_mb:.1f} MB")
+            click.echo(f"     Issues: {', '.join(analysis.issues)}")
+            click.echo(f"     Optimization score: {analysis.optimization_score:.2f}")
+            click.echo(
+                f"     Recommendation: {get_optimization_recommendation(analysis)}"
+            )
+            click.echo()
+    else:
+        click.echo("\n✅ All videos are compatible with handheld devices!")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--preset",
+    type=click.Choice(["handheld", "compatibility"]),
+    default="handheld",
+    help="Optimization preset (handheld=balanced, compatibility=maximum compatibility)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be optimized without actually processing videos",
+)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite existing optimized files",
+)
+@click.option(
+    "--regen-gamelist",
+    is_flag=True,
+    help="Regenerate gamelist.xml for PATH after optimization completes",
+)
+def optimize(path, preset, dry_run, overwrite, regen_gamelist):
+    """Optimize videos in DIRECTORY for handheld playback.
+
+    Automatically detects problematic videos and optimizes them for smooth playback
+    on handheld devices. Creates new optimized files with "_optimized" suffix.
+
+    Presets:
+    - handheld: Balanced optimization (H.264, 720p max, 1.5 Mbps)
+    - compatibility: Maximum compatibility (H.264, 480p max, 800 kbps)
+
+    Optimizations include:
+    - Converting HEVC/H.265 to H.264
+    - Reducing bitrate for smoother playback
+    - Scaling down high resolutions
+    - Converting 10-bit to 8-bit color depth
+    - Using faster encoding presets
+    """
+    from pathlib import Path
+    from mpv_scraper.video_cleaner import (
+        batch_optimize_videos,
+        HANDHELD_OPTIMIZED,
+        COMPATIBILITY_MODE,
+    )
+
+    directory = Path(path)
+
+    # Map preset names to preset objects
+    preset_map = {"handheld": HANDHELD_OPTIMIZED, "compatibility": COMPATIBILITY_MODE}
+
+    selected_preset = preset_map[preset]
+
+    if dry_run:
+        click.echo(f"DRY RUN: Would optimize videos in {directory}...")
+        click.echo(
+            f"Using preset: {selected_preset.name} - {selected_preset.description}"
+        )
+    else:
+        click.echo(f"Optimizing videos in {directory} for handheld compatibility...")
+        click.echo(
+            f"Using preset: {selected_preset.name} - {selected_preset.description}"
+        )
+
+    processed, successful = batch_optimize_videos(
+        directory, preset=selected_preset, dry_run=dry_run, overwrite=overwrite
+    )
+
+    if dry_run:
+        click.echo(f"DRY RUN: Would optimize {processed} videos")
+    else:
+        click.echo(
+            f"Optimization complete: {successful}/{processed} videos optimized successfully"
+        )
+        if regen_gamelist:
+            ctx = click.get_current_context()
+            ctx.invoke(generate, path=path)
+            click.echo("Regenerated gamelist.xml after optimization")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--preset",
+    type=click.Choice(["handheld", "compatibility"]),
+    default="handheld",
+    help="Optimization preset (handheld=optimized for handheld devices, compatibility=maximum compatibility)",
+)
+@click.option(
+    "--workers",
+    type=int,
+    help="Number of parallel workers (auto-detect if not specified)",
+)
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be optimized without actually processing videos",
+)
+@click.option(
+    "--replace-originals",
+    is_flag=True,
+    help="Replace original files with optimized versions (removes originals after successful optimization)",
+)
+@click.option(
+    "--yes",
+    "-y",
+    is_flag=True,
+    help="Automatically answer yes to confirmation prompts (dangerous with --replace-originals)",
+)
+@click.option(
+    "--regen-gamelist",
+    is_flag=True,
+    help="Regenerate gamelist.xml for PATH after optimization completes",
+)
+def optimize_parallel(path, preset, workers, dry_run, replace_originals, yes, regen_gamelist):
+    """Optimize videos in DIRECTORY using parallel processing for faster results.
+
+    Uses multiple CPU cores to process multiple video files simultaneously,
+    significantly reducing total processing time. Automatically determines
+    optimal number of workers based on system resources.
+    """
+    from pathlib import Path
+    from mpv_scraper.video_cleaner_parallel import (
+        parallel_optimize_videos,
+        get_optimal_worker_count,
+        estimate_parallel_processing_time,
+    )
+
+    directory = Path(path)
+
+    # Determine worker count
+    if workers is None:
+        workers = get_optimal_worker_count()
+        click.echo(f"Auto-detected optimal worker count: {workers}")
+    else:
+        click.echo(f"Using {workers} workers")
+
+    # Select preset configuration
+    if preset == "handheld":
+        preset_config = {
+            "name": "handheld_optimized",
+            "target_codec": "libx264",
+            "target_profile": "high",
+            "target_bitrate": 1500000,
+            "target_resolution": (1280, 720),
+            "crf": 23,
+            "preset": "faster",
+            "tune": "film",
+            "audio_codec": "aac",
+            "audio_bitrate": 128000,
+            "timeout": 1800,
+        }
+    else:  # compatibility
+        preset_config = {
+            "name": "compatibility_optimized",
+            "target_codec": "libx264",
+            "target_profile": "baseline",
+            "target_bitrate": 1000000,
+            "target_resolution": (854, 480),
+            "crf": 28,
+            "preset": "ultrafast",
+            "tune": "fastdecode",
+            "audio_codec": "aac",
+            "audio_bitrate": 96000,
+            "timeout": 1800,
+        }
+
+    # Count files for time estimation
+    video_files = []
+    for ext in [".mp4", ".mkv", ".avi", ".mov"]:
+        video_files.extend(directory.glob(f"*{ext}"))
+
+    # Filter out already optimized files and AppleDouble files
+    files_to_process = [
+        f
+        for f in video_files
+        if not f.name.startswith("._") and not f.name.endswith("_optimized.mp4")
+    ]
+
+    if files_to_process:
+        estimated_time = estimate_parallel_processing_time(
+            len(files_to_process), 1.0, workers
+        )
+        click.echo(f"Found {len(files_to_process)} files to process")
+        click.echo(f"Estimated processing time: {estimated_time}")
+
+        if replace_originals and not dry_run:
+            click.echo("⚠️  WARNING: --replace-originals flag is enabled!")
+            click.echo(
+                "   Original files will be PERMANENTLY DELETED after successful optimization."
+            )
+            click.echo("   This action cannot be undone!")
+
+            # Calculate space savings
+            total_size_gb = sum(f.stat().st_size for f in files_to_process) / (1024**3)
+            estimated_optimized_size_gb = (
+                total_size_gb * 0.2
+            )  # Assume 80% size reduction
+            space_savings_gb = total_size_gb - estimated_optimized_size_gb
+
+            click.echo(f"   Estimated space savings: {space_savings_gb:.1f}GB")
+            click.echo()
+
+            # Require confirmation unless --yes is provided
+            if not yes:
+                proceed = click.confirm(
+                    "Proceed with deleting originals after successful optimization?",
+                    default=False,
+                )
+                if not proceed:
+                    click.echo("Aborted by user.")
+                    return 1
+
+    # Run parallel optimization with a progress bar (when we know total count)
+    if files_to_process:
+        with click.progressbar(
+            length=len(files_to_process),
+            label="Optimizing videos",
+            show_eta=True,
+            show_percent=True,
+        ) as bar:
+            total, successful, errors = parallel_optimize_videos(
+                directory=directory,
+                preset_config=preset_config,
+                max_workers=workers,
+                dry_run=dry_run,
+                replace_originals=replace_originals,
+                progress_callback=lambda n: bar.update(n),
+            )
+    else:
+        total, successful, errors = parallel_optimize_videos(
+            directory=directory,
+            preset_config=preset_config,
+            max_workers=workers,
+            dry_run=dry_run,
+            replace_originals=replace_originals,
+        )
+
+    if dry_run:
+        click.echo(f"DRY RUN: Would process {total} videos with {workers} workers")
+    else:
+        click.echo(
+            f"Parallel optimization complete: {successful}/{total} videos optimized successfully"
+        )
+        if errors:
+            click.echo(f"Failed: {len(errors)} videos")
+            for error in errors[:5]:  # Show first 5 errors
+                click.echo(f"  {error}")
+            if len(errors) > 5:
+                click.echo(f"  ... and {len(errors) - 5} more errors")
+        if regen_gamelist:
+            ctx = click.get_current_context()
+            ctx.invoke(generate, path=path)
+            click.echo("Regenerated gamelist.xml after optimization")
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    help="Show what would be converted without actually processing videos",
+)
+@click.option(
+    "--overwrite",
+    is_flag=True,
+    help="Overwrite existing MP4 files",
+)
+def convert_without_subs(path, dry_run, overwrite):
+    """Convert MKV files in DIRECTORY to web-optimized MP4 without subtitles.
+
+    Converts MKV files to MP4 format with web optimization, excluding subtitles.
+    Reduces file size by ~2/3 while maintaining quality.
+
+    Features:
+    - 2 channel audio, no subtitles, web optimized
+    - Shrink file size by ~2/3
+    - H.264 encoding with faststart for web streaming
+    """
+    from pathlib import Path
+    from mpv_scraper.video_convert import batch_convert_mkv_to_mp4, VANILLA_NO_SUBS
+
+    directory = Path(path)
+
+    if dry_run:
+        click.echo(
+            f"DRY RUN: Analyzing {directory} for MKV files to convert without subtitles..."
+        )
+        click.echo(
+            f"Using preset: {VANILLA_NO_SUBS.name} - {VANILLA_NO_SUBS.description}"
+        )
+    else:
+        click.echo(f"Converting MKV files in {directory} to MP4 without subtitles...")
+        click.echo(
+            f"Using preset: {VANILLA_NO_SUBS.name} - {VANILLA_NO_SUBS.description}"
+        )
+
+    processed, successful = batch_convert_mkv_to_mp4(
+        directory, preset=VANILLA_NO_SUBS, dry_run=dry_run, overwrite=overwrite
+    )
+
+    if dry_run:
+        click.echo(f"DRY RUN: Would convert {processed} MKV files")
+    else:
+        click.echo(
+            f"Conversion complete: {successful}/{processed} videos converted successfully"
+        )
 
 
 @main.command()

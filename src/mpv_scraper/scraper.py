@@ -2,14 +2,19 @@
 
 Implements `scrape_tv` and `scrape_movie` with robust error handling and retry logic.
 Includes graceful fallbacks for missing artwork and network failures.
+Supports parallel downloads for improved performance.
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import re
 from pathlib import Path
-from typing import Any, Union, Optional, Dict
+from typing import Any, Union, Optional, Dict, List, Tuple
+import threading
+from dataclasses import dataclass
+import queue
 
 from mpv_scraper.images import download_image, download_marquee
 from mpv_scraper.utils import normalize_rating
@@ -23,6 +28,90 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 CACHE_FILE = ".scrape_cache.json"
+
+
+@dataclass
+class DownloadTask:
+    """Represents a single download task for parallel processing."""
+
+    url: str
+    dest_path: Path
+    source: str  # "TVDB", "TMDB", or "SCREENSHOT"
+    show_name: str
+    episode_info: str
+    headers: Optional[Dict[str, str]] = None
+    video_path: Optional[Path] = None  # For screenshot generation
+
+
+class ParallelDownloadManager:
+    """Manages parallel downloads across different sources."""
+
+    def __init__(self, max_workers: int = 8):
+        self.max_workers = max_workers
+        self.download_queue = queue.Queue()
+        self.results = []
+        self.lock = threading.Lock()
+
+    def add_task(self, task: DownloadTask):
+        """Add a download task to the queue."""
+        self.download_queue.put(task)
+
+    def _download_worker(self):
+        """Worker thread for downloading images."""
+        while True:
+            try:
+                task = self.download_queue.get(timeout=1)
+                if task is None:  # Shutdown signal
+                    self.download_queue.task_done()
+                    break
+
+                try:
+                    if task.source in ["TVDB", "TMDB"]:
+                        # Download from URL
+                        download_image(task.url, task.dest_path, task.headers or {})
+                        logger.debug(
+                            f"✓ Downloaded {task.source} image: {task.episode_info}"
+                        )
+                    elif task.source == "SCREENSHOT":
+                        # Generate screenshot
+                        from mpv_scraper.video_capture import capture_video_frame
+
+                        capture_video_frame(task.video_path, task.dest_path)
+                        logger.debug(f"✓ Generated screenshot: {task.episode_info}")
+
+                    with self.lock:
+                        self.results.append((task, True, None))
+
+                except Exception as e:
+                    logger.warning(
+                        f"Failed to download {task.source} image for {task.episode_info}: {e}"
+                    )
+                    with self.lock:
+                        self.results.append((task, False, str(e)))
+
+                # Mark task as done only after processing
+                self.download_queue.task_done()
+
+            except queue.Empty:
+                break
+
+    def execute_downloads(self) -> List[Tuple[DownloadTask, bool, Optional[str]]]:
+        """Execute all queued downloads in parallel."""
+        if self.download_queue.empty():
+            return []
+
+        # Start worker threads
+        threads = []
+        for _ in range(min(self.max_workers, self.download_queue.qsize())):
+            thread = threading.Thread(target=self._download_worker)
+            thread.start()
+            threads.append(thread)
+
+        # Wait for all downloads to complete
+        for thread in threads:
+            thread.join()
+
+        return self.results
 
 
 def _try_tmdb_episode_image(
@@ -126,10 +215,75 @@ def _safe_write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 
-def scrape_tv(
-    show_dir: Path, transaction_logger=None, top_images_dir: Path = None
-) -> None:  # pragma: no cover – covered via integration
-    """Scrape metadata for a TV show directory."""
+def _get_show_name_variations(show_name: str) -> list[str]:
+    """
+    Generate variations of a show name for better TVDB matching.
+
+    Handles common patterns like:
+    - "Teenage Mutant Ninja Turtles" -> ["Teenage Mutant Ninja Turtles", "Teenage Mutant Ninja Turtles (1987)"]
+    - "Popeye the Sailor" -> ["Popeye the Sailor", "Popeye"]
+    - Shows with years in parentheses
+    """
+    variations = [show_name]
+
+    # Handle shows that might have year suffixes in TVDB
+    year_patterns = [
+        r"^(.*?)\s*\((\d{4})\)$",  # "Show Name (1987)"
+        r"^(.*?)\s*(\d{4})$",  # "Show Name 1987"
+    ]
+
+    for pattern in year_patterns:
+        match = re.match(pattern, show_name)
+        if match:
+            base_name = match.group(1).strip()
+            year = match.group(2)
+            variations.extend(
+                [base_name, f"{base_name} ({year})", f"{base_name} {year}"]
+            )
+            break
+
+    # Handle shows without years that might have them in TVDB
+    if not any(re.match(r".*\(\d{4}\)", show_name) for show_name in variations):
+        # Common years to try for shows that might have them
+        common_years = ["1987", "1990", "1995", "2000", "2005", "2010", "2015", "2020"]
+        for year in common_years:
+            variations.append(f"{show_name} ({year})")
+
+    # Handle specific show variations
+    if "Teenage Mutant Ninja Turtles" in show_name:
+        variations.extend(
+            [
+                "Teenage Mutant Ninja Turtles (1987)",
+                "TMNT",
+                "Teenage Mutant Ninja Turtles",
+            ]
+        )
+    elif "Popeye" in show_name:
+        variations.extend(["Popeye the Sailor", "Popeye", "Popeye the Sailor Man"])
+
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_variations = []
+    for variation in variations:
+        if variation not in seen:
+            seen.add(variation)
+            unique_variations.append(variation)
+
+    return unique_variations
+
+
+def scrape_tv_parallel(
+    show_dir: Path,
+    download_manager: ParallelDownloadManager,
+    transaction_logger=None,
+    top_images_dir: Path = None,
+) -> List[DownloadTask]:
+    """
+    Scrape metadata for a TV show directory and queue downloads for parallel processing.
+
+    Returns:
+        List of DownloadTask objects that were queued for processing.
+    """
     # Use top-level images directory if provided, otherwise show-specific
     if top_images_dir:
         images_dir = top_images_dir
@@ -143,10 +297,25 @@ def scrape_tv(
     token = tvdb.authenticate_tvdb()
     headers = {"Authorization": f"Bearer {token}"}
 
-    # 1. Look up series
-    search_results = tvdb.search_show(show_dir.name, token)
+    # 1. Look up series with name variations
+    show_name_variations = _get_show_name_variations(show_dir.name)
+    search_results = None
+
+    for variation in show_name_variations:
+        try:
+            search_results = tvdb.search_show(variation, token)
+            if search_results:
+                logger.info(f"Found show '{show_dir.name}' in TVDB as '{variation}'")
+                break
+        except Exception as e:
+            logger.debug(f"TVDB search failed for '{variation}': {e}")
+            continue
+
     if not search_results:
-        raise RuntimeError(f"TVDB could not find series for {show_dir.name!r}")
+        raise RuntimeError(
+            f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
+        )
+
     series_id = search_results[0]["id"]
 
     record = tvdb.get_series_extended(series_id, token)
@@ -248,9 +417,12 @@ def scrape_tv(
             logger.info(f"Created placeholder logos for {show_dir.name}")
 
     # 4. Episode images - handle anthology shows properly
-    episode_count = 0
     episodes_with_images = 0
-    total_episodes = len(record.get("episodes", []))
+
+    # Track source usage for logging
+    tvdb_episode_count = 0
+    tmdb_episode_count = 0
+    no_image_count = 0
 
     # First, analyze the actual files to understand the structure
     from mpv_scraper.parser import parse_tv_filename
@@ -278,6 +450,7 @@ def scrape_tv(
     all_seasons = list(
         set([meta.season for _, meta in episode_files])
     )  # All unique seasons
+
     if all_seasons and episode_files:
         try:
             # Use the parsed show name from the first episode file (more accurate than directory name)
@@ -285,18 +458,31 @@ def scrape_tv(
             logger.info(
                 f"Using parsed show name for TMDB bulk fetch: '{parsed_show_name}'"
             )
-            # Fetch all seasons in bulk
+
+            # Handle year-based episodes (like Popeye S1934E03)
+            # For year-based episodes, treat them as season 1 for TMDB purposes
+            tmdb_seasons_to_fetch = []
             for season in all_seasons:
+                if season > 100:  # Likely a year (1934, 1987, etc.)
+                    tmdb_seasons_to_fetch.append(1)  # Treat as season 1
+                    logger.info(f"Treating year-based season {season} as TMDB season 1")
+                else:
+                    tmdb_seasons_to_fetch.append(season)
+
+            # Remove duplicates and fetch
+            unique_tmdb_seasons = list(set(tmdb_seasons_to_fetch))
+            for season in unique_tmdb_seasons:
                 season_images = _try_tmdb_season_images(parsed_show_name, season)
                 tmdb_episode_images.update(season_images)
+
             logger.info(
-                f"Bulk fetched {len(tmdb_episode_images)} TMDB episode images for {parsed_show_name} (seasons {all_seasons})"
+                f"Bulk fetched {len(tmdb_episode_images)} TMDB episode images for {parsed_show_name} (seasons {unique_tmdb_seasons})"
             )
         except Exception as e:
             logger.debug(f"TMDB bulk fetch failed for {parsed_show_name}: {e}")
 
-    # Batch collect all images to download
-    downloads_to_process = []
+    # Collect all download tasks
+    download_tasks = []
 
     for file_path, meta in episode_files:
         # Look for API image for the first episode in the span
@@ -320,17 +506,27 @@ def scrape_tv(
         if api_episode and api_episode.get("image"):
             img_url = api_episode["image"]
             episodes_with_images += 1
+            tvdb_episode_count += 1
+            logger.debug(
+                f"Found TVDB episode image for S{target_season:02d}E{target_episode:02d}"
+            )
         else:
             # Try TMDB from bulk-fetched data
-            tmdb_key = f"S{target_season:02d}E{target_episode:02d}"
+            # Handle year-based episodes by mapping to season 1 for TMDB
+            tmdb_season = 1 if target_season > 100 else target_season
+            tmdb_key = f"S{tmdb_season:02d}E{target_episode:02d}"
             if tmdb_key in tmdb_episode_images:
                 img_url = tmdb_episode_images[tmdb_key]
                 source = "TMDB"
                 episodes_with_images += 1
-                logger.info(f"Found TMDB episode image for {tmdb_key}")
-            else:
+                tmdb_episode_count += 1
                 logger.debug(
-                    f"TMDB key {tmdb_key} not found in bulk cache (cache has {len(tmdb_episode_images)} items)"
+                    f"Found TMDB episode image for {tmdb_key} (mapped from S{target_season:02d}E{target_episode:02d})"
+                )
+            else:
+                no_image_count += 1
+                logger.debug(
+                    f"No episode image found for S{target_season:02d}E{target_episode:02d} (TVDB: {bool(api_episode)}, TMDB: {tmdb_key in tmdb_episode_images})"
                 )
 
         if img_url:
@@ -341,36 +537,48 @@ def scrape_tv(
                 span_name = f"S{meta.season:02d}E{meta.start_ep:02d}"
 
             dest = images_dir / f"{show_dir.name} - {span_name}-image.png"
-            downloads_to_process.append(
-                (img_url, dest, source, span_name, target_season, target_episode)
+
+            # Create download task
+            task = DownloadTask(
+                url=img_url,
+                dest_path=dest,
+                source=source,
+                show_name=show_dir.name,
+                episode_info=span_name,
+                headers=headers,
             )
+            download_tasks.append(task)
+        else:
+            # No image found - add screenshot generation task
+            if meta.end_ep != meta.start_ep:
+                span_name = f"S{meta.season:02d}E{meta.start_ep:02d}-E{meta.end_ep:02d}"
+            else:
+                span_name = f"S{meta.season:02d}E{meta.start_ep:02d}"
 
-    # Batch download all images
-    if downloads_to_process:
-        logger.info(
-            f"Downloading {len(downloads_to_process)} episode images for {show_dir.name}..."
-        )
+            dest = images_dir / f"{show_dir.name} - {span_name}-image.png"
 
-        for (
-            img_url,
-            dest,
-            source,
-            span_name,
-            target_season,
-            target_episode,
-        ) in downloads_to_process:
-            try:
-                download_image(img_url, dest, headers)
-                if transaction_logger:
-                    transaction_logger.log_create(dest)
-                episode_count += 1
-            except Exception as e:
-                logger.warning(f"Failed to download episode image {span_name}: {e}")
+            # Create screenshot generation task
+            task = DownloadTask(
+                url="",  # Not used for screenshots
+                dest_path=dest,
+                source="SCREENSHOT",
+                show_name=show_dir.name,
+                episode_info=span_name,
+                video_path=file_path,
+            )
+            download_tasks.append(task)
 
-        logger.info(f"✓ Downloaded {episode_count} episode images for {show_dir.name}")
+    # Log source usage summary
+    logger.info(
+        f"Episode image sources for {show_dir.name}: TVDB={tvdb_episode_count}, TMDB={tmdb_episode_count}, None={no_image_count}"
+    )
+
+    # Add all tasks to the global download manager
+    for task in download_tasks:
+        download_manager.add_task(task)
 
     logger.info(
-        f"Total episodes: {total_episodes}, Episodes with images: {episodes_with_images}, Downloaded: {episode_count} episode images for {show_dir.name}"
+        f"Queued {len(download_tasks)} episode images for {show_dir.name} (parallel processing)"
     )
 
     # 5. Cache the record
@@ -379,6 +587,8 @@ def scrape_tv(
     if transaction_logger:
         transaction_logger.log_create(cache_path)
     logger.info(f"Cached metadata for {show_dir.name}")
+
+    return download_tasks
 
 
 def scrape_movie(
@@ -426,12 +636,15 @@ def scrape_movie(
         try:
             logger.info(f"Downloading poster for {movie_meta.title}")
             # Use proper EmulationStation naming convention
-            download_image(poster_url, images_dir / f"{movie_path.stem}-image.png")
+            poster_path = images_dir / f"{movie_path.stem}-image.png"
+            download_image(poster_url, poster_path)
+            # Ensure poster meets size constraints (≤600KB, ≤500px width)
+            from mpv_scraper.images import ensure_png_size
+
+            ensure_png_size(poster_path)
             if transaction_logger:
-                transaction_logger.log_create(
-                    images_dir / f"{movie_path.stem}-image.png"
-                )
-            logger.info(f"✓ Downloaded poster for {movie_meta.title}")
+                transaction_logger.log_create(poster_path)
+            logger.info(f"✓ Downloaded and optimized poster for {movie_meta.title}")
         except Exception as e:
             logger.warning(f"Failed to download poster for {movie_meta.title}: {e}")
             # Create placeholder if poster download fails

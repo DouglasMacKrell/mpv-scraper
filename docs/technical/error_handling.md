@@ -1,17 +1,51 @@
-# Error Handling & Retry Logic
+# Error Handling Guide
 
-This document describes the error handling and retry mechanisms implemented in the MPV Metadata Scraper to ensure robust operation in various network conditions and failure scenarios.
+Understanding how the MPV Scraper handles failures and implements graceful fallbacks.
 
-## Overview
+## 🛡️ Error Handling Flow
 
-The scraper is designed to be resilient to common failures that can occur during metadata scraping and artwork download. It implements a multi-layered approach to error handling:
+```mermaid
+flowchart TD
+    A[Operation Starts] --> B{Success?}
 
-1. **Retry Logic** - Automatic retries with exponential backoff for network operations
-2. **Graceful Fallbacks** - Placeholder images when artwork downloads fail
-3. **Partial Success** - Continue processing even when some operations fail
-4. **Error Isolation** - Individual failures don't prevent overall completion
+    B -->|Yes| C[Continue]
+    B -->|No| D{Error Type?}
 
-## Retry Mechanism
+    D -->|Network Error| E[Retry Logic]
+    D -->|API Error| F[Fallback Strategy]
+    D -->|File Error| G[Skip & Log]
+    D -->|Parse Error| H[Use Defaults]
+
+    E --> I[Exponential Backoff]
+    I --> J[Retry 3 Times]
+    J --> K{Retry Success?}
+    K -->|Yes| C
+    K -->|No| F
+
+    F --> L{API Available?}
+    L -->|TVDB Failed| M[Try TMDB]
+    L -->|TMDB Failed| N[Generate Screenshot]
+    L -->|Both Failed| O[Create Placeholder]
+
+    M --> P{TMDB Success?}
+    P -->|Yes| C
+    P -->|No| N
+
+    N --> Q[Capture Video Frame]
+    O --> R[Create Basic Image]
+
+    Q --> C
+    R --> C
+
+    C --> S[Log Result]
+    S --> T[Continue Processing]
+
+    style C fill:#c8e6c9
+    style A fill:#e3f2fd
+    style D fill:#ffcdd2
+```
+
+## Retry Logic
 
 ### Retry Decorator
 

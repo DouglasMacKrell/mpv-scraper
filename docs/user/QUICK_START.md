@@ -1,8 +1,30 @@
 # Quick Start Guide
 
-Welcome to **MPV Metadata Scraper**!  This guide walks you through getting the tool running quickly on your machine and integrating it with Knulli UI.
+Get up and running with the MPV Scraper in minutes!
 
----
+## 🚀 Quick Start Flow
+
+```mermaid
+flowchart TD
+    A[Clone Repository] --> B[Create Virtual Environment]
+    B --> C[Install Dependencies]
+    C --> D[Set API Keys]
+    D --> E[Test Installation]
+    E --> F[Run First Scrape]
+    F --> G[Success!]
+
+    E --> H{Installation OK?}
+    H -->|No| I[Check Dependencies]
+    I --> E
+
+    F --> J{API Keys Valid?}
+    J -->|No| K[Check API Keys]
+    K --> F
+
+    style G fill:#c8e6c9
+    style H fill:#ffcdd2
+    style J fill:#ffcdd2
+```
 
 ## Prerequisites
 
@@ -133,8 +155,34 @@ The scraper provides these commands:
 - **`generate`** - Create gamelist.xml files from scraped data
 - **`run`** - Complete workflow (scan → scrape → generate)
 - **`undo`** - Revert the last run using transaction.log
+- **`sync-logos`** - Sync manually downloaded logos to gamelist.xml entries
 
 All commands support the `--help` flag for detailed usage information.
+
+### Manual Logo Management
+
+The `sync-logos` command allows you to manually manage logo files and sync them to your gamelist.xml entries:
+
+```bash
+# Sync all logos in a directory
+python -m mpv_scraper.cli sync-logos /mpv
+
+# Sync logos for a specific show
+python -m mpv_scraper.cli sync-logos /mpv --show "Darkwing Duck"
+
+# Force update even if logo files don't exist
+python -m mpv_scraper.cli sync-logos /mpv --force
+```
+
+**Naming Convention**: Place logo files in the `images/` directory with these names:
+- `{show}-logo.png` - Main logo file
+- `{show}-box.png` - Box art (alternative)
+- `{show}-marquee.png` - Marquee display (alternative)
+
+**Use Cases**:
+- Manual logo downloads when automatic scraping fails
+- Custom logo replacements
+- Batch logo management for multiple shows
 
 ---
 
@@ -161,6 +209,15 @@ Refer to [docs/TESTING.md](TESTING.md) for detailed guidance.
 * **Rate limiting** – the scraper respects API limits; if you scrape a large library, the run may pause briefly between requests.
 * **Network failures** – the scraper automatically retries failed downloads; if you see placeholder images, some artwork downloads failed but processing continued.
 * **Incorrect matches** – the CLI will prompt for ambiguous titles; re-run the scraper if you made a wrong selection.
+
+### API Issues
+
+For detailed help with TVDB and TMDB API authentication issues, see the [API Troubleshooting Guide](../technical/API_TROUBLESHOOTING.md).
+
+Common API problems and quick fixes:
+- **401 Unauthorized**: Check API key format and environment variables
+- **Rate limiting**: Wait between large scraping operations
+- **Network issues**: Verify internet connectivity and firewall settings
 
 ---
 

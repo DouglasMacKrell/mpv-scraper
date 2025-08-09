@@ -54,7 +54,10 @@ def test_episode_metadata_downloaded(mock_tvdb, mock_dl, mock_marquee, tmp_path:
     ).save(dest, format="PNG")
 
     # Act
-    scraper.scrape_tv(show_dir)
+    from mpv_scraper.scraper import ParallelDownloadManager
+
+    download_manager = ParallelDownloadManager()
+    scraper.scrape_tv_parallel(show_dir, download_manager)
 
     # Our new logic saves images to top-level images directory
     # But the scrape_tv function itself doesn't create this directory
@@ -88,7 +91,10 @@ def test_logo_saved(mock_tvdb, mock_dl, mock_marquee, tmp_path: Path):
         "RGBA", (32, 32), (0, 0, 0, 0)
     ).save(dest, format="PNG")
 
-    scraper.scrape_tv(show_dir)
+    from mpv_scraper.scraper import ParallelDownloadManager
+
+    download_manager = ParallelDownloadManager()
+    scraper.scrape_tv_parallel(show_dir, download_manager)
 
     # Our new logic saves images to top-level images directory
     # But the scrape_tv function itself doesn't create this directory

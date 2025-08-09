@@ -47,7 +47,7 @@ def test_run_then_undo_restores_checksum(tmp_path: Path, monkeypatch):
     runner = CliRunner()
 
     # 4. Run the full workflow with mocked scrapers to prevent real API calls
-    with patch("mpv_scraper.scraper.scrape_tv"), patch(
+    with patch("mpv_scraper.scraper.scrape_tv_parallel"), patch(
         "mpv_scraper.scraper.scrape_movie"
     ):
         result_run = runner.invoke(cli_main, ["run", str(dst_library)])

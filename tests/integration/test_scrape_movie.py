@@ -78,6 +78,63 @@ def test_movie_metadata_downloaded(mock_tmdb, mock_dl, mock_marquee, tmp_path: P
 @patch("mpv_scraper.scraper.download_marquee")
 @patch("mpv_scraper.scraper.download_image")
 @patch("mpv_scraper.scraper.tmdb")
+def test_movie_poster_optimization(mock_tmdb, mock_dl, mock_marquee, tmp_path: Path):
+    """scrape_movie should optimize movie posters to meet size constraints."""
+
+    # Create a movie file
+    movie_file = tmp_path / "The Matrix (1999).mp4"
+    movie_file.touch()
+
+    # Mock TMDB helpers
+    mock_tmdb.search_movie.return_value = [{"id": 603, "title": "The Matrix"}]
+    mock_tmdb.get_movie_details.return_value = {
+        "id": 603,
+        "title": "The Matrix",
+        "overview": "A computer hacker learns from mysterious rebels...",
+        "vote_average": 0.84,
+        "poster_url": "https://image.tmdb.org/t/p/original/poster.jpg",
+        "logo_url": "https://image.tmdb.org/t/p/original/logo.png",
+    }
+
+    # Create proper PNG files for the mocks
+    from PIL import Image
+
+    mock_dl.side_effect = lambda url, dest, headers=None: Image.new(
+        "RGBA", (32, 32), (0, 0, 0, 0)
+    ).save(dest, format="PNG")
+    mock_marquee.side_effect = lambda url, dest, headers=None: Image.new(
+        "RGBA", (32, 32), (0, 0, 0, 0)
+    ).save(dest, format="PNG")
+
+    # Act
+    scraper.scrape_movie(movie_file)
+
+    # Assert poster was downloaded and optimized
+    poster_path = tmp_path / "images" / "The Matrix (1999)-image.png"
+    assert poster_path.exists(), "Poster should be downloaded"
+
+    # Check that poster meets size constraints (≤600KB, ≤500px width)
+    poster_size_kb = poster_path.stat().st_size / 1024
+    assert (
+        poster_size_kb <= 600
+    ), f"Poster size {poster_size_kb:.1f}KB exceeds 600KB limit"
+
+    with Image.open(poster_path) as img:
+        width, height = img.size
+        assert width <= 500, f"Poster width {width}px exceeds 500px limit"
+
+    # Assert logo was downloaded and optimized (via download_marquee)
+    logo_path = tmp_path / "images" / "The Matrix (1999)-marquee.png"
+    assert logo_path.exists(), "Logo should be downloaded"
+
+    # Check that logo meets size constraints
+    logo_size_kb = logo_path.stat().st_size / 1024
+    assert logo_size_kb <= 600, f"Logo size {logo_size_kb:.1f}KB exceeds 600KB limit"
+
+
+@patch("mpv_scraper.scraper.download_marquee")
+@patch("mpv_scraper.scraper.download_image")
+@patch("mpv_scraper.scraper.tmdb")
 def test_movie_scraping_no_collection_logo(
     mock_tmdb, mock_dl, mock_marquee, tmp_path: Path
 ):
