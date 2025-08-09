@@ -796,7 +796,9 @@ def optimize(path, preset, dry_run, overwrite, regen_gamelist):
     is_flag=True,
     help="Regenerate gamelist.xml for PATH after optimization completes",
 )
-def optimize_parallel(path, preset, workers, dry_run, replace_originals, yes, regen_gamelist):
+def optimize_parallel(
+    path, preset, workers, dry_run, replace_originals, yes, regen_gamelist
+):
     """Optimize videos in DIRECTORY using parallel processing for faster results.
 
     Uses multiple CPU cores to process multiple video files simultaneously,

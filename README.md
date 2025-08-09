@@ -17,14 +17,14 @@ graph TB
     H --> I[Image Processor]
     I --> J[XML Generator]
     J --> K[gamelist.xml Files]
-    
+
     L[Video Files] --> M[Video Analyzer]
     M --> N{Needs Optimization?}
     N -->|Yes| O[Parallel Video Optimizer]
     N -->|No| P[Ready for Playback]
     O --> Q[Hardware/Software Encoding]
     Q --> R[Optimized Videos]
-    
+
     S[Video Processing] --> T[Crop to 4:3]
     S --> U[Convert MKV to MP4]
     S --> V[Optimize for Handheld]
@@ -47,7 +47,7 @@ flowchart LR
     D --> E[Process Images]
     E --> F[Generate XML]
     F --> G[Complete!]
-    
+
     H[Video Analysis] --> I[Detect Issues]
     I --> J[Parallel Optimization]
     J --> K[Hardware Acceleration]
@@ -118,10 +118,10 @@ flowchart LR
     ```bash
     # macOS
     brew install ffmpeg
-    
+
     # Ubuntu/Debian
     sudo apt update && sudo apt install ffmpeg
-    
+
     # Windows
     # Download from https://ffmpeg.org/download.html
     ```
