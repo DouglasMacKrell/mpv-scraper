@@ -881,14 +881,30 @@ def optimize_parallel(path, preset, workers, dry_run, replace_originals, yes):
                     click.echo("Aborted by user.")
                     return 1
 
-    # Run parallel optimization
-    total, successful, errors = parallel_optimize_videos(
-        directory=directory,
-        preset_config=preset_config,
-        max_workers=workers,
-        dry_run=dry_run,
-        replace_originals=replace_originals,
-    )
+    # Run parallel optimization with a progress bar (when we know total count)
+    if files_to_process:
+        with click.progressbar(
+            length=len(files_to_process),
+            label="Optimizing videos",
+            show_eta=True,
+            show_percent=True,
+        ) as bar:
+            total, successful, errors = parallel_optimize_videos(
+                directory=directory,
+                preset_config=preset_config,
+                max_workers=workers,
+                dry_run=dry_run,
+                replace_originals=replace_originals,
+                progress_callback=lambda n: bar.update(n),
+            )
+    else:
+        total, successful, errors = parallel_optimize_videos(
+            directory=directory,
+            preset_config=preset_config,
+            max_workers=workers,
+            dry_run=dry_run,
+            replace_originals=replace_originals,
+        )
 
     if dry_run:
         click.echo(f"DRY RUN: Would process {total} videos with {workers} workers")

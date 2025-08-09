@@ -8,7 +8,7 @@ allowing multiple files to be optimized concurrently for faster processing.
 import subprocess
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, List
+from typing import Optional, Tuple, List, Callable
 from dataclasses import dataclass
 import platform
 import multiprocessing as mp
@@ -185,6 +185,7 @@ def parallel_optimize_videos(
     max_workers: Optional[int] = None,
     dry_run: bool = False,
     replace_originals: bool = False,
+    progress_callback: Optional[Callable[[int], None]] = None,
 ) -> Tuple[int, int, List[str]]:
     """
     Optimize multiple video files in parallel.
@@ -239,7 +240,7 @@ def parallel_optimize_videos(
     # Process files in parallel
     successful = 0
     errors = []
-    successful_tasks = []  # Track successful tasks for replacement
+    successful_tasks = []  # Track successful tasks for end-of-run replacement when needed
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
@@ -254,8 +255,32 @@ def parallel_optimize_videos(
                 input_path, success, message = future.result()
                 if success:
                     successful += 1
-                    successful_tasks.append(task)  # Track for potential replacement
                     logger.info(f"✅ Optimized: {input_path.name} - {message}")
+
+                    # Incremental replacement: delete original immediately if requested
+                    if replace_originals and not dry_run:
+                        try:
+                            if (
+                                task.output_path.exists()
+                                and task.output_path.stat().st_size > 1024 * 1024
+                            ):
+                                task.input_path.unlink()
+                                logger.info(
+                                    f"🗑️  Replaced immediately: {task.input_path.name}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"⚠️  Skipped immediate replacement: {task.input_path.name} (optimized file invalid)"
+                                )
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Immediate replacement failed for {task.input_path.name}: {str(e)}"
+                            )
+                            # Fall back to end-of-run sweep attempt
+                            successful_tasks.append(task)
+                    else:
+                        # Track for end-of-run sweep only when not doing immediate replacement
+                        successful_tasks.append(task)
                 else:
                     errors.append(f"❌ Failed: {input_path.name} - {message}")
                     logger.warning(f"Failed to optimize {input_path.name}: {message}")
@@ -263,10 +288,18 @@ def parallel_optimize_videos(
                 errors.append(f"❌ Exception: {task.input_path.name} - {str(e)}")
                 logger.error(f"Exception processing {task.input_path.name}: {str(e)}")
 
-    # Replace originals if requested
+            # Advance progress bar (if provided) after each completed task
+            if progress_callback is not None:
+                try:
+                    progress_callback(1)
+                except Exception:
+                    # Never let UI callback break processing
+                    pass
+
+    # End-of-run sweep replacement for any tasks that weren't replaced immediately
     if replace_originals and not dry_run and successful_tasks:
         logger.info(
-            f"Replacing {len(successful_tasks)} original files with optimized versions..."
+            f"Replacing {len(successful_tasks)} remaining original files with optimized versions..."
         )
         replaced_count = 0
 
