@@ -172,8 +172,11 @@ python -m mpv_scraper.cli optimize /path/to/videos --preset handheld
 # Optimize videos with parallel processing (6x faster!)
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset handheld
 
-# Optimize and replace originals (save disk space)
-python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals
+# Optimize and replace originals (save disk space) with auto-confirm and progress bar
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset handheld --replace-originals -y
+
+# Optimize, replace originals, and regenerate gamelist.xml when finished
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset handheld --replace-originals -y --regen-gamelist
 
 # Crop videos to 4:3 aspect ratio
 python -m mpv_scraper.cli crop /path/to/videos --quality medium

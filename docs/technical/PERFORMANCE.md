@@ -188,11 +188,15 @@ Track these metrics for optimization:
 
 ## Advanced Optimization Techniques
 
-### 1. **Parallel Processing (Future Enhancement)**
-While not currently supported, future versions may include:
-- **Concurrent API calls**: Multiple requests simultaneously
-- **Parallel image downloads**: Download multiple images at once
-- **Background processing**: Non-blocking operations
+### 1. **Parallel Processing**
+The optimizer supports parallel workers with a progress bar and ETA:
+
+```bash
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --workers 6
+```
+
+- Uses hardware acceleration when available (e.g., `h264_videotoolbox` on macOS)
+- Supports `--replace-originals -y` for incremental space reclamation
 
 ### 2. **Custom Workflows**
 ```bash

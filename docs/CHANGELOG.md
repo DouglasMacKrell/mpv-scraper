@@ -1,3 +1,15 @@
+## [Unreleased]
+
+### Added
+- `optimize-parallel`: `-y/--yes` to auto-confirm destructive actions
+- `optimize`/`optimize-parallel`: `--regen-gamelist` to regenerate gamelist.xml after optimization
+- Progress bar with ETA for `optimize-parallel`
+
+### Changed
+- Parallel optimizer now deletes originals incrementally (post-validation) and uses atomic replace to preserve filenames
+
+### Docs
+- Updated README and user/technical docs for new options and UI
 # Documentation Changelog
 
 ## 2024-12-19 - Documentation Reorganization & Visual Enhancements

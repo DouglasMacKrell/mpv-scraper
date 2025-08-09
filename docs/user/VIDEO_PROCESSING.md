@@ -93,11 +93,14 @@ python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset handheld
 # Custom worker count
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --workers 8
 
-# Replace originals (save disk space)
-python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals
+# Replace originals (save disk space) with auto-confirm and progress bar
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals -y
 
 # Dry run with space savings estimate
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals --dry-run
+
+# Regenerate gamelist.xml after optimization completes
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals -y --regen-gamelist
 ```
 
 ### Optimization Presets
