@@ -699,7 +699,12 @@ def analyze(path, dry_run):
     is_flag=True,
     help="Overwrite existing optimized files",
 )
-def optimize(path, preset, dry_run, overwrite):
+@click.option(
+    "--regen-gamelist",
+    is_flag=True,
+    help="Regenerate gamelist.xml for PATH after optimization completes",
+)
+def optimize(path, preset, dry_run, overwrite, regen_gamelist):
     """Optimize videos in DIRECTORY for handheld playback.
 
     Automatically detects problematic videos and optimizes them for smooth playback
@@ -751,6 +756,10 @@ def optimize(path, preset, dry_run, overwrite):
         click.echo(
             f"Optimization complete: {successful}/{processed} videos optimized successfully"
         )
+        if regen_gamelist:
+            ctx = click.get_current_context()
+            ctx.invoke(generate, path=path)
+            click.echo("Regenerated gamelist.xml after optimization")
 
 
 @main.command()
@@ -782,7 +791,12 @@ def optimize(path, preset, dry_run, overwrite):
     is_flag=True,
     help="Automatically answer yes to confirmation prompts (dangerous with --replace-originals)",
 )
-def optimize_parallel(path, preset, workers, dry_run, replace_originals, yes):
+@click.option(
+    "--regen-gamelist",
+    is_flag=True,
+    help="Regenerate gamelist.xml for PATH after optimization completes",
+)
+def optimize_parallel(path, preset, workers, dry_run, replace_originals, yes, regen_gamelist):
     """Optimize videos in DIRECTORY using parallel processing for faster results.
 
     Uses multiple CPU cores to process multiple video files simultaneously,
@@ -918,6 +932,10 @@ def optimize_parallel(path, preset, workers, dry_run, replace_originals, yes):
                 click.echo(f"  {error}")
             if len(errors) > 5:
                 click.echo(f"  ... and {len(errors) - 5} more errors")
+        if regen_gamelist:
+            ctx = click.get_current_context()
+            ctx.invoke(generate, path=path)
+            click.echo("Regenerated gamelist.xml after optimization")
 
 
 @main.command()

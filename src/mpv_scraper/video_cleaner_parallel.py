@@ -7,6 +7,7 @@ allowing multiple files to be optimized concurrently for faster processing.
 
 import subprocess
 import logging
+import os
 from pathlib import Path
 from typing import Optional, Tuple, List, Callable
 from dataclasses import dataclass
@@ -264,7 +265,8 @@ def parallel_optimize_videos(
                                 task.output_path.exists()
                                 and task.output_path.stat().st_size > 1024 * 1024
                             ):
-                                task.input_path.unlink()
+                                # Atomically replace original with optimized
+                                os.replace(str(task.output_path), str(task.input_path))
                                 logger.info(
                                     f"🗑️  Replaced immediately: {task.input_path.name}"
                                 )
@@ -310,8 +312,8 @@ def parallel_optimize_videos(
                     task.output_path.exists()
                     and task.output_path.stat().st_size > 1024 * 1024
                 ):
-                    # Remove original file
-                    task.input_path.unlink()
+                    # Atomically replace original with optimized
+                    os.replace(str(task.output_path), str(task.input_path))
                     replaced_count += 1
                     logger.info(f"🗑️  Replaced: {task.input_path.name}")
                 else:
