@@ -9,7 +9,7 @@ import subprocess
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Tuple, List, Callable
+from typing import Callable, List, Optional, Tuple
 from dataclasses import dataclass
 import platform
 import multiprocessing as mp
@@ -241,7 +241,9 @@ def parallel_optimize_videos(
     # Process files in parallel
     successful = 0
     errors = []
-    successful_tasks = []  # Track successful tasks for end-of-run replacement when needed
+    successful_tasks = (
+        []
+    )  # Track successful tasks for end-of-run replacement when needed
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Submit all tasks
