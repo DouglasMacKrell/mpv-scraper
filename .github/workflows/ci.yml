@@ -37,9 +37,10 @@ jobs:
         pip install -e .
         pip install -r requirements-dev.txt
 
-    - name: Run pre-commit hooks
+    - name: Run pre-commit hooks (autoupdate first)
       run: |
         pre-commit install
+        pre-commit autoupdate
         pre-commit run --all-files
 
     - name: Test with pytest
