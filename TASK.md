@@ -453,3 +453,150 @@ N/A (pure documentation)
 * **Done when:** Tests simulate failures and scraper completes without crashing.
 
 ---
+
+## 11 · Sprint 11 (First‑Run Init Wizard)
+**Purpose:** Provide a one‑command onboarding flow that validates prerequisites, scaffolds config, and guides users to a working setup.
+
+### 11.1 `init` CLI Command
+* **Goal:** Add `python -m mpv_scraper.cli init <library_root>` that performs environment checks and writes config.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_commands.py::test_init_writes_config`
+  - `tests/smoke/test_cli_commands.py::test_init_idempotent`
+  - `tests/smoke/test_cli_commands.py::test_init_validates_ffmpeg`
+* **Steps:**
+  1. Add Click command `init` in `src/mpv_scraper/cli.py`.
+  2. Implement utility `validate_prereqs()` in `src/mpv_scraper/utils.py`:
+     - Verify `ffmpeg` and `ffprobe` exist via `subprocess.run(["ffmpeg", "-version"])` and `...ffprobe...`.
+     - Return dict of versions and a list of warnings.
+  3. Create a minimal config file `mpv-scraper.toml` at `<library_root>` containing:
+     - `library_root`, `workers`, `preset`, `replace_originals_default`, `regen_gamelist_default`.
+  4. Create `.env.example` with `TVDB_API_KEY=` and `TMDB_API_KEY=` placeholders and notes about optional fallbacks.
+  5. If `.env` does not exist, copy from `.env.example` (empty values) and print next steps.
+  6. Ensure `/Movies` and top‑level `images/` exist; create if missing.
+  7. Print a “cheat‑sheet” with recommended commands (optimize, run, undo).
+  8. Make command idempotent: never overwrite existing files without `--force`.
+* **Done when:** Running `init` creates config and scaffolding, prints versions, exits 0, and re‑running is a no‑op without `--force`.
+
+### 11.2 Config Loading & Defaults
+* **Goal:** Load `mpv-scraper.toml` automatically for CLI defaults.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_commands.py::test_cli_uses_config_defaults`
+* **Steps:**
+  1. Add `load_config(path: Optional[Path]) -> dict` in `utils.py` (TOML parser; fallback to empty).
+  2. In `cli.py`, decorate main group to apply defaults from config when flags are omitted.
+  3. Respect precedence: CLI flags > env vars > config file > hardcoded defaults.
+* **Done when:** Omitting flags uses values from the config created by `init`.
+
+### 11.3 Documentation
+* **Goal:** Add a Guided Setup page and update Quick Start.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Create `docs/QUICK_START.md` section “First‑run wizard (`init`)”.
+  2. Document required tools, environment variables, and fallbacks.
+  3. Link from `README.md` usage to the new section.
+* **Done when:** Docs clearly explain running `init` and the generated files.
+
+---
+
+## 12 · Sprint 12 (Full TUI Dashboard)
+**Purpose:** Provide an interactive terminal UI to manage jobs, view progress, and inspect logs without a full desktop GUI.
+
+### 12.1 TUI Entry Point
+* **Goal:** Add `python -m mpv_scraper.cli tui` command.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_commands.py::test_tui_entrypoint_dry_run`
+* **Steps:**
+  1. Add dependency `textual>=0.63` (or fallback to `rich` if Textual unavailable) to `requirements.txt`.
+  2. Create `src/mpv_scraper/tui.py` with `run_tui(non_interactive: bool = False)`.
+  3. In `cli.py`, add `tui` command with `--non-interactive` that starts, renders once, then exits (for tests/CI).
+  4. Wire basic layout: sidebar (library paths, queue), main panel (progress tables), bottom panel (logs/status).
+* **Done when:** `tui --non-interactive` exits 0 and renders without raising.
+
+### 12.2 Job Queue & Progress Integration
+* **Goal:** Control optimize/scrape/generate jobs from the TUI with live progress.
+* **Tests to Write:**
+  - `tests/integration/test_tui_jobs.py::test_enqueue_optimize_job` (marked `@pytest.mark.integration`)
+  - `tests/integration/test_tui_jobs.py::test_cancel_job` (integration)
+* **Steps:**
+  1. Expose a lightweight job API in `src/mpv_scraper/transaction.py` or a new `jobs.py`:
+     - `enqueue(command: Callable, args, kwargs) -> job_id`
+     - `observe(job_id) -> progress/events` using existing `progress_callback` hooks.
+     - `cancel(job_id)` best‑effort via cooperative flags.
+  2. Adapt `parallel_optimize_videos` to post structured progress events (files total/done, current file, ETA).
+  3. Render job list and per‑job progress bars in the TUI; add actions: start/pause/cancel.
+  4. Persist recent job history to a small JSON file under the library root (`.mpv-scraper/jobs.json`).
+* **Done when:** A user can enqueue an optimize job from the TUI, observe progress, and cancel it; events update the UI.
+
+### 12.3 Log Viewer & Error Surfacing
+* **Goal:** Provide an in‑TUI log viewer and error drill‑down.
+* **Tests to Write:**
+  - `tests/integration/test_tui_jobs.py::test_error_event_surfaces_in_ui`
+* **Steps:**
+  1. Centralize logging to a rotating file `mpv-scraper.log` in the library root.
+  2. Add a TUI panel that tails the log and highlights errors/warnings.
+  3. On task failures, show a modal with the failing file and an action to retry.
+* **Done when:** Errors from background jobs appear in the TUI and can be acknowledged.
+
+### 12.4 Documentation
+* **Goal:** Add a “Using the TUI” guide.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Create `docs/USER_INTERFACE.md` with screenshots/GIFs and keybindings.
+  2. Update `README.md` with a short TUI section and link to the guide.
+* **Done when:** Docs explain launching the TUI and controlling jobs.
+
+---
+
+## 13 · Sprint 13 (Free/Open Metadata Fallbacks)
+**Purpose:** Allow scraping without paid keys by using TVmaze (TV) and OMDb (Movies) as fallbacks.
+
+### 13.1 TVmaze Client (TV Fallback)
+* **Goal:** Implement search and series/episode fetch using TVmaze’s public API.
+* **Tests to Write:**
+  - `tests/integration/test_tvmaze.py::test_search_show`
+  - `tests/integration/test_tvmaze.py::test_get_episodes`
+  - `tests/integration/test_cache_hits.py::test_tvmaze_cache`
+* **Steps:**
+  1. Create `src/mpv_scraper/tvmaze.py` with:
+     - `search_show(name: str) -> List[dict]`
+     - `get_show_episodes(show_id: int) -> List[dict]`
+  2. Map TVmaze fields to internal structures used by `scraper.py` (title, season, episode, overview, image URLs, rating if present).
+  3. Add simple caching and rate limiting (mirror TVDB/TMDB helpers).
+  4. Add selection logic: when TVDB unavailable or `--prefer-fallback`, use TVmaze.
+* **Done when:** Mocked tests pass and fallback data flows through `generate`.
+
+### 13.2 OMDb Client (Movie Fallback)
+* **Goal:** Provide movie search/details via OMDb; key optional but supported.
+* **Tests to Write:**
+  - `tests/integration/test_omdb.py::test_search_movie`
+  - `tests/integration/test_cache_hits.py::test_omdb_cache`
+* **Steps:**
+  1. Create `src/mpv_scraper/omdb.py` with:
+     - `search_movie(title: str, year: Optional[int]) -> List[dict]`
+     - `get_movie_details(omdb_id: str) -> dict`
+  2. Load optional `OMDB_API_KEY` from env; if absent, document the limited anonymous mode behavior (if any) or require key.
+  3. Map OMDb fields to internal structures (overview, release_date, poster URL, rating normalized to 0–1 if present).
+  4. Cache responses and apply rate limiting.
+  5. Integrate into `scraper.py`: prefer TMDB; if unavailable or `--prefer-fallback/--fallback-only`, use OMDb.
+* **Done when:** Mocked tests pass and movie fallback paths populate XML/images.
+
+### 13.3 CLI Flags & Flow Control
+* **Goal:** Expose fallback behavior via flags and config.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_extended.py::test_generate_with_fallbacks`
+* **Steps:**
+  1. Add flags to `cli.py`: `--prefer-fallback`, `--fallback-only`, and `--no-remote`.
+  2. Respect flags in `run`, `scrape`, and `generate` flows; log provenance of chosen provider.
+  3. Extend transaction logging to include provider used per item.
+* **Done when:** CLI runs can select providers deterministically and logs reflect the choice.
+
+### 13.4 Documentation
+* **Goal:** Clearly document fallbacks and how to run without paid keys.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Add `docs/FALLBACKS.md` with provider capabilities, limits, and examples.
+  2. Update `docs/QUICK_START.md` to mention fallback‑only setup.
+  3. Update `README.md` feature list and flags table.
+* **Done when:** Users can follow docs to run the tool with fallbacks only.
+
+---
