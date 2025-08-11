@@ -83,3 +83,38 @@ def test_run_command_includes_scrape(tmp_media: Path, monkeypatch):
         # Verify scrapers were called as part of the run workflow
         assert mock_scrape_tv.called, "scrape_tv_parallel should be called during run"
         assert mock_scrape_movie.called, "scrape_movie should be called during run"
+
+
+def test_cli_uses_config_defaults(tmp_media: Path):
+    """CLI should pick defaults from mpv-scraper.toml when flags omitted."""
+    from textwrap import dedent
+
+    runner = CliRunner()
+
+    # Write a config into the tmp_media root
+    (tmp_media / "mpv-scraper.toml").write_text(
+        dedent(
+            """
+            library_root = "{root}"
+            workers = 7
+            preset = "compatibility"
+            replace_originals_default = true
+            regen_gamelist_default = true
+            """
+        ).format(root=tmp_media.as_posix())
+    )
+
+    # Call optimize-parallel without workers/preset flags; defaults should apply
+    result = runner.invoke(
+        cli_main,
+        [
+            "optimize-parallel",
+            str(tmp_media),
+            "--dry-run",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    out = result.output.lower()
+    # Should reflect chosen preset and not auto-detect workers
+    assert "compatibility" in out
+    assert "auto-detected" not in out

@@ -12,6 +12,7 @@ __all__ = [
     "format_release_date",
     "normalize_text",
     "validate_prereqs",
+    "load_config",
 ]
 
 _MAX_RAW: Final[float] = 10.0
@@ -285,3 +286,36 @@ def validate_prereqs() -> dict:
             warnings.append(f"ffprobe version check failed: {exc}")
 
     return result
+
+
+def load_config(path) -> dict:
+    """Load mpv-scraper.toml from given path directory (if present).
+
+    Parameters
+    ----------
+    path : Path | str
+        Directory expected to contain mpv-scraper.toml.
+
+    Returns
+    -------
+    dict
+        Parsed config dict or empty dict if not found/invalid.
+    """
+    from pathlib import Path
+
+    try:
+        import tomllib  # Python 3.11+
+    except Exception:  # pragma: no cover
+        try:
+            import tomli as tomllib  # fallback
+        except Exception:
+            return {}
+
+    root = Path(path)
+    cfg_path = root / "mpv-scraper.toml"
+    if not cfg_path.exists():
+        return {}
+    try:
+        return tomllib.loads(cfg_path.read_text())
+    except Exception:
+        return {}
