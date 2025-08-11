@@ -836,8 +836,8 @@ def optimize(path, preset, dry_run, overwrite, regen_gamelist):
 @click.option(
     "--preset",
     type=click.Choice(["handheld", "compatibility"]),
-    default="handheld",
-    help="Optimization preset (handheld=optimized for handheld devices, compatibility=maximum compatibility)",
+    default=None,
+    help="Optimization preset (default from config or 'handheld')",
 )
 @click.option(
     "--workers",
@@ -883,14 +883,29 @@ def optimize_parallel(
 
     directory = Path(path)
 
+    # Load config defaults if present in target directory
+    from mpv_scraper.utils import load_config
+
+    cfg = load_config(directory)
+
     # Determine worker count
     if workers is None:
-        workers = get_optimal_worker_count()
-        click.echo(f"Auto-detected optimal worker count: {workers}")
+        if cfg.get("workers"):
+            workers = int(cfg["workers"])
+            click.echo(f"Using {workers} workers (from config)")
+        else:
+            workers = get_optimal_worker_count()
+            click.echo(f"Auto-detected optimal worker count: {workers}")
     else:
         click.echo(f"Using {workers} workers")
 
     # Select preset configuration
+    # Allow config to set default preset if not overridden by flag
+    if preset is None:
+        if cfg.get("preset") in ("handheld", "compatibility"):
+            preset = cfg.get("preset")
+        else:
+            preset = "handheld"
     if preset == "handheld":
         preset_config = {
             "name": "handheld_optimized",
@@ -920,6 +935,9 @@ def optimize_parallel(
             "timeout": 1800,
         }
 
+    # Inform preset choice
+    click.echo(f"Using preset: {preset}")
+
     # Count files for time estimation
     video_files = []
     for ext in [".mp4", ".mkv", ".avi", ".mov"]:
@@ -939,6 +957,9 @@ def optimize_parallel(
         click.echo(f"Found {len(files_to_process)} files to process")
         click.echo(f"Estimated processing time: {estimated_time}")
 
+        # Prefer config default for replace_originals when flag omitted
+        if replace_originals is False and cfg.get("replace_originals_default"):
+            replace_originals = True
         if replace_originals and not dry_run:
             click.echo("⚠️  WARNING: --replace-originals flag is enabled!")
             click.echo(
@@ -1003,6 +1024,9 @@ def optimize_parallel(
                 click.echo(f"  {error}")
             if len(errors) > 5:
                 click.echo(f"  ... and {len(errors) - 5} more errors")
+        # Prefer config default for regen_gamelist when flag omitted
+        if regen_gamelist is False and cfg.get("regen_gamelist_default"):
+            regen_gamelist = True
         if regen_gamelist:
             ctx = click.get_current_context()
             ctx.invoke(generate, path=path)
