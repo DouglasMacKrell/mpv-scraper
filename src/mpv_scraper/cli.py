@@ -36,6 +36,75 @@ def main():
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option("--force", is_flag=True, help="Overwrite existing config files")
+def init(path, force=False):
+    """First-run wizard: validate tools, scaffold config, and set defaults."""
+    from pathlib import Path
+    from textwrap import dedent
+    from mpv_scraper.utils import validate_prereqs
+
+    root = Path(path)
+
+    # 1) Prerequisites
+    prereq = validate_prereqs()
+    if prereq["ffmpeg_version"]:
+        click.echo(f"ffmpeg: {prereq['ffmpeg_version']}")
+    if prereq["ffprobe_version"]:
+        click.echo(f"ffprobe: {prereq['ffprobe_version']}")
+    if prereq["warnings"]:
+        for w in prereq["warnings"]:
+            click.echo(f"WARNING: {w}")
+
+    # 2) Ensure directories
+    images_dir = root / "images"
+    images_dir.mkdir(parents=True, exist_ok=True)
+    movies_dir = root / "Movies"
+    movies_dir.mkdir(parents=True, exist_ok=True)
+
+    # 3) Config files
+    config_path = root / "mpv-scraper.toml"
+    env_example = root / ".env.example"
+    env_path = root / ".env"
+
+    default_toml = dedent(
+        f"""
+        # mpv-scraper configuration
+        library_root = "{root.as_posix()}"
+        workers = 0  # 0 = auto-detect
+        preset = "handheld"
+        replace_originals_default = false
+        regen_gamelist_default = false
+        """
+    ).lstrip()
+
+    if not config_path.exists() or force:
+        config_path.write_text(default_toml)
+        click.echo(f"Wrote {config_path}")
+    else:
+        click.echo(f"Found existing {config_path}; leaving unchanged")
+
+    if not env_example.exists():
+        env_example.write_text(
+            "TVDB_API_KEY=\nTMDB_API_KEY=\n# Optional: OMDB_API_KEY=\n"
+        )
+        click.echo(f"Wrote {env_example}")
+
+    if not env_path.exists():
+        env_path.write_text(env_example.read_text())
+        click.echo(f"Wrote {env_path}")
+    else:
+        click.echo(f"Found existing {env_path}; leaving unchanged")
+
+    # 4) Cheat sheet
+    click.echo(
+        "\nNext steps:\n"
+        "  - Edit .env with API keys or use fallback-only modes later\n"
+        "  - Try: mpv-scraper scan <library> | mpv-scraper run <library>\n"
+    )
+
+
+@main.command()
+@click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
 def scan(path):
     """Scan DIRECTORY and print a summary (debug helper)."""
     from pathlib import Path

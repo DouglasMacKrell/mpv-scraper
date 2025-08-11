@@ -11,6 +11,7 @@ __all__ = [
     "retry_with_backoff",
     "format_release_date",
     "normalize_text",
+    "validate_prereqs",
 ]
 
 _MAX_RAW: Final[float] = 10.0
@@ -221,3 +222,66 @@ def normalize_text(text: str) -> str:
     normalized = re.sub(r"\s+", " ", normalized).strip()
 
     return normalized
+
+
+def validate_prereqs() -> dict:
+    """Validate presence of required external tools and return versions.
+
+    Returns
+    -------
+    dict
+        {
+          "ok": bool,
+          "ffmpeg_version": str | None,
+          "ffprobe_version": str | None,
+          "warnings": list[str]
+        }
+    """
+    import shutil
+    import subprocess
+
+    warnings: list[str] = []
+
+    result = {
+        "ok": True,
+        "ffmpeg_version": None,
+        "ffprobe_version": None,
+        "warnings": warnings,
+    }
+
+    # Check ffmpeg
+    if shutil.which("ffmpeg") is None:
+        warnings.append("ffmpeg not found in PATH")
+        result["ok"] = False
+    else:
+        try:
+            proc = subprocess.run(
+                ["ffmpeg", "-version"], capture_output=True, text=True, timeout=5
+            )
+            if proc.returncode == 0:
+                # parse first line
+                first = (proc.stdout or proc.stderr or "").splitlines()[:1]
+                result["ffmpeg_version"] = first[0] if first else "ffmpeg (unknown)"
+            else:
+                warnings.append("ffmpeg returned non-zero exit status for -version")
+        except Exception as exc:
+            warnings.append(f"ffmpeg version check failed: {exc}")
+
+    # Check ffprobe
+    if shutil.which("ffprobe") is None:
+        warnings.append("ffprobe not found in PATH")
+        result["ok"] = False
+    else:
+        try:
+            proc = subprocess.run(
+                ["ffprobe", "-version"], capture_output=True, text=True, timeout=5
+            )
+            if proc.returncode == 0:
+                first = (proc.stdout or proc.stderr or "").splitlines()[:1]
+                result["ffprobe_version"] = first[0] if first else "ffprobe (unknown)"
+            else:
+                warnings.append("ffprobe returned non-zero exit status for -version")
+        except Exception as exc:
+            warnings.append(f"ffprobe version check failed: {exc}")
+
+    return result
