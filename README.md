@@ -141,6 +141,16 @@ flowchart LR
 
 ## Usage
 
+### **First-run setup**
+
+Initialize a library with prerequisites check and config scaffolding:
+
+```bash
+python -m mpv_scraper.cli init /path/to/your/mpv/folder
+```
+
+This writes `mpv-scraper.toml`, `.env(.example)`, and creates `images/` and `Movies/`.
+
 ### **Core Scraping Commands**
 
 ```bash
