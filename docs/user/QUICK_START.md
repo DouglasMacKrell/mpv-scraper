@@ -59,6 +59,36 @@ pip install -r requirements.txt
 
 ---
 
+## First‑run wizard (init)
+
+Let the tool scaffold config and verify prerequisites for you:
+
+```bash
+python -m mpv_scraper.cli init /mpv
+```
+
+This will:
+- Check `ffmpeg` and `ffprobe` availability and print versions
+- Create `/mpv/images/` and `/mpv/Movies/` if missing
+- Write `/mpv/mpv-scraper.toml` with sensible defaults
+- Create `/mpv/.env.example` and `/mpv/.env` with empty API key placeholders
+
+You can re-run safely; use `--force` to overwrite existing config.
+
+### Config defaults
+`mpv-scraper.toml` supports:
+```toml
+library_root = "/mpv"
+workers = 0                 # 0 = auto-detect
+preset = "handheld"        # or "compatibility"
+replace_originals_default = false
+regen_gamelist_default = false
+```
+
+When you omit CLI flags on `optimize-parallel`, these defaults are applied.
+
+---
+
 ## Configure API Keys
 
 Export your keys as environment variables **in the same shell session** where you will run the scraper:
@@ -69,6 +99,9 @@ export TMDB_API_KEY="YOUR_TMDB_API_KEY"
 ```
 
 You can add these lines to your shell profile (e.g., `~/.zshrc`) for persistence.
+
+Notes:
+- You may run with future fallbacks (TVmaze/OMDb) if you do not want keys; see `docs/FALLBACKS.md` once available.
 
 ---
 
