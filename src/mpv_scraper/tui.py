@@ -23,6 +23,19 @@ def run_tui(non_interactive: bool = False) -> int:
 
     banner = "MPV-Scraper TUI"
     print(banner)
+    # Show last few log lines if available
+    try:
+        from pathlib import Path
+
+        log_path = Path.cwd() / "mpv-scraper.log"
+        if log_path.exists():
+            tail_lines = log_path.read_text(encoding="utf-8").splitlines()[-5:]
+            if tail_lines:
+                print("Recent log:")
+                for line in tail_lines:
+                    print(line)
+    except Exception:
+        pass
 
     if non_interactive:
         # Exit immediately; tests will assert the banner text is present

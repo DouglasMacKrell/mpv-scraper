@@ -13,6 +13,7 @@ __all__ = [
     "normalize_text",
     "validate_prereqs",
     "load_config",
+    "get_logger",
 ]
 
 _MAX_RAW: Final[float] = 10.0
@@ -319,3 +320,27 @@ def load_config(path) -> dict:
         return tomllib.loads(cfg_path.read_text())
     except Exception:
         return {}
+
+
+def get_logger(root_dir=None):
+    """Return a configured logger that writes to mpv-scraper.log in root_dir.
+
+    If root_dir is None, uses the current working directory.
+    """
+    import logging
+    from logging.handlers import RotatingFileHandler
+    from pathlib import Path
+
+    root = Path(root_dir) if root_dir else Path.cwd()
+    log_path = root / "mpv-scraper.log"
+
+    logger = logging.getLogger("mpv_scraper")
+    if logger.handlers:
+        return logger
+
+    logger.setLevel(logging.INFO)
+    handler = RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=2)
+    fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
+    handler.setFormatter(fmt)
+    logger.addHandler(handler)
+    return logger
