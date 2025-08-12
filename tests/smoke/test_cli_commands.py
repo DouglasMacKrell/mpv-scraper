@@ -118,3 +118,12 @@ def test_cli_uses_config_defaults(tmp_media: Path):
     # Should reflect chosen preset and not auto-detect workers
     assert "compatibility" in out
     assert "auto-detected" not in out
+
+
+def test_tui_entrypoint_dry_run():
+    """The TUI command should render once and exit 0 in non-interactive mode."""
+    runner = CliRunner()
+    result = runner.invoke(cli_main, ["tui", "--non-interactive"])
+    assert result.exit_code == 0, result.output
+    # Should print a minimal banner
+    assert "mpv-scraper" in result.output.lower()
