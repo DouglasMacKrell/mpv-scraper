@@ -118,7 +118,18 @@ def scan(path):
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
-def scrape(path):
+@click.option(
+    "--prefer-fallback", is_flag=True, help="Prefer fallback providers (TVmaze/OMDb)"
+)
+@click.option(
+    "--fallback-only", is_flag=True, help="Use only fallback providers; skip TVDB/TMDB"
+)
+@click.option(
+    "--no-remote",
+    is_flag=True,
+    help="Do not perform any network calls; cache/placeholder only",
+)
+def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
     """Scrape metadata and artwork for DIRECTORY.
 
     Scans *path* and downloads:
@@ -169,7 +180,13 @@ def scrape(path):
         click.echo(f"Scraping {show.path.name}...")
         try:
             tasks = scrape_tv_parallel(
-                show.path, download_manager, logger, top_images_dir
+                show.path,
+                download_manager,
+                logger,
+                top_images_dir,
+                prefer_fallback=prefer_fallback,
+                fallback_only=fallback_only,
+                no_remote=no_remote,
             )
             all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
@@ -180,7 +197,14 @@ def scrape(path):
     for movie in result.movies:
         click.echo(f"Scraping {movie.path.name}...")
         try:
-            scrape_movie(movie.path, logger, top_images_dir)
+            scrape_movie(
+                movie.path,
+                logger,
+                top_images_dir,
+                prefer_fallback=prefer_fallback,
+                fallback_only=fallback_only,
+                no_remote=no_remote,
+            )
             click.echo(f"✓ Scraped {movie.path.name}")
         except Exception as e:
             click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")

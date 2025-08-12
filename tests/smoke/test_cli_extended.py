@@ -39,3 +39,31 @@ def test_generate_includes_extended_tags(tmp_path: Path, monkeypatch):
     assert marquees, "Marquee tags should be present"
     assert marquees[0].startswith("./"), "Marquee paths should be relative"
     assert ratings and ratings[0] == "0.00"  # normalized format
+
+
+def test_scrape_flags_parsed(tmp_path: Path, monkeypatch):
+    from unittest.mock import patch
+    from click.testing import CliRunner
+    import mpv_scraper.cli as cli_mod
+
+    # Build a tiny library and ensure directories exist
+    root = tmp_path / "mpv"
+    (root / "Movies").mkdir(parents=True, exist_ok=True)
+
+    with patch("mpv_scraper.scanner.scan_directory") as mock_scan, patch(
+        "mpv_scraper.scraper.scrape_tv_parallel"
+    ), patch("mpv_scraper.scraper.scrape_movie"):
+        mock_scan.return_value = type("R", (), {"shows": [], "movies": []})()
+
+        runner = CliRunner()
+        res = runner.invoke(
+            cli_mod.main,
+            [
+                "scrape",
+                str(root),
+                "--prefer-fallback",
+                "--fallback-only",
+                "--no-remote",
+            ],
+        )
+        assert res.exit_code == 0, res.output

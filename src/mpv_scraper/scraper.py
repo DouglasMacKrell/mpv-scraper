@@ -277,6 +277,10 @@ def scrape_tv_parallel(
     download_manager: ParallelDownloadManager,
     transaction_logger=None,
     top_images_dir: Path = None,
+    *,
+    prefer_fallback: bool = False,
+    fallback_only: bool = False,
+    no_remote: bool = False,
 ) -> List[DownloadTask]:
     """
     Scrape metadata for a TV show directory and queue downloads for parallel processing.
@@ -293,9 +297,61 @@ def scrape_tv_parallel(
         if transaction_logger:
             transaction_logger.log_create(images_dir)
 
-    # Try TVDB first
-    token = tvdb.authenticate_tvdb()
-    headers = {"Authorization": f"Bearer {token}"}
+    # Provider selection
+    if no_remote:
+        record = {"episodes": []}
+        headers = {}
+    else:
+        record = None
+        headers = {}
+        try_tvdb = not fallback_only
+        use_tvmaze = prefer_fallback or fallback_only
+        if try_tvdb:
+            # TVDB requires key; authenticate may raise if missing
+            try:
+                token = tvdb.authenticate_tvdb()
+                headers = {"Authorization": f"Bearer {token}"}
+            except Exception:
+                try_tvdb = False
+
+        # Search and get record
+        if use_tvmaze and not try_tvdb:
+            # Fallback path via TVmaze
+            from mpv_scraper import tvmaze
+
+            results = tvmaze.search_show(show_dir.name)
+            if not results:
+                raise RuntimeError(
+                    f"TVmaze could not find series for {show_dir.name!r}"
+                )
+            series_id = results[0]["id"]
+            episodes = tvmaze.get_show_episodes(series_id)
+            record = {"episodes": episodes, "artworks": {}}
+        else:
+            # TVDB path
+            token = headers.get("Authorization", "")[7:] if headers else None
+            if not token:
+                # If we ended here with no token and not using TVmaze, bail
+                raise RuntimeError("TVDB auth missing and fallback not selected")
+            show_name_variations = _get_show_name_variations(show_dir.name)
+            search_results = None
+            for variation in show_name_variations:
+                try:
+                    search_results = tvdb.search_show(variation, token)
+                    if search_results:
+                        break
+                except Exception:
+                    continue
+            if not search_results:
+                raise RuntimeError(
+                    f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
+                )
+            series_id = search_results[0]["id"]
+            record = tvdb.get_series_extended(series_id, token)
+            if not record:
+                raise RuntimeError(
+                    f"Failed to fetch extended record for id {series_id}"
+                )
 
     # 1. Look up series with name variations
     show_name_variations = _get_show_name_variations(show_dir.name)
@@ -316,11 +372,7 @@ def scrape_tv_parallel(
             f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
         )
 
-    series_id = search_results[0]["id"]
-
-    record = tvdb.get_series_extended(series_id, token)
-    if not record:
-        raise RuntimeError(f"Failed to fetch extended record for id {series_id}")
+    # 'record' now present
 
     # Check if TVDB has poor logo data and try TMDB fallback
     has_good_logo = bool(record.get("artworks", {}).get("clearLogo"))
@@ -592,7 +644,13 @@ def scrape_tv_parallel(
 
 
 def scrape_movie(
-    movie_path: Path, transaction_logger=None, top_images_dir: Path = None
+    movie_path: Path,
+    transaction_logger=None,
+    top_images_dir: Path = None,
+    *,
+    prefer_fallback: bool = False,
+    fallback_only: bool = False,
+    no_remote: bool = False,
 ) -> None:  # pragma: no cover – covered via integration
     """Scrape a movie file.
 
@@ -610,16 +668,35 @@ def scrape_movie(
     if not movie_meta:
         raise RuntimeError(f"Could not parse movie filename: {movie_path.name!r}")
 
-    # 2. Search for movie in TMDB
-    search_results = tmdb.search_movie(movie_meta.title, movie_meta.year)
-    if not search_results:
-        raise RuntimeError(f"TMDB could not find movie for {movie_meta.title!r}")
-    movie_id = search_results[0]["id"]
+    # 2. Provider selection
+    if no_remote:
+        record = {}
+    else:
+        try_tmdb = not fallback_only
+        record = None
+        if try_tmdb:
+            try:
+                search_results = tmdb.search_movie(movie_meta.title, movie_meta.year)
+            except Exception:
+                search_results = []
+            if search_results:
+                movie_id = search_results[0]["id"]
+                record = tmdb.get_movie_details(movie_id)
+        if record is None:
+            # Try OMDb fallback if available
+            from mpv_scraper import omdb
 
-    # 3. Get detailed movie information
-    record = tmdb.get_movie_details(movie_id)
-    if not record:
-        raise RuntimeError(f"Failed to fetch details for movie id {movie_id}")
+            try:
+                omdb_results = omdb.search_movie(movie_meta.title, movie_meta.year)
+            except Exception:
+                omdb_results = []
+            if omdb_results:
+                imdb_id = omdb_results[0]["id"]
+                record = omdb.get_movie_details(imdb_id)
+        if record is None:
+            raise RuntimeError(
+                f"Could not find metadata for movie {movie_meta.title!r}"
+            )
 
     # 4. Use top-level images directory if provided, otherwise create local images directory
     if top_images_dir:
