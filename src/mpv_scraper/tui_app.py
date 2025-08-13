@@ -51,6 +51,25 @@ def run_textual_once() -> None:
             )
             yield Footer()
 
+        BINDINGS = [
+            ("?", "show_help", "Help"),
+        ]
+
+        def action_show_help(self) -> None:
+            # Simple modal help text for now
+            help_text = (
+                "Keys:\n"
+                "  ?  Show this help\n"
+                "  q  Quit (planned)\n"
+                "  o  Enqueue optimize (planned)\n"
+                "  s  Enqueue scrape (planned)\n"
+                "Provider Mode (planned): Primary / Prefer Fallback / Fallback Only / Offline\n"
+            )
+            from textual.widgets import Static
+            from textual.containers import Vertical
+
+            self.mount(Vertical(Static(help_text, classes="panel")))
+
         def _read_log_tail(self) -> str:
             from pathlib import Path
 
