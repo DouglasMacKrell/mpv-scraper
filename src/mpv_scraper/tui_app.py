@@ -30,7 +30,7 @@ def run_textual_once() -> None:
             yield Header(id="header", show_clock=False)
             yield Horizontal(
                 Vertical(
-                    Static("Jobs (placeholder)", classes="panel", id="jobs"), id="left"
+                    Static(self._jobs_snapshot(), classes="panel", id="jobs"), id="left"
                 ),
                 Vertical(
                     Static(self._read_log_tail(), classes="panel", id="logs"),
@@ -48,6 +48,27 @@ def run_textual_once() -> None:
             lines = log_path.read_text(encoding="utf-8").splitlines()
             tail = "\n".join(lines[-5:]) if lines else "(empty)"
             return f"Recent log:\n{tail}"
+
+        def _jobs_snapshot(self) -> str:
+            # Read job history JSON and render a tiny snapshot
+            from pathlib import Path
+            import json
+
+            history = Path.cwd() / ".mpv-scraper" / "jobs.json"
+            if not history.exists():
+                return "Jobs: (no jobs yet)"
+            try:
+                data = json.loads(history.read_text())
+            except Exception:
+                return "Jobs: (unreadable)"
+            lines = ["Jobs:"]
+            for jid, j in list(data.items())[:5]:
+                progress = j.get("progress", 0)
+                total = j.get("total") or "?"
+                status = j.get("status", "?")
+                name = j.get("name", jid)
+                lines.append(f"- {name} [{status}] {progress}/{total}")
+            return "\n".join(lines)
 
     # Mount once and immediately exit
     app = MpvScraperApp()
