@@ -1298,10 +1298,6 @@ def _sanitize_filenames(root) -> int:
     return renamed_count
 
 
-if __name__ == "__main__":
-    main()
-
-
 @main.command()
 @click.option("--non-interactive", is_flag=True, help="Render once and exit")
 def tui(non_interactive: bool = False):
@@ -1310,3 +1306,7 @@ def tui(non_interactive: bool = False):
 
     code = run_tui(non_interactive=non_interactive)
     raise SystemExit(code)
+
+
+if __name__ == "__main__":
+    main()

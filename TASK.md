@@ -600,3 +600,66 @@ N/A (pure documentation)
 * **Done when:** Users can follow docs to run the tool with fallbacks only.
 
 ---
+
+## 14 · Sprint 14 (TUI v1: Colored Interface & Controls)
+**Purpose:** Replace the placeholder TUI with a functional, colored interface using Textual/Rich. Show live job progress, tail logs, and provide cancel/retry controls. Expose provider flags from the UI.
+
+### 14.1 Textual App Scaffolding & Layout
+* **Goal:** Create a Textual-based app with a stable layout and color theme.
+* **Tests to Write:**
+  - `tests/smoke/test_tui_textual.py::test_tui_non_interactive_renders`
+* **Steps:**
+  1. Add `textual>=0.63` to `requirements.txt` (guarded import; fallback prints if unavailable).
+  2. Implement `src/mpv_scraper/tui_app.py` with a `Textual` `App` subclass.
+  3. Layout: header (title/status), left sidebar (library path and actions), main panel (jobs table), bottom panel (log tail). Apply basic color theme.
+  4. Wire `run_tui(non_interactive=True)` to mount the layout, render once, then exit.
+* **Done when:** `python -m mpv_scraper.cli tui --non-interactive` renders colored scaffold without exceptions.
+
+### 14.2 Jobs Table with Live Progress
+* **Goal:** Display queued/running/completed jobs with progress bars and status.
+* **Tests to Write:**
+  - `tests/integration/test_tui_jobs.py::test_jobs_table_shows_progress` (marks integration)
+* **Steps:**
+  1. Subscribe the app to a lightweight update loop (e.g., interval timer) that polls `JobManager.observe(job_id)`.
+  2. Render a table: columns = ID, Name, Status, Progress (bar/percent), Message.
+  3. Update the table on events; keep <=100 past jobs in memory; persist summary to `.mpv-scraper/jobs.json`.
+* **Done when:** Enqueuing a dummy job updates the table from 0% → 100% in the UI during a short demo run.
+
+### 14.3 Log Tail Panel with Highlighting
+* **Goal:** Tail `mpv-scraper.log` and highlight INFO/WARN/ERROR with colors.
+* **Tests to Write:**
+  - `tests/integration/test_tui_logs.py::test_log_tail_renders_lines` (integration)
+* **Steps:**
+  1. Implement a log reader that seeks the end and reads the last N lines (configurable, default 200).
+  2. Color rules: INFO=default, WARNING=yellow, ERROR=red; dim timestamps.
+  3. Auto-scroll to latest; provide PageUp/PageDown to browse; preserve scroll on updates.
+* **Done when:** Recent lines appear in the panel with correct colors; updates stream in during running jobs.
+
+### 14.4 Actions: Enqueue/Cancel/Retry from TUI
+* **Goal:** Provide keyboard actions to control jobs.
+* **Tests to Write:**
+  - `tests/integration/test_tui_jobs.py::test_cancel_action_updates_status` (integration)
+* **Steps:**
+  1. Keybindings: `o`=optimize (prompt for dir), `s`=scrape (prompt for dir and provider mode), `g`=generate, `c`=cancel selected job, `r`=retry last failed job, `q`=quit.
+  2. Implement prompts via Textual input modals; enqueue background jobs using existing CLI functions via Python callables with `progress_callback`.
+  3. On cancel, set the `should_cancel` flag through `JobManager` and reflect `cancelled` status.
+* **Done when:** User can start an optimize job and cancel it from within the TUI; status updates correctly.
+
+### 14.5 Provider Mode Controls (Flags from UI)
+* **Goal:** Expose provider selection in the TUI for scrape runs.
+* **Tests to Write:**
+  - `tests/smoke/test_tui_textual.py::test_provider_mode_menu_shows_options`
+* **Steps:**
+  1. Add a provider mode selector in the sidebar: Primary (default), Prefer Fallback, Fallback Only, Offline.
+  2. Pass `--prefer-fallback/--fallback-only/--no-remote` equivalents when enqueuing scrape jobs.
+* **Done when:** The selected mode is used for new scrape jobs and is visible in job metadata.
+
+### 14.6 Documentation & Help Overlay
+* **Goal:** Document the TUI and provide an in-app help overlay.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Add a `?` hotkey to show an overlay listing keybindings and provider modes.
+  2. Update `docs/USER_INTERFACE.md` with screenshots/GIFs of the new TUI, and a quick how-to for jobs.
+* **Done when:** Users can discover controls in-app and docs reflect the colored interface.
+
+---
