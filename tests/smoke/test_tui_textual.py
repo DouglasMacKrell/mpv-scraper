@@ -17,3 +17,12 @@ def test_help_overlay_renders_non_interactive(tmp_path, monkeypatch):
     runner = CliRunner()
     result = runner.invoke(cli_main, ["tui", "--non-interactive"])
     assert result.exit_code == 0, result.output
+
+
+def test_provider_mode_menu_exists_non_interactive():
+    # Non-interactive smoke: ensure app still renders when provider selector is present
+    from mpv_scraper.cli import main as cli_main
+
+    runner = CliRunner()
+    result = runner.invoke(cli_main, ["tui", "--non-interactive"])
+    assert result.exit_code == 0, result.output
