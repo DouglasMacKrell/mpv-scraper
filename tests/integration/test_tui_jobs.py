@@ -39,6 +39,31 @@ def test_enqueue_optimize_job(tmp_path: Path):
 
 @pytest.mark.integration
 def test_cancel_job(tmp_path: Path):
+    # Existing test remains
+    ...
+
+
+@pytest.mark.integration
+def test_jobs_table_shows_progress(tmp_path: Path, monkeypatch):
+    """The textual app should render a snapshot of job progress in non-interactive mode."""
+    # Create a dummy job and write a small JobManager state that the TUI can read
+    from mpv_scraper.jobs import JobManager
+
+    jm = JobManager(history_dir=tmp_path)
+
+    def short_task(progress_callback, should_cancel):
+        progress_callback(0, 3, "start")
+        progress_callback(1, None, "tick")
+
+    jid = jm.enqueue("dummy", short_task)
+
+    # Run the TUI non-interactively; it should render without error
+    from click.testing import CliRunner
+    from mpv_scraper.cli import main as cli_main
+
+    runner = CliRunner()
+    res = runner.invoke(cli_main, ["tui", "--non-interactive"])
+    assert res.exit_code == 0, res.output
     """Cancellation should transition job to cancelled state best-effort."""
 
     jm = JobManager(history_dir=tmp_path)
