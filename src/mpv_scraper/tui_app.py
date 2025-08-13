@@ -40,15 +40,27 @@ def run_textual_once() -> None:
 
         def compose(self) -> ComposeResult:
             yield Header(id="header", show_clock=False)
-            yield Horizontal(
-                Vertical(
-                    Static(self._jobs_snapshot(), classes="panel", id="jobs"), id="left"
-                ),
-                Vertical(
-                    Static(self._read_log_tail(), classes="panel", id="logs"),
-                    id="right",
-                ),
+            from textual.widgets import Select
+
+            provider_select = Select(
+                options=[
+                    ("Primary", "primary"),
+                    ("Prefer Fallback", "prefer_fallback"),
+                    ("Fallback Only", "fallback_only"),
+                    ("Offline", "offline"),
+                ],
+                value="primary",
+                prompt="Provider Mode:",
             )
+            left = Vertical(
+                Static(self._jobs_snapshot(), classes="panel", id="jobs"),
+                provider_select,
+                id="left",
+            )
+            right = Vertical(
+                Static(self._read_log_tail(), classes="panel", id="logs"), id="right"
+            )
+            yield Horizontal(left, right)
             yield Footer()
 
         BINDINGS = [
