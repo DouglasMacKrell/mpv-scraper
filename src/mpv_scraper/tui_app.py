@@ -13,8 +13,20 @@ def run_textual_once() -> None:
         from textual.widgets import Header, Footer, Static
         from textual.containers import Vertical, Horizontal
     except Exception:
-        # Fallback: simple print when Textual not available
+        # Fallback: simple print when Textual not available; include log tail
         print("MPV-Scraper TUI")
+        try:
+            from pathlib import Path
+
+            log_path = Path.cwd() / "mpv-scraper.log"
+            if log_path.exists():
+                tail_lines = log_path.read_text(encoding="utf-8").splitlines()[-5:]
+                if tail_lines:
+                    print("Recent log:")
+                    for line in tail_lines:
+                        print(line)
+        except Exception:
+            pass
         return
 
     class MpvScraperApp(App):
@@ -47,7 +59,17 @@ def run_textual_once() -> None:
                 return "No recent logs."
             lines = log_path.read_text(encoding="utf-8").splitlines()
             tail = "\n".join(lines[-5:]) if lines else "(empty)"
-            return f"Recent log:\n{tail}"
+
+            # Basic highlighting tags; Textual will render ANSI and markdown-like emphasis
+            def colorize(line: str) -> str:
+                if "ERROR" in line:
+                    return f"[red]{line}[/red]"
+                if "WARNING" in line:
+                    return f"[yellow]{line}[/yellow]"
+                return line
+
+            colored = "\n".join(colorize(line) for line in tail.splitlines())
+            return f"Recent log:\n{colored}"
 
         def _jobs_snapshot(self) -> str:
             # Read job history JSON and render a tiny snapshot
