@@ -90,6 +90,7 @@ flowchart LR
 
 - **[📖 Documentation Index](docs/README.md)** - Complete guide to all documentation
 - **[🚀 Quick Start](docs/user/QUICK_START.md)** - Get up and running in minutes
+- **[🔁 Fallback Providers](docs/user/FALLBACKS.md)** - Run without paid keys (TVmaze/OMDb)
 - **[🖥️ User Interface](docs/USER_INTERFACE.md)** - TUI usage and logs
 - **[🎬 Video Processing Guide](docs/user/VIDEO_PROCESSING.md)** - Video optimization and conversion
 - **[🔧 API Troubleshooting](docs/technical/API_TROUBLESHOOTING.md)** - Fix authentication issues

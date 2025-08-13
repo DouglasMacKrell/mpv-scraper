@@ -1,6 +1,14 @@
 # Quick Start Guide
 
-Get up and running with the MPV Scraper in minutes!
+Welcome! This guide gets you scraping in minutes — no developer skills required.
+
+What this tool does for you:
+- Finds your TV shows and movies in a simple `/mpv` folder
+- Grabs titles, descriptions, ratings, and images
+- Generates EmulationStation-ready `gamelist.xml` files
+- Can optimize videos for handhelds (optional)
+
+If you don’t have paid API keys, don’t worry — you can use our free fallbacks.
 
 ## 🚀 Quick Start Flow
 
@@ -75,6 +83,8 @@ This will:
 
 You can re-run safely; use `--force` to overwrite existing config.
 
+Tip: After `init`, you’re ready to try scraping right away — even without keys — using fallbacks below.
+
 ### Config defaults
 `mpv-scraper.toml` supports:
 ```toml
@@ -101,7 +111,23 @@ export TMDB_API_KEY="YOUR_TMDB_API_KEY"
 You can add these lines to your shell profile (e.g., `~/.zshrc`) for persistence.
 
 Notes:
-- You may run with future fallbacks (TVmaze/OMDb) if you do not want keys; see `docs/FALLBACKS.md` once available.
+- You can run without keys using fallbacks; see `docs/FALLBACKS.md`.
+
+### No keys? Use fallbacks
+If you don’t want to set up keys now:
+
+```bash
+# Use only free fallbacks (TVmaze/OMDb)
+python -m mpv_scraper.cli scrape /mpv --fallback-only
+
+# Prefer fallbacks, but allow primary providers too
+python -m mpv_scraper.cli scrape /mpv --prefer-fallback
+
+# Do an offline pass (no network): writes placeholders from cache
+python -m mpv_scraper.cli scrape /mpv --no-remote
+```
+
+More details in `docs/FALLBACKS.md`.
 
 ---
 
