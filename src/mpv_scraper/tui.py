@@ -29,6 +29,19 @@ def run_tui(non_interactive: bool = False) -> int:
             run_textual_once()
         except Exception:
             print("MPV-Scraper TUI")
+            # Fallback: also print recent log tail
+            try:
+                from pathlib import Path
+
+                log_path = Path.cwd() / "mpv-scraper.log"
+                if log_path.exists():
+                    tail_lines = log_path.read_text(encoding="utf-8").splitlines()[-5:]
+                    if tail_lines:
+                        print("Recent log:")
+                        for line in tail_lines:
+                            print(line)
+            except Exception:
+                pass
         return 0
 
     # Interactive: start textual app if available
