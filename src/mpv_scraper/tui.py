@@ -21,33 +21,25 @@ def run_tui(non_interactive: bool = False) -> int:
         Exit code (0 = success)
     """
 
-    banner = "MPV-Scraper TUI"
-    print(banner)
-    # Show last few log lines if available
-    try:
-        from pathlib import Path
-
-        log_path = Path.cwd() / "mpv-scraper.log"
-        if log_path.exists():
-            tail_lines = log_path.read_text(encoding="utf-8").splitlines()[-5:]
-            if tail_lines:
-                print("Recent log:")
-                for line in tail_lines:
-                    print(line)
-    except Exception:
-        pass
-
     if non_interactive:
-        # Exit immediately; tests will assert the banner text is present
+        # One-shot render via textual app scaffold (will fallback to simple print if missing)
+        try:
+            from mpv_scraper.tui_app import run_textual_once
+
+            run_textual_once()
+        except Exception:
+            print("MPV-Scraper TUI")
+        return 0
+
+    # Interactive: start textual app if available
+    try:
+        from mpv_scraper.tui_app import run_textual_once
+
+        run_textual_once()
+        return 0
+    except Exception:
+        print("MPV-Scraper TUI")
         return 0
 
     # Placeholder for future interactive loop (Sprint 12.2+)
-    try:
-        print("Press Ctrl+C to exit…")
-        # A minimal blocking loop; in future this will start a proper Textual app
-        import time
-
-        time.sleep(0.1)
-    except KeyboardInterrupt:
-        return 0
     return 0
