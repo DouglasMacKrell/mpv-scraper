@@ -1,7 +1,7 @@
-"""Textual-based TUI application scaffold.
+"""Textual-based TUI application.
 
-Provides a colored, minimal layout for header, jobs list placeholder, and log
-tail. Falls back gracefully if Textual is not installed.
+Provides a colored, minimal layout for header, jobs list, and log tail.
+Falls back gracefully if Textual is not installed.
 
 Quality-of-life behaviours:
 - Press ``?`` to toggle help (instead of stacking multiple panels)
@@ -98,14 +98,12 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 "Welcome to mpv-scraper TUI!\n\n"
                 "Keys:\n"
                 "  ?  Toggle this help\n"
-                "  q  Quit\n"
-                "  o  Start optimize job (planned)\n"
-                "  s  Start scrape job (planned)\n\n"
+                "  q  Quit\n\n"
                 "Provider Mode (left panel):\n"
                 "  Primary          Use TVDB/TMDB when keys are set\n"
                 "  Prefer Fallback  Try TVmaze/OMDb first\n"
                 "  Fallback Only    Only use TVmaze/OMDb\n"
-                "  Offline          No network calls; cache/placeholders only\n"
+                "  Offline          No network calls; use cache only\n"
             )
 
             self._help_widget = Vertical(Static(help_text, classes="panel"))

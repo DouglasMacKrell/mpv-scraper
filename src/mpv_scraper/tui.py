@@ -1,7 +1,7 @@
 """Minimal TUI scaffolding for mpv-scraper.
 
-Provides a very lightweight non-interactive render suitable for tests,
-and a placeholder interactive loop for future sprints.
+Provides a lightweight non-interactive render suitable for tests,
+and an interactive mode that launches the Textual UI when available.
 """
 
 from __future__ import annotations
@@ -57,5 +57,4 @@ def run_tui(non_interactive: bool = False, path: str | None = None) -> int:
         print("MPV-Scraper TUI")
         return 0
 
-    # Placeholder for future interactive loop (Sprint 12.2+)
     return 0

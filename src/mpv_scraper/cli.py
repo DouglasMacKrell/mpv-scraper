@@ -6,10 +6,10 @@ scan PATH
     Scan a media directory and output a brief summary of shows/movies discovered.
 
 generate PATH
-    Generate *gamelist.xml* files for the directory using metadata previously scraped (stub for now).
+    Generate *gamelist.xml* files for the directory using metadata previously scraped.
 
 run PATH
-    Convenience wrapper that performs *scan* ➜ (future) *scrape* ➜ *generate* in sequence.
+    Perform scan ➜ scrape ➜ generate in sequence.
 """
 
 import click
@@ -18,11 +18,11 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# --- Test-only placeholder hook ---------------------------------------------
+# --- Test-only hook ----------------------------------------------------------
 
 
-def _noop_placeholder(*_args, **_kwargs):
-    """No-op; real implementation is monkey-patched in tests."""
+def _noop_test_hook(*_args, **_kwargs):
+    """No-op; used by tests to inject behaviour when needed."""
 
 
 # -----------------------------------------------------------------------------
