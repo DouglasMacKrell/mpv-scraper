@@ -124,6 +124,31 @@ def scan(path):
         root,
     )
 
+    # Opportunistic: write a quick completed job snapshot so the TUI can see activity
+    try:
+        jobs_dir = root / ".mpv-scraper"
+        jobs_dir.mkdir(exist_ok=True)
+        jobs_file = jobs_dir / "jobs.json"
+        import json
+
+        jobs = {}
+        if jobs_file.exists():
+            try:
+                jobs = json.loads(jobs_file.read_text())
+            except Exception:
+                jobs = {}
+        jobs["scan"] = {
+            "name": f"Scan {root.name}",
+            "status": "completed",
+            "progress": 1,
+            "total": 1,
+            "error": None,
+        }
+        jobs_file.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+    except Exception:
+        # Never let job snapshot failures impact CLI result
+        pass
+
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
@@ -165,6 +190,64 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
     logger_out = get_logger(root)
     logger = TransactionLogger(root / "transaction.log")  # Create in target directory
 
+    # Initialize a lightweight job snapshot for the TUI
+    def _jobs_begin(total: int) -> None:
+        try:
+            jobs_dir = root / ".mpv-scraper"
+            jobs_dir.mkdir(exist_ok=True)
+            jf = jobs_dir / "jobs.json"
+            import json
+
+            jobs = {}
+            if jf.exists():
+                try:
+                    jobs = json.loads(jf.read_text())
+                except Exception:
+                    jobs = {}
+            jobs["scrape"] = {
+                "name": f"Scrape {root.name}",
+                "status": "running",
+                "progress": 0,
+                "total": total,
+                "error": None,
+            }
+            jf.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _jobs_inc() -> None:
+        try:
+            jf = root / ".mpv-scraper" / "jobs.json"
+            if not jf.exists():
+                return
+            import json
+
+            jobs = json.loads(jf.read_text()) if jf.exists() else {}
+            job = jobs.get("scrape") or {}
+            job["progress"] = int(job.get("progress", 0)) + 1
+            jobs["scrape"] = job
+            jf.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
+    def _jobs_end(status: str = "completed") -> None:
+        try:
+            jf = root / ".mpv-scraper" / "jobs.json"
+            if not jf.exists():
+                return
+            import json
+
+            jobs = json.loads(jf.read_text()) if jf.exists() else {}
+            job = jobs.get("scrape") or {}
+            job["status"] = status
+            if job.get("total") is not None and job.get("progress") is not None:
+                if int(job["progress"]) < int(job["total"]):
+                    job["progress"] = job["total"]
+            jobs["scrape"] = job
+            jf.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+        except Exception:
+            pass
+
     def _log_creation(p: Path) -> None:
         logger.log_create(p.resolve())
 
@@ -191,6 +274,15 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
         max_workers=12
     )  # Increased for cross-show parallelization
 
+    # 3.5 Initialize job snapshot total (shows + movies + downloads phase)
+    try:
+        total_units = len(result.shows) + len(result.movies)
+        # Add one unit for the bulk download execution phase if there will be tasks
+        total_units += 1
+        _jobs_begin(total_units)
+    except Exception:
+        pass
+
     # 4. Scrape TV shows (metadata + queue downloads)
     all_tasks = []
     for show in result.shows:
@@ -208,6 +300,7 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
             all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
             logger_out.info("Scraped show: %s", show.path.name)
+            _jobs_inc()
         except Exception as e:
             click.echo(f"✗ Failed to scrape {show.path.name}: {e}")
             logger_out.error("Failed to scrape show %s: %s", show.path.name, e)
@@ -226,6 +319,7 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
             )
             click.echo(f"✓ Scraped {movie.path.name}")
             logger_out.info("Scraped movie: %s", movie.path.name)
+            _jobs_inc()
         except Exception as e:
             click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")
             logger_out.error("Failed to scrape movie %s: %s", movie.path.name, e)
@@ -256,9 +350,12 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
             successful_downloads,
             failed_downloads,
         )
+        _jobs_inc()
     else:
         click.echo("No downloads to process.")
         logger_out.info("No downloads to process.")
+
+    _jobs_end("completed")
 
 
 @main.command()
@@ -618,6 +715,25 @@ def generate(path):
     logger_out.info("Wrote %s", top_gamelist_path)
 
     click.echo("gamelist.xml files generated.")
+
+    # Update jobs snapshot for TUI
+    try:
+        jobs_dir = root / ".mpv-scraper"
+        jf = jobs_dir / "jobs.json"
+        if jf.exists():
+            import json
+
+            jobs = json.loads(jf.read_text())
+            jobs["generate"] = {
+                "name": f"Generate {root.name}",
+                "status": "completed",
+                "progress": 1,
+                "total": 1,
+                "error": None,
+            }
+            jf.write_text(json.dumps(jobs, indent=2), encoding="utf-8")
+    except Exception:
+        pass
 
 
 @main.command()
