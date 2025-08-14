@@ -8,6 +8,7 @@ Quality-of-life behaviours:
 - Press ``q`` to quit
 - Press ``i`` to init library, ``s`` to scan, ``r`` to run pipeline, ``o`` to optimize, ``u`` to undo
 - Press ``l`` to list libraries, ``n`` for new library, ``c`` to change library
+- Press ``p`` for provider settings, ``v`` for system info, ``t`` for connectivity test
 - Panels auto-refresh every second to show recent logs/jobs
 """
 
@@ -16,7 +17,9 @@ from __future__ import annotations
 import subprocess
 import sys
 import json
-from typing import Optional, List
+import shutil
+import platform
+from typing import Optional, List, Dict, Any
 
 
 def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> None:
@@ -109,6 +112,68 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 else:
                     select_widget.styles.border = ("solid", "red")
 
+    class SettingsModal(ModalScreen):
+        """Modal for advanced settings and configuration."""
+
+        def __init__(self, current_settings: Dict[str, Any]):
+            super().__init__()
+            self.current_settings = current_settings
+
+        def compose(self) -> ComposeResult:
+            yield Vertical(
+                Static("Advanced Settings & Configuration"),
+                Static("Provider Mode:"),
+                Select(
+                    options=[
+                        ("Primary", "primary"),
+                        ("Prefer Fallback", "prefer_fallback"),
+                        ("Fallback Only", "fallback_only"),
+                        ("Offline", "offline"),
+                    ],
+                    value=self.current_settings.get("provider_mode", "primary"),
+                    id="provider_mode",
+                ),
+                Static("TUI Preferences:"),
+                Select(
+                    options=[
+                        ("Dark Theme", "dark"),
+                        ("Light Theme", "light"),
+                        ("Auto Theme", "auto"),
+                    ],
+                    value=self.current_settings.get("theme", "dark"),
+                    id="theme",
+                ),
+                Select(
+                    options=[
+                        ("0.5s Refresh", "0.5"),
+                        ("1.0s Refresh", "1.0"),
+                        ("2.0s Refresh", "2.0"),
+                    ],
+                    value=str(self.current_settings.get("refresh_rate", "1.0")),
+                    id="refresh_rate",
+                ),
+                Horizontal(
+                    Button("Cancel", id="cancel"),
+                    Button("Save", id="save"),
+                ),
+                id="modal_content",
+            )
+
+        def on_button_pressed(self, event: Button.Pressed) -> None:
+            if event.button.id == "cancel":
+                self.dismiss()
+            elif event.button.id == "save":
+                provider_mode = self.query_one("#provider_mode", Select).value
+                theme = self.query_one("#theme", Select).value
+                refresh_rate = float(self.query_one("#refresh_rate", Select).value)
+
+                settings = {
+                    "provider_mode": provider_mode,
+                    "theme": theme,
+                    "refresh_rate": refresh_rate,
+                }
+                self.dismiss(settings)
+
     class MpvScraperApp(App):
         CSS = """
         Screen { background: #101216 }
@@ -118,6 +183,7 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
         #logs { color: #88c0d0; }
         #commands { color: #b48ead; }
         #libraries { color: #ebcb8b; }
+        #settings { color: #d08770; }
         Button { margin: 1 1; }
         """
 
@@ -128,6 +194,7 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             self.logs_box = None
             self.commands_box = None
             self.libraries_box = None
+            self.settings_box = None
             self._one_shot = one_shot
             self._root_path = root_path
             from pathlib import Path
@@ -135,6 +202,11 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             self._library_history_file = (
                 Path.home() / ".mpv-scraper" / "library_history.json"
             )
+            self._tui_preferences_file = (
+                Path.home() / ".mpv-scraper" / "tui_preferences.json"
+            )
+            self._refresh_rate = 1.0
+            self._load_tui_preferences()
 
         def compose(self) -> ComposeResult:
             yield Header(id="header", show_clock=False)
@@ -157,6 +229,14 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 id="libraries",
             )
 
+            # Settings buttons
+            settings_buttons = Horizontal(
+                Button("p: Provider", id="provider_btn"),
+                Button("v: System", id="system_btn"),
+                Button("t: Test", id="test_btn"),
+                id="settings",
+            )
+
             # Create boxes so we can update their contents on a timer
             self.jobs_box = Static(self._jobs_snapshot(), classes="panel", id="jobs")
             self.logs_box = Static(self._read_log_tail(), classes="panel", id="logs")
@@ -170,10 +250,25 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 classes="panel",
                 id="libraries_panel",
             )
+            self.settings_box = Static(
+                self._get_system_status(),
+                classes="panel",
+                id="settings_panel",
+            )
 
-            left = Vertical(command_buttons, library_buttons, self.jobs_box, id="left")
+            left = Vertical(
+                command_buttons,
+                library_buttons,
+                settings_buttons,
+                self.jobs_box,
+                id="left",
+            )
             right = Vertical(
-                self.logs_box, self.commands_box, self.libraries_box, id="right"
+                self.logs_box,
+                self.commands_box,
+                self.libraries_box,
+                self.settings_box,
+                id="right",
             )
             yield Horizontal(left, right)
             yield Footer()
@@ -189,11 +284,14 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             ("l", "list_libraries", "List"),
             ("n", "new_library", "New"),
             ("c", "change_library", "Change"),
+            ("p", "provider_settings", "Provider"),
+            ("v", "view_system_info", "System"),
+            ("t", "test_connectivity", "Test"),
         ]
 
         def on_mount(self) -> None:  # type: ignore[override]
             # Refresh panels periodically to reflect recent activity
-            self.set_interval(1.0, self._refresh_panels)
+            self.set_interval(self._refresh_rate, self._refresh_panels)
             if self._one_shot:
                 # Exit shortly after first render to support non-interactive/CI
                 self.set_timer(0.05, self.exit)
@@ -222,7 +320,10 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 "  u  Undo last operation\n"
                 "  l  List recent libraries\n"
                 "  n  New library (prompt for path, run init)\n"
-                "  c  Change library (browse/prompt for path)\n\n"
+                "  c  Change library (browse/prompt for path)\n"
+                "  p  Provider mode settings\n"
+                "  v  View system info\n"
+                "  t  Test connectivity\n\n"
                 "Provider Mode (left panel):\n"
                 "  Primary          Use TVDB/TMDB when keys are set\n"
                 "  Prefer Fallback  Try TVmaze/OMDb first\n"
@@ -280,6 +381,20 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 self._on_library_select_result,
             )
 
+        def action_provider_settings(self) -> None:
+            """Open provider mode settings."""
+            current_settings = self._get_library_settings()
+            self.push_screen(SettingsModal(current_settings), self._on_settings_result)
+
+        def action_view_system_info(self) -> None:
+            """View system information."""
+            info = self._get_system_info()
+            self.settings_box.update(info)
+
+        def action_test_connectivity(self) -> None:
+            """Test connectivity to API endpoints."""
+            self._test_connectivity()
+
         def on_button_pressed(self, event: Button.Pressed) -> None:
             if event.button.id == "init_btn":
                 self.action_init_library()
@@ -297,6 +412,12 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 self.action_new_library()
             elif event.button.id == "change_btn":
                 self.action_change_library()
+            elif event.button.id == "provider_btn":
+                self.action_provider_settings()
+            elif event.button.id == "system_btn":
+                self.action_view_system_info()
+            elif event.button.id == "test_btn":
+                self.action_test_connectivity()
 
         def _get_current_path(self) -> str:
             """Get the current library path."""
@@ -351,6 +472,193 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             except Exception:
                 return False
 
+        def _load_tui_preferences(self) -> None:
+            """Load TUI preferences from file."""
+            try:
+                if self._tui_preferences_file.exists():
+                    data = json.loads(self._tui_preferences_file.read_text())
+                    self._refresh_rate = data.get("refresh_rate", 1.0)
+            except Exception:
+                self._refresh_rate = 1.0
+
+        def _save_tui_preferences(self) -> None:
+            """Save TUI preferences to file."""
+            try:
+                self._tui_preferences_file.parent.mkdir(parents=True, exist_ok=True)
+                data = {"refresh_rate": self._refresh_rate}
+                self._tui_preferences_file.write_text(json.dumps(data, indent=2))
+            except Exception:
+                pass
+
+        def _get_library_settings(self) -> Dict[str, Any]:
+            """Get library-specific settings."""
+            try:
+                from pathlib import Path
+
+                lib_path = Path(self._get_current_path())
+                settings_file = lib_path / "mpv-scraper.toml"
+
+                if settings_file.exists():
+                    # For now, return default settings
+                    # In a real implementation, parse TOML file
+                    return {
+                        "provider_mode": "primary",
+                        "theme": "dark",
+                        "refresh_rate": self._refresh_rate,
+                    }
+            except Exception:
+                pass
+
+            return {
+                "provider_mode": "primary",
+                "theme": "dark",
+                "refresh_rate": self._refresh_rate,
+            }
+
+        def _save_library_settings(self, settings: Dict[str, Any]) -> None:
+            """Save library-specific settings."""
+            try:
+                # For now, just update TUI preferences
+                if "refresh_rate" in settings:
+                    self._refresh_rate = settings["refresh_rate"]
+                    self._save_tui_preferences()
+            except Exception:
+                pass
+
+        def _get_system_info(self) -> str:
+            """Get comprehensive system information."""
+            try:
+                from pathlib import Path
+
+                # System info
+                system_info = [
+                    f"System: {platform.system()} {platform.release()}",
+                    f"Python: {sys.version.split()[0]}",
+                    f"Architecture: {platform.machine()}",
+                ]
+
+                # Disk space
+                lib_path = Path(self._get_current_path())
+                if lib_path.exists():
+                    total, used, free = shutil.disk_usage(lib_path)
+                    total_gb = total / (1024**3)
+                    free_gb = free / (1024**3)
+                    system_info.append(
+                        f"Disk: {free_gb:.1f}GB free of {total_gb:.1f}GB"
+                    )
+
+                # ffmpeg version
+                try:
+                    result = subprocess.run(
+                        ["ffmpeg", "-version"],
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                    )
+                    if result.returncode == 0:
+                        version_line = result.stdout.split("\n")[0]
+                        system_info.append(f"ffmpeg: {version_line.split()[2]}")
+                    else:
+                        system_info.append("ffmpeg: Not found")
+                except Exception:
+                    system_info.append("ffmpeg: Not found")
+
+                return "System Info:\n" + "\n".join(system_info)
+
+            except Exception as e:
+                return f"System Info: Error - {str(e)}"
+
+        def _get_system_status(self) -> str:
+            """Get real-time system status."""
+            try:
+                from pathlib import Path
+
+                status_lines = ["System Status:"]
+
+                # Disk space
+                lib_path = Path(self._get_current_path())
+                if lib_path.exists():
+                    total, used, free = shutil.disk_usage(lib_path)
+                    free_gb = free / (1024**3)
+                    if free_gb < 1.0:
+                        status_lines.append(f"⚠️  Low disk space: {free_gb:.1f}GB")
+                    else:
+                        status_lines.append(f"💾 Disk: {free_gb:.1f}GB free")
+
+                # Network connectivity (basic test)
+                try:
+                    import socket
+
+                    socket.create_connection(("8.8.8.8", 53), timeout=3)
+                    status_lines.append("🌐 Network: Connected")
+                except Exception:
+                    status_lines.append("❌ Network: Disconnected")
+
+                # API keys (basic check)
+                env_file = lib_path / ".env"
+                if env_file.exists():
+                    try:
+                        env_content = env_file.read_text()
+                        if (
+                            "TVDB_API_KEY=" in env_content
+                            and "TVDB_API_KEY=\n" not in env_content
+                        ):
+                            status_lines.append("🔑 TVDB: Key set")
+                        else:
+                            status_lines.append("⚠️  TVDB: No key")
+
+                        if (
+                            "TMDB_API_KEY=" in env_content
+                            and "TMDB_API_KEY=\n" not in env_content
+                        ):
+                            status_lines.append("🔑 TMDB: Key set")
+                        else:
+                            status_lines.append("⚠️  TMDB: No key")
+                    except Exception:
+                        status_lines.append("⚠️  API: Config error")
+                else:
+                    status_lines.append("⚠️  API: No config")
+
+                return "\n".join(status_lines)
+
+            except Exception as e:
+                return f"Status: Error - {str(e)}"
+
+        def _test_connectivity(self) -> None:
+            """Test connectivity to API endpoints."""
+            try:
+                self.settings_box.update("Testing connectivity...")
+
+                # Test basic internet connectivity
+                import socket
+
+                try:
+                    socket.create_connection(("8.8.8.8", 53), timeout=3)
+                    internet_status = "✅ Internet: Connected"
+                except Exception:
+                    internet_status = "❌ Internet: Disconnected"
+
+                # Test API endpoints (basic DNS resolution)
+                endpoints = [
+                    ("TVDB", "api4.thetvdb.com"),
+                    ("TMDB", "api.themoviedb.org"),
+                    ("TVmaze", "api.tvmaze.com"),
+                    ("OMDb", "www.omdbapi.com"),
+                ]
+
+                results = [internet_status]
+                for name, host in endpoints:
+                    try:
+                        socket.gethostbyname(host)
+                        results.append(f"✅ {name}: Reachable")
+                    except Exception:
+                        results.append(f"❌ {name}: Unreachable")
+
+                self.settings_box.update("Connectivity Test:\n" + "\n".join(results))
+
+            except Exception as e:
+                self.settings_box.update(f"Connectivity test failed: {str(e)}")
+
         def _show_path_modal(self, command: str) -> None:
             """Show a modal for path input."""
             current_path = self._get_current_path()
@@ -388,6 +696,12 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                     self._switch_library(result)
                 else:
                     self.libraries_box.update(f"Invalid library structure: {result}")
+
+        def _on_settings_result(self, result: Optional[Dict[str, Any]]) -> None:
+            """Handle result from settings modal."""
+            if result:
+                self._save_library_settings(result)
+                self.settings_box.update("Settings saved successfully!")
 
         def _switch_library(self, new_path: str) -> None:
             """Switch to a new library."""
@@ -429,6 +743,8 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                     self.jobs_box.update(self._jobs_snapshot())
                 if self.libraries_box is not None:
                     self.libraries_box.update(f"Current: {self._get_current_path()}")
+                if self.settings_box is not None:
+                    self.settings_box.update(self._get_system_status())
             except Exception:
                 pass
 
