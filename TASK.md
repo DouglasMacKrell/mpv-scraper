@@ -737,6 +737,83 @@ N/A (pure documentation)
   2. Add a short “How the TUI monitors a library” section with `--path` usage.
 * **Done when:** Docs reflect the implemented TUI and job tracking.
 
+### 16.5 TUI Command Execution (Full UI Functionality)
+* **Goal:** Enable users to execute all CLI commands directly from the TUI, making it a complete alternative to CLI-only usage.
+* **Tests to Write:**
+  - `tests/integration/test_tui_commands.py::test_tui_can_execute_scan`
+  - `tests/integration/test_tui_commands.py::test_tui_can_execute_scrape`
+  - `tests/integration/test_tui_commands.py::test_tui_can_execute_generate`
+  - `tests/integration/test_tui_commands.py::test_tui_can_execute_run`
+* **Steps:**
+  1. Add command execution buttons/actions to TUI:
+     - `i` - Init library (prompt for path)
+     - `s` - Scan library (uses current --path or prompts)
+     - `r` - Run full pipeline (scan→scrape→generate)
+     - `o` - Optimize videos (prompt for preset/options)
+     - `u` - Undo last operation
+  2. Implement command execution via Textual modals/prompts:
+     - Path input modal for commands requiring library path
+     - Option selection for optimize (preset, workers, etc.)
+     - Confirmation dialogs for destructive operations (undo, replace originals)
+  3. Wire commands to existing CLI functions via Python callables
+  4. Show command output in a dedicated "Output" panel or modal
+  5. Update job tracking to show command execution progress
+* **Done when:** Users can execute all major commands from TUI without touching CLI.
+
+### 16.6 TUI Library Management & Navigation
+* **Goal:** Allow users to browse and manage multiple libraries from within the TUI.
+* **Tests to Write:**
+  - `tests/integration/test_tui_library.py::test_tui_can_switch_libraries`
+  - `tests/integration/test_tui_library.py::test_tui_remembers_library_paths`
+* **Steps:**
+  1. Add library management features:
+     - `l` - List recent libraries (from config or history)
+     - `n` - New library (prompt for path, run init)
+     - `c` - Change library (browse/prompt for path)
+  2. Store library history in `.mpv-scraper/library_history.json`
+  3. Show current library path prominently in header
+  4. Auto-switch monitoring when library changes
+  5. Validate library structure (has /Movies, etc.) before operations
+* **Done when:** Users can manage multiple libraries entirely from TUI.
+
+### 16.7 TUI Advanced Features & Settings
+* **Goal:** Provide advanced configuration and monitoring capabilities through the TUI.
+* **Tests to Write:**
+  - `tests/integration/test_tui_settings.py::test_tui_can_configure_provider_mode`
+  - `tests/integration/test_tui_settings.py::test_tui_can_view_system_info`
+* **Steps:**
+  1. Add settings/configuration panel:
+     - `p` - Provider mode settings (TVDB/TMDB keys, fallback preferences)
+     - `v` - View system info (ffmpeg version, Python version, disk space)
+     - `t` - Test connectivity (API endpoints, network access)
+  2. Implement configuration persistence:
+     - Save provider preferences per library
+     - Store TUI preferences (theme, refresh rate, etc.)
+  3. Add real-time monitoring:
+     - Disk space usage for current library
+     - Network connectivity status
+     - API key validation status
+* **Done when:** Users can configure and monitor system state entirely from TUI.
+
+### 16.8 TUI Documentation & Help System
+* **Goal:** Provide comprehensive in-app help and documentation for all TUI features.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Expand help system:
+     - Context-sensitive help (F1 on any element)
+     - Command reference with examples
+     - Troubleshooting guide
+     - Keyboard shortcuts cheat sheet
+  2. Add tooltips and status messages:
+     - Hover tooltips for buttons/actions
+     - Status bar with current operation
+     - Progress indicators for long operations
+  3. Update external documentation:
+     - `docs/USER_INTERFACE.md` with full TUI workflow
+     - `README.md` with TUI-first usage examples
+     - Add TUI screenshots/GIFs to documentation
+* **Done when:** Users can learn and use all features through in-app help and docs.
+
 ---
 
 ## 17 · Sprint 17 (Release v1.0.0 – Finish)
