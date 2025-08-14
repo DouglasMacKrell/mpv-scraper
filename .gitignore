@@ -272,3 +272,6 @@ scratch/
 
 # macOS resource forks
 mocks/**/._*
+
+# Documentation demo scripts
+/docs/demo-scripts/

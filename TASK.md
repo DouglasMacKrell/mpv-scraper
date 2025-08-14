@@ -663,3 +663,66 @@ N/A (pure documentation)
 * **Done when:** Users can discover controls in-app and docs reflect the colored interface.
 
 ---
+
+## 15 · Sprint 15 (Release v1.0.0: PyPI + GitHub)
+**Purpose:** Prepare and publish the first stable release, validate packaging on TestPyPI, then publish to PyPI and cut a GitHub Release.
+
+### 15.1 Packaging Hardening & Version Bump
+* **Goal:** Make the project PyPI-ready and bump version to `1.0.0`.
+* **Tasks:**
+  1. Update `setup.py` with `version="1.0.0"`, `python_requires=">=3.9"`, `long_description` from `README.md`, and add `python-dotenv` to `install_requires`.
+  2. Add `pyproject.toml` with modern build backend (`setuptools>=61`, `wheel`).
+  3. Add `MANIFEST.in` to include README/docs/assets as appropriate.
+  4. Ensure console entry point `mpv-scraper` is defined.
+* **Done when:** `python -m build` succeeds locally and `twine check dist/*` reports no errors.
+
+### 15.2 Test Suite Smoke Pass
+* **Goal:** Verify core CLI commands on current Python.
+* **Tasks:**
+  1. Install dev deps: `python -m pip install -r requirements-dev.txt`.
+  2. Run smoke tests: `python -m pytest -k smoke -q`.
+* **Done when:** Smoke tests pass.
+
+### 15.3 Build Artifacts
+* **Goal:** Produce clean sdist and wheel.
+* **Tasks:**
+  1. Install build tools: `python -m pip install --upgrade build twine`.
+  2. Build: `python -m build`.
+  3. Validate: `twine check dist/*`.
+* **Done when:** `.tar.gz` and `.whl` exist under `dist/` and pass checks.
+
+### 15.4 TestPyPI Dry Run
+* **Goal:** Validate upload and installation from TestPyPI.
+* **Tasks:**
+  1. Upload: `twine upload --repository testpypi dist/*`.
+  2. Install for verification:
+     - `python -m pip install --index-url https://test.pypi.org/simple/ --no-deps mpv-scraper`
+     - Run `mpv-scraper --help` to confirm entry point.
+* **Done when:** Install works and CLI responds from TestPyPI package.
+
+### 15.5 Open PR and Merge Release Branch
+* **Goal:** Create a PR for `release/v1.0.0` → `main`.
+* **Tasks:**
+  1. Push branch and open PR with changelog summary and release notes.
+  2. Ensure CI passes; request review.
+  3. Merge via squash or merge commit as preferred.
+* **Done when:** Branch is merged to `main` and CI green.
+
+### 15.6 Publish to PyPI and Tag
+* **Goal:** Publish to the real PyPI and tag the release.
+* **Tasks:**
+  1. Rebuild on `main` (optional) or reuse artifacts.
+  2. Upload: `twine upload dist/*`.
+  3. Create git tag: `git tag -a v1.0.0 -m "v1.0.0" && git push origin v1.0.0`.
+* **Done when:** Package visible on PyPI and tag exists on GitHub.
+
+### 15.7 Hardening & Docs
+* **Goal:** Improve install UX and document releases.
+* **Tasks:**
+  1. README/Docs: add `pipx install mpv-scraper` primary path; keep `pip install mpv-scraper` as alternate.
+  2. Add an Install/Setup demo script and link from README.
+  3. Optional: Add GitHub Release with attached wheel/sdist and changelog.
+  4. Optional: Set up Trusted Publisher (GitHub Actions) for future automated releases.
+* **Done when:** Docs updated and install path validated end‑to‑end.
+
+---
