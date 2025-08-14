@@ -275,6 +275,7 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
 
         BINDINGS = [
             ("?", "show_help", "Help"),
+            ("F1", "show_context_help", "Context Help"),
             ("q", "quit", "Quit"),
             ("i", "init_library", "Init"),
             ("s", "scan_library", "Scan"),
@@ -308,31 +309,428 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                     self._help_widget = None
                 return
 
-            help_text = (
-                "Welcome to mpv-scraper TUI!\n\n"
-                "Keys:\n"
-                "  ?  Toggle this help\n"
-                "  q  Quit\n"
+            help_text = self._get_comprehensive_help()
+            self._help_widget = Vertical(Static(help_text, classes="panel"))
+            self.mount(self._help_widget)
+
+        def action_show_context_help(self) -> None:
+            """Show context-sensitive help for the currently focused element."""
+            from textual.widgets import Static
+            from textual.containers import Vertical
+
+            if self._help_widget is not None:
+                try:
+                    self._help_widget.remove()
+                finally:
+                    self._help_widget = None
+                return
+
+            # Get the currently focused widget and show relevant help
+            focused = self.focused
+            if focused:
+                context_help = self._get_context_help(
+                    focused.id if hasattr(focused, "id") else str(focused)
+                )
+            else:
+                context_help = self._get_general_help()
+
+            self._help_widget = Vertical(Static(context_help, classes="panel"))
+            self.mount(self._help_widget)
+
+        def _get_comprehensive_help(self) -> str:
+            """Get comprehensive help text with all features."""
+            return (
+                "🎯 MPV-Scraper TUI - Complete Help Guide\n"
+                "=====================================\n\n"
+                "📋 QUICK START\n"
+                "1. Press 'i' to initialize a new library\n"
+                "2. Press 's' to scan for shows/movies\n"
+                "3. Press 'r' to run the full pipeline\n"
+                "4. Use 'l', 'n', 'c' to manage libraries\n\n"
+                "⌨️  KEYBOARD SHORTCUTS\n"
+                "  ?  Toggle this comprehensive help\n"
+                "  F1 Show context-sensitive help\n"
+                "  q  Quit the application\n\n"
+                "🚀 COMMAND OPERATIONS\n"
                 "  i  Init library (prompt for path)\n"
                 "  s  Scan library (uses current path)\n"
                 "  r  Run full pipeline (scan→scrape→generate)\n"
-                "  o  Optimize videos (prompt for options)\n"
-                "  u  Undo last operation\n"
+                "  o  Optimize videos (crop to 4:3)\n"
+                "  u  Undo last operation\n\n"
+                "📁 LIBRARY MANAGEMENT\n"
                 "  l  List recent libraries\n"
                 "  n  New library (prompt for path, run init)\n"
-                "  c  Change library (browse/prompt for path)\n"
+                "  c  Change library (browse/prompt for path)\n\n"
+                "⚙️  SETTINGS & MONITORING\n"
                 "  p  Provider mode settings\n"
-                "  v  View system info\n"
+                "  v  View system information\n"
                 "  t  Test connectivity\n\n"
-                "Provider Mode (left panel):\n"
+                "🔧 PROVIDER MODES\n"
                 "  Primary          Use TVDB/TMDB when keys are set\n"
                 "  Prefer Fallback  Try TVmaze/OMDb first\n"
                 "  Fallback Only    Only use TVmaze/OMDb\n"
-                "  Offline          No network calls; use cache only\n"
+                "  Offline          No network calls; use cache only\n\n"
+                "💡 TIPS & TRICKS\n"
+                "• Use F1 for context-sensitive help on any element\n"
+                "• Panels auto-refresh to show real-time status\n"
+                "• Check system status for disk space and API keys\n"
+                "• Test connectivity before running scrape operations\n"
+                "• Use undo (u) if something goes wrong\n\n"
+                "🆘 TROUBLESHOOTING\n"
+                "• No shows found? Check library structure\n"
+                "• Scrape failing? Verify API keys and connectivity\n"
+                "• Low disk space? Check system status\n"
+                "• TUI not responding? Press 'q' to quit and restart\n"
             )
 
-            self._help_widget = Vertical(Static(help_text, classes="panel"))
-            self.mount(self._help_widget)
+        def _get_context_help(self, element_id: str) -> str:
+            """Get context-sensitive help for a specific element."""
+            help_texts = {
+                "init_btn": (
+                    "🔧 Initialize Library\n"
+                    "==================\n\n"
+                    "Creates a new MPV library with proper structure:\n"
+                    "• Creates /Movies directory for movies\n"
+                    "• Creates /images directory for artwork\n"
+                    "• Generates mpv-scraper.toml configuration\n"
+                    "• Creates .env file for API keys\n\n"
+                    "Usage: Press 'i' or click the button, then enter the path\n"
+                    "Example: /Volumes/SD Card/roms/mpv\n\n"
+                    "This is the first step for any new library!"
+                ),
+                "scan_btn": (
+                    "🔍 Scan Library\n"
+                    "==============\n\n"
+                    "Scans the current library and shows what was found:\n"
+                    "• Counts TV show folders\n"
+                    "• Counts movie files\n"
+                    "• Validates library structure\n"
+                    "• Shows summary in jobs panel\n\n"
+                    "Usage: Press 's' or click the button\n"
+                    "No path needed - uses current library\n\n"
+                    "Run this to see what the scraper will process!"
+                ),
+                "run_btn": (
+                    "🚀 Run Full Pipeline\n"
+                    "==================\n\n"
+                    "Executes the complete workflow:\n"
+                    "1. Scan library for shows/movies\n"
+                    "2. Scrape metadata from APIs\n"
+                    "3. Generate gamelist.xml files\n\n"
+                    "Usage: Press 'r' or click the button\n"
+                    "This is the main operation - processes everything!\n\n"
+                    "Make sure you have API keys set up first."
+                ),
+                "optimize_btn": (
+                    "🎬 Optimize Videos\n"
+                    "=================\n\n"
+                    "Crops videos to 4:3 aspect ratio:\n"
+                    "• Removes letterboxing (black bars)\n"
+                    "• Optimizes for 4:3 displays\n"
+                    "• Useful for older content like cartoons\n\n"
+                    "Usage: Press 'o' or click the button\n"
+                    "Currently runs crop operation with default settings\n\n"
+                    "Great for classic TV shows and cartoons!"
+                ),
+                "undo_btn": (
+                    "↩️  Undo Last Operation\n"
+                    "=====================\n\n"
+                    "Reverts the most recent scraper operation:\n"
+                    "• Restores original files\n"
+                    "• Removes generated metadata\n"
+                    "• Uses transaction.log for safety\n\n"
+                    "Usage: Press 'u' or click the button\n"
+                    "Only works if transaction.log exists\n\n"
+                    "Safety net if something goes wrong!"
+                ),
+                "list_btn": (
+                    "📋 List Libraries\n"
+                    "================\n\n"
+                    "Shows recently used libraries:\n"
+                    "• Displays up to 5 recent paths\n"
+                    "• Stored in ~/.mpv-scraper/library_history.json\n"
+                    "• Shows in libraries panel\n\n"
+                    "Usage: Press 'l' or click the button\n"
+                    "Quick way to see your library history\n\n"
+                    "Useful for switching between multiple libraries!"
+                ),
+                "new_btn": (
+                    "🆕 New Library\n"
+                    "=============\n\n"
+                    "Creates and initializes a new library:\n"
+                    "• Prompts for library path\n"
+                    "• Runs init command automatically\n"
+                    "• Switches to the new library\n\n"
+                    "Usage: Press 'n' or click the button\n"
+                    "Combines 'i' (init) and 'c' (change) operations\n\n"
+                    "Perfect for setting up a new library quickly!"
+                ),
+                "change_btn": (
+                    "🔄 Change Library\n"
+                    "================\n\n"
+                    "Switches to a different library:\n"
+                    "• Shows library selection modal\n"
+                    "• Lists recent libraries\n"
+                    "• Validates library structure\n\n"
+                    "Usage: Press 'c' or click the button\n"
+                    "Shows modal with recent libraries to choose from\n\n"
+                    "Great for managing multiple libraries!"
+                ),
+                "provider_btn": (
+                    "⚙️  Provider Settings\n"
+                    "===================\n\n"
+                    "Configure metadata provider preferences:\n"
+                    "• Primary: Use TVDB/TMDB when keys are set\n"
+                    "• Prefer Fallback: Try TVmaze/OMDb first\n"
+                    "• Fallback Only: Only use TVmaze/OMDb\n"
+                    "• Offline: No network calls; use cache only\n\n"
+                    "Usage: Press 'p' or click the button\n"
+                    "Opens settings modal with provider options\n\n"
+                    "Configure based on your API key availability!"
+                ),
+                "system_btn": (
+                    "💻 System Information\n"
+                    "====================\n\n"
+                    "Shows comprehensive system details:\n"
+                    "• Operating system and version\n"
+                    "• Python version\n"
+                    "• Architecture\n"
+                    "• Disk space (total and free)\n"
+                    "• ffmpeg version\n\n"
+                    "Usage: Press 'v' or click the button\n"
+                    "Displays detailed system info in settings panel\n\n"
+                    "Useful for troubleshooting and system verification!"
+                ),
+                "test_btn": (
+                    "🌐 Test Connectivity\n"
+                    "==================\n\n"
+                    "Tests network and API connectivity:\n"
+                    "• Internet connection (8.8.8.8)\n"
+                    "• TVDB API (api4.thetvdb.com)\n"
+                    "• TMDB API (api.themoviedb.org)\n"
+                    "• TVmaze API (api.tvmaze.com)\n"
+                    "• OMDb API (www.omdbapi.com)\n\n"
+                    "Usage: Press 't' or click the button\n"
+                    "Shows connectivity results in settings panel\n\n"
+                    "Run this before scraping to ensure APIs are reachable!"
+                ),
+                "jobs": (
+                    "📊 Jobs Panel\n"
+                    "============\n\n"
+                    "Shows recent job activity:\n"
+                    "• Displays up to 5 recent jobs\n"
+                    "• Shows job status and progress\n"
+                    "• Auto-refreshes every second\n"
+                    "• Data from .mpv-scraper/jobs.json\n\n"
+                    "Jobs include: scan, scrape, generate operations\n"
+                    "Status indicators: completed, running, failed\n\n"
+                    "Monitor your scraper activity here!"
+                ),
+                "logs": (
+                    "📝 Logs Panel\n"
+                    "============\n\n"
+                    "Shows recent log entries:\n"
+                    "• Displays last 5 lines from mpv-scraper.log\n"
+                    "• Color-coded: ERROR (red), WARNING (yellow)\n"
+                    "• Auto-refreshes every second\n"
+                    "• Located in current library directory\n\n"
+                    "Useful for debugging and monitoring operations\n"
+                    "Check here if something goes wrong!\n\n"
+                    "Logs are written to mpv-scraper.log in your library."
+                ),
+                "commands_panel": (
+                    "🎮 Commands Panel\n"
+                    "================\n\n"
+                    "Shows command execution status:\n"
+                    "• Displays current command being executed\n"
+                    "• Shows success (✓) or failure (✗) indicators\n"
+                    "• Updates in real-time during operations\n"
+                    "• Shows error messages if commands fail\n\n"
+                    "Commands run in background threads\n"
+                    "UI remains responsive during execution\n\n"
+                    "Watch here to see what's happening!"
+                ),
+                "libraries_panel": (
+                    "📁 Libraries Panel\n"
+                    "=================\n\n"
+                    "Shows current library information:\n"
+                    "• Displays current library path\n"
+                    "• Updates when switching libraries\n"
+                    "• Shows library history when listing\n"
+                    "• Validates library structure\n\n"
+                    "Current library is used for all operations\n"
+                    "Switch libraries with 'c' (change) command\n\n"
+                    "Always know which library you're working with!"
+                ),
+                "settings_panel": (
+                    "⚙️  Settings Panel\n"
+                    "=================\n\n"
+                    "Shows real-time system status:\n"
+                    "• Disk space with warnings for low space\n"
+                    "• Network connectivity status\n"
+                    "• API key validation (TVDB/TMDB)\n"
+                    "• Auto-refreshes every second\n\n"
+                    "Status indicators:\n"
+                    "💾 Disk space, 🌐 Network, 🔑 API keys\n"
+                    "⚠️  Warnings, ❌ Errors, ✅ Success\n\n"
+                    "Monitor your system health here!"
+                ),
+            }
+
+            return help_texts.get(element_id, self._get_general_help())
+
+        def _get_general_help(self) -> str:
+            """Get general help when no specific context is available."""
+            return (
+                "🎯 MPV-Scraper TUI - General Help\n"
+                "===============================\n\n"
+                "Welcome to the MPV-Scraper Text User Interface!\n\n"
+                "📋 QUICK REFERENCE\n"
+                "• Press '?' for comprehensive help\n"
+                "• Press 'F1' for context-sensitive help\n"
+                "• Press 'q' to quit\n\n"
+                "🚀 GETTING STARTED\n"
+                "1. Press 'i' to initialize a new library\n"
+                "2. Press 's' to scan for content\n"
+                "3. Press 'r' to run the full pipeline\n\n"
+                "💡 TIP\n"
+                "Focus on any element and press F1 for specific help!\n\n"
+                "For detailed help, press '?' to see the complete guide."
+            )
+
+        def _get_troubleshooting_guide(self) -> str:
+            """Get comprehensive troubleshooting guide."""
+            return (
+                "🆘 TROUBLESHOOTING GUIDE\n"
+                "========================\n\n"
+                "🔍 COMMON ISSUES & SOLUTIONS\n\n"
+                "❌ No shows/movies found during scan\n"
+                "   → Check library structure (needs /Movies or show folders)\n"
+                "   → Verify file extensions (.mp4, .mkv, etc.)\n"
+                "   → Ensure library path is correct\n\n"
+                "❌ Scrape operations failing\n"
+                "   → Press 't' to test connectivity\n"
+                "   → Check API keys in .env file\n"
+                "   → Verify network connection\n"
+                "   → Try different provider mode\n\n"
+                "❌ Low disk space warnings\n"
+                "   → Check system status panel\n"
+                "   → Free up space on target drive\n"
+                "   → Consider using external storage\n\n"
+                "❌ TUI not responding\n"
+                "   → Press 'q' to quit and restart\n"
+                "   → Check if commands are running in background\n"
+                "   → Verify Python and dependencies are installed\n\n"
+                "❌ API key validation failing\n"
+                "   → Check .env file in library directory\n"
+                "   → Verify TVDB_API_KEY and TMDB_API_KEY are set\n"
+                "   → Ensure keys are valid and active\n\n"
+                "❌ ffmpeg not found\n"
+                "   → Install ffmpeg on your system\n"
+                "   → Ensure it's in your PATH\n"
+                "   → Check system info with 'v' command\n\n"
+                "🔧 ADVANCED TROUBLESHOOTING\n\n"
+                "📝 Check Logs\n"
+                "• Look at the logs panel for error messages\n"
+                "• Check mpv-scraper.log in your library directory\n"
+                "• Look for ERROR and WARNING messages\n\n"
+                "🌐 Network Issues\n"
+                "• Press 't' to test connectivity\n"
+                "• Check firewall settings\n"
+                "• Try different network connection\n"
+                "• Use 'offline' provider mode if needed\n\n"
+                "💾 Disk Issues\n"
+                "• Check available disk space\n"
+                "• Ensure write permissions to library directory\n"
+                "• Try different storage location\n\n"
+                "🔄 Reset Operations\n"
+                "• Use 'u' (undo) to revert last operation\n"
+                "• Delete .mpv-scraper directory to reset completely\n"
+                "• Re-initialize library with 'i' command\n\n"
+                "📞 GETTING HELP\n"
+                "• Check the comprehensive help with '?'\n"
+                "• Use context-sensitive help with F1\n"
+                "• Review system status with 'v' command\n"
+                "• Test connectivity with 't' command\n"
+            )
+
+        def _get_command_reference(self) -> str:
+            """Get detailed command reference with examples."""
+            return (
+                "📚 COMMAND REFERENCE\n"
+                "===================\n\n"
+                "🚀 CORE COMMANDS\n\n"
+                "🔧 INIT (i)\n"
+                "   Purpose: Initialize a new MPV library\n"
+                "   Usage: Press 'i' or click Init button\n"
+                "   Example: /Volumes/SD Card/roms/mpv\n"
+                "   Creates: /Movies, /images, mpv-scraper.toml, .env\n\n"
+                "🔍 SCAN (s)\n"
+                "   Purpose: Scan library for shows and movies\n"
+                "   Usage: Press 's' or click Scan button\n"
+                "   Output: Shows count of TV shows and movies found\n"
+                "   Example: 'Found 5 show folders and 12 movies'\n\n"
+                "🚀 RUN (r)\n"
+                "   Purpose: Execute full pipeline (scan→scrape→generate)\n"
+                "   Usage: Press 'r' or click Run button\n"
+                "   Steps: 1. Scan library 2. Scrape metadata 3. Generate XML\n"
+                "   Time: Can take several minutes depending on library size\n\n"
+                "🎬 OPTIMIZE (o)\n"
+                "   Purpose: Crop videos to 4:3 aspect ratio\n"
+                "   Usage: Press 'o' or click Optimize button\n"
+                "   Target: Removes letterboxing from older content\n"
+                "   Example: Great for classic cartoons and TV shows\n\n"
+                "↩️  UNDO (u)\n"
+                "   Purpose: Revert last scraper operation\n"
+                "   Usage: Press 'u' or click Undo button\n"
+                "   Safety: Uses transaction.log for safe rollback\n"
+                "   Note: Only works if transaction.log exists\n\n"
+                "📁 LIBRARY MANAGEMENT\n\n"
+                "📋 LIST (l)\n"
+                "   Purpose: Show recent libraries\n"
+                "   Usage: Press 'l' or click List button\n"
+                "   Display: Shows up to 5 recent library paths\n"
+                "   Storage: ~/.mpv-scraper/library_history.json\n\n"
+                "🆕 NEW (n)\n"
+                "   Purpose: Create and switch to new library\n"
+                "   Usage: Press 'n' or click New button\n"
+                "   Action: Combines init + change operations\n"
+                "   Example: Quick setup for new SD card\n\n"
+                "🔄 CHANGE (c)\n"
+                "   Purpose: Switch to different library\n"
+                "   Usage: Press 'c' or click Change button\n"
+                "   Modal: Shows library selection with recent paths\n"
+                "   Validation: Checks library structure before switching\n\n"
+                "⚙️  SETTINGS & MONITORING\n\n"
+                "⚙️  PROVIDER (p)\n"
+                "   Purpose: Configure metadata provider preferences\n"
+                "   Usage: Press 'p' or click Provider button\n"
+                "   Options: Primary, Prefer Fallback, Fallback Only, Offline\n"
+                "   Impact: Affects which APIs are used for scraping\n\n"
+                "💻 SYSTEM (v)\n"
+                "   Purpose: View comprehensive system information\n"
+                "   Usage: Press 'v' or click System button\n"
+                "   Info: OS, Python, Architecture, Disk, ffmpeg\n"
+                "   Use: Troubleshooting and system verification\n\n"
+                "🌐 TEST (t)\n"
+                "   Purpose: Test network and API connectivity\n"
+                "   Usage: Press 't' or click Test button\n"
+                "   Tests: Internet, TVDB, TMDB, TVmaze, OMDb\n"
+                "   Output: Shows ✅/❌ status for each endpoint\n\n"
+                "🎯 WORKFLOW EXAMPLES\n\n"
+                "📱 New SD Card Setup:\n"
+                "1. Press 'n' → Enter path → Auto-initialize\n"
+                "2. Press 't' → Verify connectivity\n"
+                "3. Press 'r' → Run full pipeline\n\n"
+                "🔄 Switch Between Libraries:\n"
+                "1. Press 'c' → Select from recent libraries\n"
+                "2. Press 's' → Verify content is found\n"
+                "3. Press 'r' → Process if needed\n\n"
+                "🔧 Troubleshooting:\n"
+                "1. Press 'v' → Check system status\n"
+                "2. Press 't' → Test connectivity\n"
+                "3. Press '?' → Get comprehensive help\n"
+            )
 
         def action_quit(self) -> None:
             self.exit()
