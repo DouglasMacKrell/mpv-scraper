@@ -9,6 +9,7 @@ python -m mpv_scraper.cli tui
 ```
 
 - `--non-interactive`: render a single frame and exit (useful for tests/CI)
+- `--path <library>`: monitor a specific library root (reads `<library>/mpv-scraper.log` and `<library>/.mpv-scraper/jobs.json`)
 
 ## What you see now
 - Colored header
@@ -16,29 +17,35 @@ python -m mpv_scraper.cli tui
 - Right panel: Recent log tail (last 5 lines), with warnings and errors highlighted
 
 ## Logs
-- Logs are written to `mpv-scraper.log` in the current working directory.
+- By default, logs are read from `mpv-scraper.log` in the current working directory.
+- Use `--path <library>` to monitor a different library root.
 - The TUI shows the last 5 lines on startup for quick diagnostics.
 
 ## Keyboard shortcuts
-- `?` – Show in-app help
-- `q` – Quit (planned)
+- `?` – Toggle in‑app help
+- `q` – Quit
 - `o` – Start optimize job (planned)
 - `s` – Start scrape job (planned)
 
 ## Troubleshooting
-- If no log file is shown, ensure commands were run from the library root and that operations have generated logs.
+- If no log lines appear, ensure you are pointing at the right library:
+  - Example: `python -m mpv_scraper.cli tui --path /Volumes/Untitled/roms/mpv`
 - On macOS/Linux, ensure your terminal supports UTF‑8 to display icons/characters.
 
 ## Quick How-To
-- Pick a library folder in your terminal, then run:
+- Monitor a library while you run jobs in another terminal:
   ```bash
-  python -m mpv_scraper.cli tui
+  # Terminal A (monitor)
+  python -m mpv_scraper.cli tui --path /path/to/mpv
+
+  # Terminal B (jobs)
+  python -m mpv_scraper.cli run /path/to/mpv
   ```
 - Choose a provider mode in the left panel depending on your setup:
   - Primary: Use TVDB/TMDB if keys are set
   - Prefer Fallback: Try TVmaze/OMDb first
   - Fallback Only: Only TVmaze/OMDb (no paid keys)
-  - Offline: No network; use cache/placeholders
+  - Offline: No network; use cache only
 - Press `?` anytime to see the key map.
 
 ## Tips
