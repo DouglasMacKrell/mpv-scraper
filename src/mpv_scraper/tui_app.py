@@ -68,14 +68,19 @@ def run_textual_once() -> None:
         ]
 
         def action_show_help(self) -> None:
-            # Simple modal help text for now
+            # Simple modal help text for now (approachable wording)
             help_text = (
+                "Welcome to mpv-scraper TUI!\n\n"
                 "Keys:\n"
                 "  ?  Show this help\n"
                 "  q  Quit (planned)\n"
-                "  o  Enqueue optimize (planned)\n"
-                "  s  Enqueue scrape (planned)\n"
-                "Provider Mode (planned): Primary / Prefer Fallback / Fallback Only / Offline\n"
+                "  o  Start optimize job (planned)\n"
+                "  s  Start scrape job (planned)\n\n"
+                "Provider Mode (left panel):\n"
+                "  Primary          Use TVDB/TMDB when keys are set\n"
+                "  Prefer Fallback  Try TVmaze/OMDb first\n"
+                "  Fallback Only    Only use TVmaze/OMDb\n"
+                "  Offline          No network calls; cache/placeholders only\n"
             )
             from textual.widgets import Static
             from textual.containers import Vertical
