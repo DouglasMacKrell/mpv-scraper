@@ -676,14 +676,80 @@ N/A (pure documentation)
   4. Ensure console entry point `mpv-scraper` is defined.
 * **Done when:** `python -m build` succeeds locally and `twine check dist/*` reports no errors.
 
-### 15.2 Test Suite Smoke Pass
+### 15.2 Moved to Sprint 17
+* This ticket was moved to Sprint 17. See 17.1.
+
+### 15.3 Moved to Sprint 17
+* This ticket was moved to Sprint 17. See 17.2.
+
+### 15.4 Moved to Sprint 17
+* This ticket was moved to Sprint 17. See 17.3.
+
+### 15.5 Moved to Sprint 17
+* This ticket was moved to Sprint 17. See 17.4.
+
+### 15.6 Moved to Sprint 17
+* This ticket was moved to Sprint 17. See 17.5.
+
+### 15.7 Moved to Sprint 17
+* This ticket was moved to Sprint 17. See 17.6.
+
+---
+
+## 16 · Sprint 16 (Placeholder Completion for V1)
+**Purpose:** Eliminate placeholder/stub language and placeholder UI, wire minimal job tracking so the TUI shows real progress, and update docs to reflect production behavior.
+
+### 16.1 Remove Placeholder/Stub Language in Code
+* **Goal:** Replace any "stub", "future", or "placeholder" wording in user-facing help/docstrings.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. In `src/mpv_scraper/cli.py` update command docstrings and help texts:
+     - `generate`: remove “(stub for now)” and describe current behavior.
+     - `run`: remove “(future) scrape” phrasing; it already performs scan→scrape→generate.
+  2. In `src/mpv_scraper/tui.py` and `src/mpv_scraper/tui_app.py` remove "placeholder" wording in headers/docstrings.
+* **Done when:** `--help` output and module docstrings no longer use placeholder/stub wording.
+
+### 16.2 TUI UX Hardening (no placeholder overlay)
+* **Goal:** Ensure user interactions are intuitive and non-blocking.
+* **Tests to Write:**
+  - `tests/smoke/test_tui_textual.py::test_tui_non_interactive_renders`
+* **Steps:**
+  1. Confirm `?` toggles Help (no stacking), `q` quits, non-interactive path exits quickly.
+  2. Update `docs/USER_INTERFACE.md` keybindings and troubleshooting.
+* **Done when:** TUI behaves as documented and smoke tests pass.
+
+### 16.3 Minimal Job History & Progress in TUI
+* **Goal:** Persist lightweight job state during CLI runs and render real progress bars in the TUI.
+* **Tests to Write:**
+  - `tests/integration/test_tui_jobs.py::test_jobs_table_shows_progress`
+  - `tests/integration/test_tui_logs.py::test_log_tail_renders_lines`
+* **Steps:**
+  1. Implement `JobManager` minimal writer in `src/mpv_scraper/jobs.py` that records job snapshots to `<library>/.mpv-scraper/jobs.json` (totals, completed, current file, status).
+  2. Hook `scan/scrape/generate/optimize` CLI paths to update snapshots.
+  3. In `tui_app.py`, read `.mpv-scraper/jobs.json` and render a simple table with percent bars.
+* **Done when:** Running a job updates jobs.json and the TUI shows live progress.
+
+### 16.4 Documentation Cleanup
+* **Goal:** Remove mentions of placeholder UI or TBD behavior in docs.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Sweep `README.md`, `docs/USER_INTERFACE.md`, `docs/user/*` for “placeholder” in UI context; keep placeholder image behavior (expected on artwork failures).
+  2. Add a short “How the TUI monitors a library” section with `--path` usage.
+* **Done when:** Docs reflect the implemented TUI and job tracking.
+
+---
+
+## 17 · Sprint 17 (Release v1.0.0 – Finish)
+**Purpose:** Complete and ship v1.0.0 (moved remaining tickets from Sprint 15).
+
+### 17.1 Test Suite Smoke Pass
 * **Goal:** Verify core CLI commands on current Python.
 * **Tasks:**
   1. Install dev deps: `python -m pip install -r requirements-dev.txt`.
   2. Run smoke tests: `python -m pytest -k smoke -q`.
 * **Done when:** Smoke tests pass.
 
-### 15.3 Build Artifacts
+### 17.2 Build Artifacts
 * **Goal:** Produce clean sdist and wheel.
 * **Tasks:**
   1. Install build tools: `python -m pip install --upgrade build twine`.
@@ -691,7 +757,7 @@ N/A (pure documentation)
   3. Validate: `twine check dist/*`.
 * **Done when:** `.tar.gz` and `.whl` exist under `dist/` and pass checks.
 
-### 15.4 TestPyPI Dry Run
+### 17.3 TestPyPI Dry Run
 * **Goal:** Validate upload and installation from TestPyPI.
 * **Tasks:**
   1. Upload: `twine upload --repository testpypi dist/*`.
@@ -700,15 +766,14 @@ N/A (pure documentation)
      - Run `mpv-scraper --help` to confirm entry point.
 * **Done when:** Install works and CLI responds from TestPyPI package.
 
-### 15.5 Open PR and Merge Release Branch
-* **Goal:** Create a PR for `release/v1.0.0` → `main`.
+### 17.4 Merge Release Branch (no PR)
+* **Goal:** Merge `release/v1.0.0` to `main` directly (solo workflow).
 * **Tasks:**
-  1. Push branch and open PR with changelog summary and release notes.
-  2. Ensure CI passes; request review.
-  3. Merge via squash or merge commit as preferred.
-* **Done when:** Branch is merged to `main` and CI green.
+  1. Ensure CI green locally.
+  2. `git checkout main && git merge --no-ff release/v1.0.0 && git push`.
+* **Done when:** `main` contains release changes.
 
-### 15.6 Publish to PyPI and Tag
+### 17.5 Publish to PyPI and Tag
 * **Goal:** Publish to the real PyPI and tag the release.
 * **Tasks:**
   1. Rebuild on `main` (optional) or reuse artifacts.
@@ -716,12 +781,12 @@ N/A (pure documentation)
   3. Create git tag: `git tag -a v1.0.0 -m "v1.0.0" && git push origin v1.0.0`.
 * **Done when:** Package visible on PyPI and tag exists on GitHub.
 
-### 15.7 Hardening & Docs
+### 17.6 Hardening & Docs
 * **Goal:** Improve install UX and document releases.
 * **Tasks:**
   1. README/Docs: add `pipx install mpv-scraper` primary path; keep `pip install mpv-scraper` as alternate.
   2. Add an Install/Setup demo script and link from README.
-  3. Optional: Add GitHub Release with attached wheel/sdist and changelog.
+  3. Optional: Create a GitHub Release with attached wheel/sdist and changelog.
   4. Optional: Set up Trusted Publisher (GitHub Actions) for future automated releases.
 * **Done when:** Docs updated and install path validated end‑to‑end.
 

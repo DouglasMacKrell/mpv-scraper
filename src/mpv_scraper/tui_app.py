@@ -1,13 +1,18 @@
 """Textual-based TUI application scaffold.
 
-Provides a colored, minimal layout for header, jobs list placeholder, and log tail.
-Falls back gracefully if Textual is not installed.
+Provides a colored, minimal layout for header, jobs list placeholder, and log
+tail. Falls back gracefully if Textual is not installed.
+
+Quality-of-life behaviours:
+- Press ``?`` to toggle help (instead of stacking multiple panels)
+- Press ``q`` to quit
+- Panels auto-refresh every second to show recent logs/jobs
 """
 
 from __future__ import annotations
 
 
-def run_textual_once() -> None:
+def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> None:
     try:
         from textual.app import App, ComposeResult
         from textual.widgets import Header, Footer, Static
@@ -38,6 +43,13 @@ def run_textual_once() -> None:
         #logs { color: #88c0d0; }
         """
 
+        def __init__(self) -> None:
+            super().__init__()
+            self._help_widget = None
+            self.jobs_box = None
+            self.logs_box = None
+            self._one_shot = one_shot
+
         def compose(self) -> ComposeResult:
             yield Header(id="header", show_clock=False)
             from textual.widgets import Select
@@ -52,28 +64,41 @@ def run_textual_once() -> None:
                 value="primary",
                 prompt="Provider Mode:",
             )
-            left = Vertical(
-                Static(self._jobs_snapshot(), classes="panel", id="jobs"),
-                provider_select,
-                id="left",
-            )
-            right = Vertical(
-                Static(self._read_log_tail(), classes="panel", id="logs"), id="right"
-            )
+            # Create boxes so we can update their contents on a timer
+            self.jobs_box = Static(self._jobs_snapshot(), classes="panel", id="jobs")
+            self.logs_box = Static(self._read_log_tail(), classes="panel", id="logs")
+
+            left = Vertical(self.jobs_box, provider_select, id="left")
+            right = Vertical(self.logs_box, id="right")
             yield Horizontal(left, right)
             yield Footer()
 
-        BINDINGS = [
-            ("?", "show_help", "Help"),
-        ]
+        BINDINGS = [("?", "show_help", "Help"), ("q", "quit", "Quit")]
+
+        def on_mount(self) -> None:  # type: ignore[override]
+            # Refresh panels periodically to reflect recent activity
+            self.set_interval(1.0, self._refresh_panels)
+            if self._one_shot:
+                # Exit shortly after first render to support non-interactive/CI
+                self.set_timer(0.05, self.exit)
 
         def action_show_help(self) -> None:
-            # Simple modal help text for now (approachable wording)
+            # Toggle help (don't stack multiple panels)
+            from textual.widgets import Static
+            from textual.containers import Vertical
+
+            if self._help_widget is not None:
+                try:
+                    self._help_widget.remove()
+                finally:
+                    self._help_widget = None
+                return
+
             help_text = (
                 "Welcome to mpv-scraper TUI!\n\n"
                 "Keys:\n"
-                "  ?  Show this help\n"
-                "  q  Quit (planned)\n"
+                "  ?  Toggle this help\n"
+                "  q  Quit\n"
                 "  o  Start optimize job (planned)\n"
                 "  s  Start scrape job (planned)\n\n"
                 "Provider Mode (left panel):\n"
@@ -82,15 +107,28 @@ def run_textual_once() -> None:
                 "  Fallback Only    Only use TVmaze/OMDb\n"
                 "  Offline          No network calls; cache/placeholders only\n"
             )
-            from textual.widgets import Static
-            from textual.containers import Vertical
 
-            self.mount(Vertical(Static(help_text, classes="panel")))
+            self._help_widget = Vertical(Static(help_text, classes="panel"))
+            self.mount(self._help_widget)
+
+        def action_quit(self) -> None:
+            self.exit()
+
+        def _refresh_panels(self) -> None:
+            # Lightweight periodic updates
+            try:
+                if self.logs_box is not None:
+                    self.logs_box.update(self._read_log_tail())
+                if self.jobs_box is not None:
+                    self.jobs_box.update(self._jobs_snapshot())
+            except Exception:
+                pass
 
         def _read_log_tail(self) -> str:
             from pathlib import Path
 
-            log_path = Path.cwd() / "mpv-scraper.log"
+            base = Path(root_path) if root_path else Path.cwd()
+            log_path = base / "mpv-scraper.log"
             if not log_path.exists():
                 return "No recent logs."
             lines = log_path.read_text(encoding="utf-8").splitlines()
@@ -112,7 +150,8 @@ def run_textual_once() -> None:
             from pathlib import Path
             import json
 
-            history = Path.cwd() / ".mpv-scraper" / "jobs.json"
+            base = Path(root_path) if root_path else Path.cwd()
+            history = base / ".mpv-scraper" / "jobs.json"
             if not history.exists():
                 return "Jobs: (no jobs yet)"
             try:
@@ -133,7 +172,21 @@ def run_textual_once() -> None:
     # textual's run blocks; for non-interactive, we will mount and immediately exit
     # Using `run` here is acceptable for smoke; it will render one frame
     try:
-        app.run()  # User can Ctrl+C out in interactive mode; tests use non-interactive print
+        # Run the app; in one-shot mode it will exit quickly. After run, print
+        # a short tail of the log to stdout so non-interactive tests can assert
+        # on WARNING/ERROR content even without a terminal UI.
+        app.run()
+        try:
+            from pathlib import Path
+
+            base = Path(root_path) if root_path else Path.cwd()
+            log_path = base / "mpv-scraper.log"
+            if log_path.exists():
+                tail_lines = log_path.read_text(encoding="utf-8").splitlines()[-5:]
+                for line in tail_lines:
+                    print(line)
+        except Exception:
+            pass
     except Exception:
         # Ensure fallback prints something
         print("MPV-Scraper TUI")

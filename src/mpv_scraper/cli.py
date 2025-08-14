@@ -108,11 +108,20 @@ def init(path, force=False):
 def scan(path):
     """Scan DIRECTORY and print a summary (debug helper)."""
     from pathlib import Path
+    from mpv_scraper.utils import get_logger
     from mpv_scraper.scanner import scan_directory
 
-    result = scan_directory(Path(path))
+    root = Path(path)
+    logger = get_logger(root)
+    result = scan_directory(root)
     click.echo(
         f"Found {len(result.shows)} show folders and {len(result.movies)} movies."
+    )
+    logger.info(
+        "Scan: Found %d show folders and %d movies at %s",
+        len(result.shows),
+        len(result.movies),
+        root,
     )
 
 
@@ -150,8 +159,10 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
         ParallelDownloadManager,
     )
     from mpv_scraper.transaction import TransactionLogger
+    from mpv_scraper.utils import get_logger
 
     root = Path(path)
+    logger_out = get_logger(root)
     logger = TransactionLogger(root / "transaction.log")  # Create in target directory
 
     def _log_creation(p: Path) -> None:
@@ -167,6 +178,12 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
     result = scan_directory(root)
     click.echo(
         f"Found {len(result.shows)} show folders and {len(result.movies)} movies."
+    )
+    logger_out.info(
+        "Scrape: Found %d show folders and %d movies at %s",
+        len(result.shows),
+        len(result.movies),
+        root,
     )
 
     # 3. Create global parallel download manager
@@ -190,8 +207,10 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
             )
             all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
+            logger_out.info("Scraped show: %s", show.path.name)
         except Exception as e:
             click.echo(f"✗ Failed to scrape {show.path.name}: {e}")
+            logger_out.error("Failed to scrape show %s: %s", show.path.name, e)
 
     # 5. Scrape movies (sequential for now, could be parallelized later)
     for movie in result.movies:
@@ -206,8 +225,10 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
                 no_remote=no_remote,
             )
             click.echo(f"✓ Scraped {movie.path.name}")
+            logger_out.info("Scraped movie: %s", movie.path.name)
         except Exception as e:
             click.echo(f"✗ Failed to scrape {movie.path.name}: {e}")
+            logger_out.error("Failed to scrape movie %s: %s", movie.path.name, e)
 
     # 6. Execute all parallel downloads
     if all_tasks:
@@ -230,8 +251,14 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
         click.echo(
             f"✓ Completed parallel downloads: {successful_downloads} successful, {failed_downloads} failed"
         )
+        logger_out.info(
+            "Downloads complete: %d success, %d failed",
+            successful_downloads,
+            failed_downloads,
+        )
     else:
         click.echo("No downloads to process.")
+        logger_out.info("No downloads to process.")
 
 
 @main.command()
@@ -240,12 +267,15 @@ def generate(path):
     """Generate gamelist.xml files from scraped metadata."""
 
     from pathlib import Path
+    from mpv_scraper.utils import get_logger
 
     # First, sanitize any filenames with special characters
     root = Path(path)
+    logger_out = get_logger(root)
     sanitized_count = _sanitize_filenames(root)
     if sanitized_count > 0:
         click.echo(f"Sanitized {sanitized_count} filenames with special characters.")
+        logger_out.info("Sanitized %d filenames", sanitized_count)
 
     """Generate gamelist.xml files for all TV shows and movies."""
     from mpv_scraper.parser import parse_tv_filename, parse_movie_filename
@@ -585,25 +615,37 @@ def generate(path):
 
     write_top_gamelist(folder_entries + all_games, top_gamelist_path)
     _log_creation(top_gamelist_path)
+    logger_out.info("Wrote %s", top_gamelist_path)
 
     click.echo("gamelist.xml files generated.")
 
 
 @main.command()
-def undo():
-    """Undo the most recent scraper run using *transaction.log* in cwd."""
+@click.argument(
+    "path", required=False, type=click.Path(exists=True, file_okay=False, dir_okay=True)
+)
+def undo(path: str | None = None):
+    """Undo the most recent scraper run.
+
+    Looks for a ``transaction.log`` in the provided PATH (if given), otherwise
+    the current working directory. As a convenience, if not found, the parent
+    directory is also checked (preserves previous behaviour).
+    """
     from pathlib import Path
     from mpv_scraper.transaction import revert_transaction
 
-    # Look for transaction.log in current directory first, then parent
-    log_path = Path("transaction.log")
+    root = Path(path) if path else Path.cwd()
+
+    # Look for transaction.log in the target directory first, then parent
+    log_path = root / "transaction.log"
     if not log_path.exists():
-        log_path = Path("../transaction.log")
-        if not log_path.exists():
-            click.echo(
-                "No transaction.log found in current directory or parent directory."
-            )
+        parent_log = root.parent / "transaction.log"
+        if parent_log.exists():
+            log_path = parent_log
+        else:
+            click.echo(f"No transaction.log found in {root} or its parent.")
             return 0
+
     revert_transaction(log_path)
     click.echo("Undo completed.")
 
@@ -1300,11 +1342,21 @@ def _sanitize_filenames(root) -> int:
 
 @main.command()
 @click.option("--non-interactive", is_flag=True, help="Render once and exit")
-def tui(non_interactive: bool = False):
-    """Start the mpv-scraper TUI (text UI)."""
+@click.option(
+    "--path",
+    type=click.Path(file_okay=False, dir_okay=True),
+    help="Target library path to monitor (for logs/jobs)",
+)
+def tui(non_interactive: bool = False, path: str | None = None):
+    """Start the mpv-scraper TUI (text UI).
+
+    Optionally pass --path to point the monitor at a specific library root so it
+    can read the correct mpv-scraper.log and .mpv-scraper/jobs.json while your
+    CLI commands run elsewhere.
+    """
     from mpv_scraper.tui import run_tui
 
-    code = run_tui(non_interactive=non_interactive)
+    code = run_tui(non_interactive=non_interactive, path=path)
     raise SystemExit(code)
 
 
