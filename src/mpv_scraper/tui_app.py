@@ -176,6 +176,9 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 self.dismiss(settings)
 
     class MpvScraperApp(App):
+        # Set minimum terminal size for optimal display
+        MIN_SIZE = (80, 24)  # Minimum 80 columns, 24 lines
+
         CSS = """
         Screen { background: #101216 }
         .panel { border: solid #3a3f4b; padding: 1 1; }
@@ -311,9 +314,13 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             ("p", "provider_settings", "Provider"),
             ("v", "view_system_info", "System"),
             ("t", "test_connectivity", "Test"),
+            ("z", "show_terminal_size", "Terminal Size"),
         ]
 
         def on_mount(self) -> None:  # type: ignore[override]
+            # Check terminal size and warn if too small
+            self._check_terminal_size()
+
             # Refresh panels periodically to reflect recent activity
             self.set_interval(self._refresh_rate, self._refresh_panels)
             # Update progress spinner more frequently
@@ -321,6 +328,29 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             if self._one_shot:
                 # Exit shortly after first render to support non-interactive/CI
                 self.set_timer(0.05, self.exit)
+
+        def _check_terminal_size(self) -> None:
+            """Check if terminal is large enough for optimal display."""
+            try:
+                import shutil
+
+                current_size = shutil.get_terminal_size()
+                min_cols, min_lines = self.MIN_SIZE
+
+                if current_size.columns < min_cols or current_size.lines < min_lines:
+                    # Show a warning in the logs panel
+                    warning_msg = f"⚠️  Terminal size ({current_size.columns}x{current_size.lines}) is smaller than recommended ({min_cols}x{min_lines}). Consider resizing for better experience."
+                    if self.logs_box:
+                        self.logs_box.update(
+                            f"{warning_msg}\n\n{self._read_log_tail()}"
+                        )
+            except Exception:
+                pass  # Ignore if we can't get terminal size
+
+        def on_resize(self, event) -> None:
+            """Handle terminal resize events."""
+            # Re-check terminal size after resize
+            self._check_terminal_size()
 
         def _start_operation(self, operation: str) -> None:
             """Start tracking an operation with progress indicators."""
@@ -611,7 +641,8 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 "⚙️  SETTINGS & MONITORING\n"
                 "  p  Provider mode settings\n"
                 "  v  View system information\n"
-                "  t  Test connectivity\n\n"
+                "  t  Test connectivity\n"
+                "  z  Show terminal size info\n\n"
                 "🔧 PROVIDER MODES\n"
                 "  Primary          Use TVDB/TMDB when keys are set\n"
                 "  Prefer Fallback  Try TVmaze/OMDb first\n"
@@ -629,7 +660,8 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 "• Check system status for disk space and API keys\n"
                 "• Test connectivity before running scrape operations\n"
                 "• Use undo (u) if something goes wrong\n"
-                "• Long operations show progress in the progress panel\n\n"
+                "• Long operations show progress in the progress panel\n"
+                "• Press 'z' to check if your terminal is optimally sized\n\n"
                 "🆘 TROUBLESHOOTING\n"
                 "• No shows found? Check library structure\n"
                 "• Scrape failing? Verify API keys and connectivity\n"
@@ -1331,6 +1363,30 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
 
             except Exception as e:
                 self.settings_box.update(f"Connectivity test failed: {str(e)}")
+
+        def action_show_terminal_size(self) -> None:
+            """Show current terminal size information."""
+            try:
+                import shutil
+
+                current_size = shutil.get_terminal_size()
+                min_cols, min_lines = self.MIN_SIZE
+
+                size_info = f"""Terminal Size Information:
+Current Size: {current_size.columns} columns × {current_size.lines} lines
+Recommended: {min_cols} columns × {min_lines} lines
+
+Status: {'✅ Optimal' if current_size.columns >= min_cols and current_size.lines >= min_lines else '⚠️  Below Recommended'}
+
+Tips:
+• Resize your terminal window for better experience
+• Minimum recommended: {min_cols}×{min_lines}
+• Current terminal: {current_size.columns}×{current_size.lines}"""
+
+                self.settings_box.update(size_info)
+
+            except Exception as e:
+                self.settings_box.update(f"Failed to get terminal size: {str(e)}")
 
         def _show_path_modal(self, command: str) -> None:
             """Show a modal for path input."""
