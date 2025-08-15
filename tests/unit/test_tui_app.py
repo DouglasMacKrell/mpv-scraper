@@ -685,3 +685,313 @@ class TestTUIAppEventPatterns:
         # Check resize event patterns
         assert "def on_resize(self, event)" in content
         assert "self._check_terminal_size()" in content
+
+
+class TestTUIAppBackgroundOperations:
+    """Test TUI app background operations and command execution."""
+
+    def test_execute_command_method_structure(self):
+        """Test _execute_command method structure."""
+        # Read the source file to check _execute_command method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _execute_command method structure
+        assert "def _execute_command(self, command: str, path: str) -> None:" in content
+        assert "@work(thread=True)" in content
+        assert "subprocess.run" in content
+        assert "sys.executable" in content
+        assert "mpv_scraper.cli" in content
+        assert "capture_output=True" in content
+        assert "text=True" in content
+        assert "result.returncode == 0" in content
+        assert "self._end_operation(success=True)" in content
+        assert "self._end_operation(success=False)" in content
+
+    def test_execute_command_error_handling(self):
+        """Test _execute_command error handling structure."""
+        # Read the source file to check error handling
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check error handling structure
+        assert "try:" in content
+        assert "except Exception as e:" in content
+        assert "self.commands_box.update" in content
+        assert "Executing:" in content
+        assert "completed successfully" in content
+        assert "failed:" in content
+        assert "error:" in content
+
+    def test_command_status_updates(self):
+        """Test command status update patterns."""
+        # Read the source file to check command status updates
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check command status update patterns
+        assert "self.commands_box.update" in content
+        assert "Executing:" in content
+        assert "✓" in content
+        assert "✗" in content
+        assert "completed successfully" in content
+        assert "failed:" in content
+        assert "error:" in content
+
+
+class TestTUIAppProgressTracking:
+    """Test TUI app progress tracking functionality."""
+
+    def test_start_operation_method_structure(self):
+        """Test _start_operation method structure."""
+        # Read the source file to check _start_operation method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _start_operation method structure
+        assert "def _start_operation(self, operation: str) -> None:" in content
+        assert "self._current_operation = operation" in content
+        assert "self._operation_start_time = time.time()" in content
+        assert "self._spinner_index = 0" in content
+        assert "self._update_progress_display()" in content
+
+    def test_end_operation_method_structure(self):
+        """Test _end_operation method structure."""
+        # Read the source file to check _end_operation method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _end_operation method structure
+        assert "def _end_operation(self, success: bool = True) -> None:" in content
+        assert "if self._current_operation:" in content
+        assert "duration = time.time() - self._operation_start_time" in content
+        assert 'status = "✓" if success else "✗"' in content
+        assert 'duration_str = f"{duration:.1f}s"' in content
+        assert "self.progress_box.update" in content
+        assert "completed in" in content
+        assert "failed after" in content
+        assert "self._clear_progress_after_delay = True" in content
+        assert "self._clear_progress_time = time.time() + 3.0" in content
+
+    def test_update_progress_spinner_structure(self):
+        """Test _update_progress_spinner method structure."""
+        # Read the source file to check _update_progress_spinner method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _update_progress_spinner method structure
+        assert "def _update_progress_spinner(self) -> None:" in content
+        assert "self._clear_progress_after_delay" in content
+        assert "self._clear_progress_time" in content
+        assert "if time.time() >= self._clear_progress_time:" in content
+        assert "self._clear_progress()" in content
+        assert "if self._current_operation and self._operation_start_time:" in content
+        assert "self._spinner_index = (self._spinner_index + 1) % len(" in content
+        assert "self._update_progress_display()" in content
+
+    def test_update_progress_display_structure(self):
+        """Test _update_progress_display method structure."""
+        # Read the source file to check _update_progress_display method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _update_progress_display method structure
+        assert "def _update_progress_display(self) -> None:" in content
+        assert "if self._current_operation and self._operation_start_time:" in content
+        assert "duration = time.time() - self._operation_start_time" in content
+        assert "spinner = self._spinner_chars[self._spinner_index]" in content
+        assert "progress_info = self._get_operation_progress()" in content
+        assert 'progress_bar = ""' in content
+        assert "self.progress_box.update" in content
+
+    def test_clear_progress_method_structure(self):
+        """Test _clear_progress method structure."""
+        # Read the source file to check _clear_progress method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _clear_progress method structure
+        assert "def _clear_progress(self) -> None:" in content
+        assert 'self.progress_box.update("")' in content
+
+
+class TestTUIAppJobsIntegration:
+    """Test TUI app jobs integration and progress bar functionality."""
+
+    def test_get_operation_progress_structure(self):
+        """Test _get_operation_progress method structure."""
+        # Read the source file to check _get_operation_progress method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _get_operation_progress method structure
+        assert "def _get_operation_progress(self) -> str:" in content
+        assert "if not self._current_operation:" in content
+        assert 'jobs_file = base / ".mpv-scraper" / "jobs.json"' in content
+        assert "data = json.loads(jobs_file.read_text())" in content
+        assert 'job.get("name", "")' in content
+        assert ".lower()" in content
+        assert ".startswith(" in content
+        assert 'progress = job.get("progress", 0)' in content
+        assert 'total = job.get("total", 0)' in content
+        assert 'status = job.get("status", "running")' in content
+        assert "percentage = (progress / total) * 100" in content
+        assert "Progress: {progress}/{total} ({percentage:.1f}%)" in content
+
+    def test_operation_progress_fallbacks(self):
+        """Test operation progress fallback patterns."""
+        # Read the source file to check operation progress fallbacks
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check operation progress fallback patterns
+        assert "operation_progress = {" in content
+        assert '"scan": "Scanning library structure..."' in content
+        assert '"scrape": "Fetching metadata from APIs..."' in content
+        assert '"generate": "Generating gamelist.xml files..."' in content
+        assert '"optimize": "Processing video files..."' in content
+        assert '"crop": "Cropping videos to 4:3..."' in content
+        assert '"init": "Initializing library structure..."' in content
+        assert '"undo": "Reverting changes..."' in content
+        assert "operation_progress.get(" in content
+
+    def test_get_progress_bar_structure(self):
+        """Test _get_progress_bar method structure."""
+        # Read the source file to check _get_progress_bar method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _get_progress_bar method structure
+        assert (
+            "def _get_progress_bar(self, current: int, total: int, width: int = 20) -> str:"
+            in content
+        )
+        assert "if total <= 0:" in content
+        assert "filled = int((current / total) * width)" in content
+        assert 'bar = "█" * filled + "░" * (width - filled)' in content
+        assert "percentage = (current / total) * 100" in content
+        assert 'return f"[{bar}] {percentage:.1f}%"' in content
+
+    def test_jobs_snapshot_structure(self):
+        """Test _jobs_snapshot method structure."""
+        # Read the source file to check _jobs_snapshot method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _jobs_snapshot method structure
+        assert "def _jobs_snapshot(self) -> str:" in content
+        assert 'history = base / ".mpv-scraper" / "jobs.json"' in content
+        assert "data = json.loads(history.read_text())" in content
+        assert "for jid, j in list(data.items())[:5]:" in content
+        assert 'progress = j.get("progress", 0)' in content
+        assert 'total = j.get("total") or "?"' in content
+        assert 'status = j.get("status", "?")' in content
+        assert 'name = j.get("name", jid)' in content
+        assert 'lines.append(f"- {name} [{status}] {progress}/{total}")' in content
+
+    def test_jobs_file_reading_patterns(self):
+        """Test jobs file reading patterns."""
+        # Read the source file to check jobs file reading patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check jobs file reading patterns
+        assert 'jobs_file = base / ".mpv-scraper" / "jobs.json"' in content
+        assert "if jobs_file.exists():" in content
+        assert "data = json.loads(jobs_file.read_text())" in content
+        assert "except Exception:" in content
+        assert "pass" in content
+
+    def test_composite_operation_handling(self):
+        """Test composite operation handling (like 'run')."""
+        # Read the source file to check composite operation handling
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check composite operation handling
+        assert 'if self._current_operation.lower() == "run":' in content
+        assert "recent_jobs = [" in content
+        assert '"generate"' in content
+        assert '"scrape"' in content
+        assert '"scan"' in content
+        assert "for job_type in recent_jobs:" in content
+        assert "if job_type in data:" in content
+        assert "job = data[job_type]" in content
+
+    def test_recent_completed_job_display(self):
+        """Test recent completed job display functionality."""
+        # Read the source file to check recent completed job display
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check recent completed job display
+        assert "Show most recent completed job when no active operation" in content
+        assert 'if job.get("status") == "completed":' in content
+        assert "progress_bar = self._get_progress_bar(" in content
+        assert (
+            'progress_text = f"✓ {job_type.title()} completed\\n{progress_bar}"'
+            in content
+        )
+        assert "self.progress_box.update(progress_text)" in content
+
+
+class TestTUIAppFileSystemOperations:
+    """Test TUI app file system operations and error handling."""
+
+    def test_read_log_tail_structure(self):
+        """Test _read_log_tail method structure."""
+        # Read the source file to check _read_log_tail method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _read_log_tail method structure
+        assert "def _read_log_tail(self) -> str:" in content
+        assert 'log_path = base / "mpv-scraper.log"' in content
+        assert "if not log_path.exists():" in content
+        assert 'lines = log_path.read_text(encoding="utf-8").splitlines()' in content
+        assert 'tail = "\\n".join(lines[-5:]) if lines else "(empty)"' in content
+        assert "def colorize(line: str) -> str:" in content
+        assert 'if "ERROR" in line:' in content
+        assert 'return f"[red]{line}[/red]"' in content
+        assert 'if "WARNING" in line:' in content
+        assert 'return f"[yellow]{line}[/yellow]"' in content
+
+    def test_refresh_panels_structure(self):
+        """Test _refresh_panels method structure."""
+        # Read the source file to check _refresh_panels method
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check _refresh_panels method structure
+        assert "def _refresh_panels(self) -> None:" in content
+        assert "try:" in content
+        assert "if self.logs_box is not None:" in content
+        assert "self.logs_box.update(self._read_log_tail())" in content
+        assert "if self.jobs_box is not None:" in content
+        assert "self.jobs_box.update(self._jobs_snapshot())" in content
+        assert "if self.libraries_box is not None:" in content
+        assert (
+            'self.libraries_box.update(f"Current: {self._get_current_path()}")'
+            in content
+        )
+        assert "if self.settings_box is not None:" in content
+        assert "self.settings_box.update(self._get_system_status())" in content
+        assert "except Exception:" in content
+        assert "pass" in content
+
+    def test_file_system_error_handling(self):
+        """Test file system error handling patterns."""
+        # Read the source file to check file system error handling
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check file system error handling patterns
+        assert "try:" in content
+        assert "except Exception:" in content
+        assert "pass" in content
+        assert "if not log_path.exists():" in content
+        assert "if not history.exists():" in content
+        assert "if jobs_file.exists():" in content
+        assert 'return "No recent logs."' in content
+        assert 'return "Jobs: (no jobs yet)"' in content
+        assert 'return "Jobs: (unreadable)"' in content
