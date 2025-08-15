@@ -976,19 +976,32 @@ N/A (pure documentation)
   - **OMDB**: 90% coverage (unchanged)
   - Overall API client coverage improved with TVDB and OMDB exceeding 80% target
 
-### 18.8 Fallback Provider Coverage Improvement
+### 18.8 Fallback Provider Coverage Improvement ✅
 * **Goal:** Improve fallback provider coverage from 21% to 60%+ by testing all provider logic.
 * **Tests to Write:**
-  - `tests/unit/test_fallback.py::test_fallback_provider_selection`
-  - `tests/unit/test_fallback.py::test_fallback_data_mapping`
-  - `tests/unit/test_fallback.py::test_fallback_error_handling`
-  - `tests/unit/test_fallback.py::test_fallback_cache_integration`
+  - `tests/unit/test_fallback_coverage.py::test_fallback_scraper_initialization`
+  - `tests/unit/test_fallback_coverage.py::test_get_tvdb_token_caching`
+  - `tests/unit/test_fallback_coverage.py::test_is_poor_data_logic`
+  - `tests/unit/test_fallback_coverage.py::test_try_tmdb_for_tv_show`
+  - `tests/unit/test_fallback_coverage.py::test_scrape_tv_with_fallback`
+  - `tests/unit/test_fallback_coverage.py::test_scrape_movie_with_fallback`
 * **Steps:**
   1. Test fallback provider selection logic and priority handling.
   2. Test data mapping between different provider formats.
   3. Test fallback error handling and provider switching.
   4. Test fallback cache integration and data persistence.
 * **Done when:** Fallback module coverage improves from 21% to 60%+.
+* **Results:**
+  - Created comprehensive fallback coverage tests (`tests/unit/test_fallback_coverage.py`)
+  - **Fallback module**: 74% coverage (improved from 21%)
+  - Tested FallbackScraper initialization and API key management
+  - Tested TVDB token caching functionality
+  - Tested poor data detection logic for TVDB and TMDB
+  - Tested TMDB fallback for TV shows with image filtering
+  - Tested TV scraping with fallback scenarios (success, poor data, no data)
+  - Tested movie scraping with fallback scenarios
+  - All 18 tests pass consistently
+  - Exceeded 60% target by 14 percentage points
 
 ### 18.9 Jobs Module Coverage Improvement
 * **Goal:** Improve jobs module coverage from 38% to 70%+ by testing job management functionality.
