@@ -220,6 +220,8 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             self._operation_start_time = None
             self._spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
             self._spinner_index = 0
+            self._clear_progress_after_delay = False
+            self._clear_progress_time = None
 
         def compose(self) -> ComposeResult:
             yield Header(id="header", show_clock=False)
@@ -341,14 +343,23 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                         f"{status} {self._current_operation} failed after {duration_str}"
                     )
 
-                # Clear operation after a delay
-                self.set_timer(3.0, self._clear_progress)
+                # Clear operation after a delay - use a flag instead of timer
+                self._clear_progress_after_delay = True
+                self._clear_progress_time = time.time() + 3.0
 
                 self._current_operation = None
                 self._operation_start_time = None
 
         def _update_progress_spinner(self) -> None:
             """Update the progress spinner animation."""
+            # Check if we need to clear progress after delay
+            if self._clear_progress_after_delay and self._clear_progress_time:
+                if time.time() >= self._clear_progress_time:
+                    self._clear_progress()
+                    self._clear_progress_after_delay = False
+                    self._clear_progress_time = None
+                    return
+
             if self._current_operation and self._operation_start_time:
                 self._spinner_index = (self._spinner_index + 1) % len(
                     self._spinner_chars
@@ -1301,6 +1312,8 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
         def _execute_command(self, command: str, path: str) -> None:
             """Execute a CLI command in a background thread."""
             try:
+                from pathlib import Path
+
                 # Update command status
                 self.commands_box.update(f"Executing: {command} {path}")
 
