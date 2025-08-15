@@ -202,6 +202,75 @@ class TestTUIAppModalScreens:
         assert "def compose(self) -> ComposeResult:" in content
         assert "def on_button_pressed(self, event:" in content
 
+    def test_path_input_modal_structure(self):
+        """Test PathInputModal structure and functionality."""
+        # Read the source file to check PathInputModal
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check PathInputModal structure
+        assert "class PathInputModal(ModalScreen):" in content
+        assert (
+            "def __init__(self, command: str, current_path: Optional[str] = None):"
+            in content
+        )
+        assert "self.command = command" in content
+        assert "self.current_path = current_path or str(Path.cwd())" in content
+        assert 'id="path_input"' in content
+        assert 'id="cancel"' in content
+        assert 'id="execute"' in content
+        assert 'event.button.id == "cancel"' in content
+        assert 'event.button.id == "execute"' in content
+        assert 'path_input.styles.border = ("solid", "red")' in content
+
+    def test_library_select_modal_structure(self):
+        """Test LibrarySelectModal structure and functionality."""
+        # Read the source file to check LibrarySelectModal
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check LibrarySelectModal structure
+        assert "class LibrarySelectModal(ModalScreen):" in content
+        assert "def __init__(self, libraries: List[str], current_path: str):" in content
+        assert "self.libraries = libraries" in content
+        assert "self.current_path = current_path" in content
+        assert 'id="library_select"' in content
+        assert 'id="cancel"' in content
+        assert 'id="select"' in content
+        assert 'event.button.id == "cancel"' in content
+        assert 'event.button.id == "select"' in content
+        assert 'select_widget.styles.border = ("solid", "red")' in content
+        assert 'f"📁 {lib}"' in content
+        assert 'f"📍 {self.current_path} (current)"' in content
+
+    def test_settings_modal_structure(self):
+        """Test SettingsModal structure and functionality."""
+        # Read the source file to check SettingsModal
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check SettingsModal structure
+        assert "class SettingsModal(ModalScreen):" in content
+        assert "def __init__(self, current_settings: Dict[str, Any]):" in content
+        assert "self.current_settings = current_settings" in content
+        assert 'id="provider_mode"' in content
+        assert 'id="theme"' in content
+        assert 'id="refresh_rate"' in content
+        assert 'id="cancel"' in content
+        assert 'id="save"' in content
+        assert 'event.button.id == "cancel"' in content
+        assert 'event.button.id == "save"' in content
+        assert '"Primary"' in content
+        assert '"Prefer Fallback"' in content
+        assert '"Fallback Only"' in content
+        assert '"Offline"' in content
+        assert '"Dark Theme"' in content
+        assert '"Light Theme"' in content
+        assert '"Auto Theme"' in content
+        assert '"0.5s Refresh"' in content
+        assert '"1.0s Refresh"' in content
+        assert '"2.0s Refresh"' in content
+
 
 class TestTUIAppActionMethods:
     """Test TUI app action method implementations."""
@@ -228,6 +297,165 @@ class TestTUIAppActionMethods:
         assert "action_test_connectivity" in content
         assert "action_show_terminal_size" in content
 
+    def test_action_show_help_structure(self):
+        """Test action_show_help method structure."""
+        # Read the source file to check action_show_help
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check action_show_help structure
+        assert "def action_show_help(self) -> None:" in content
+        assert "self._get_comprehensive_help()" in content
+        assert "self.settings_box.update" in content
+
+    def test_action_show_context_help_structure(self):
+        """Test action_show_context_help method structure."""
+        # Read the source file to check action_show_context_help
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check action_show_context_help structure
+        assert "def action_show_context_help(self) -> None:" in content
+        assert "self._get_context_help(" in content
+        assert "self.settings_box.update" in content
+
+    def test_action_quit_structure(self):
+        """Test action_quit method structure."""
+        # Read the source file to check action_quit
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check action_quit structure
+        assert "def action_quit(self) -> None:" in content
+        assert "self.exit()" in content
+
+    def test_command_action_methods_structure(self):
+        """Test command action methods structure."""
+        # Read the source file to check command action methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check command action methods structure
+        assert "def action_init_library(self) -> None:" in content
+        assert "def action_scan_library(self) -> None:" in content
+        assert "def action_run_pipeline(self) -> None:" in content
+        assert "def action_optimize_videos(self) -> None:" in content
+        assert "def action_undo_last(self) -> None:" in content
+        assert "self._show_path_modal" in content
+        assert "self._execute_command" in content
+
+    def test_library_action_methods_structure(self):
+        """Test library action methods structure."""
+        # Read the source file to check library action methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check library action methods structure
+        assert "def action_list_libraries(self) -> None:" in content
+        assert "def action_new_library(self) -> None:" in content
+        assert "def action_change_library(self) -> None:" in content
+        assert "self._get_library_history()" in content
+        assert "self._show_path_modal" in content
+
+    def test_settings_action_methods_structure(self):
+        """Test settings action methods structure."""
+        # Read the source file to check settings action methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check settings action methods structure
+        assert "def action_provider_settings(self) -> None:" in content
+        assert "def action_view_system_info(self) -> None:" in content
+        assert "def action_test_connectivity(self) -> None:" in content
+        assert "def action_show_terminal_size(self) -> None:" in content
+        assert "self._get_library_settings()" in content
+        assert "self._get_system_info()" in content
+        assert "self._test_connectivity()" in content
+
+
+class TestTUIAppEventHandling:
+    """Test TUI app event handling functionality."""
+
+    def test_event_handling_methods_exist(self):
+        """Test that event handling methods exist in code."""
+        # Read the source file to check for event handling methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check that event handling methods exist
+        assert "on_resize" in content
+        assert "on_button_pressed" in content
+
+    def test_resize_event_handling(self):
+        """Test resize event handling structure."""
+        # Read the source file to check resize event handling
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check resize event handling structure
+        assert "def on_resize(self, event)" in content
+        assert "self._check_terminal_size()" in content
+
+    def test_button_pressed_event_handling(self):
+        """Test button pressed event handling structure."""
+        # Read the source file to check button pressed event handling
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check button pressed event handling structure
+        assert "def on_button_pressed(self, event:" in content
+        assert "Button.Pressed" in content
+
+
+class TestTUIAppKeyboardShortcuts:
+    """Test TUI app keyboard shortcut handling."""
+
+    def test_keyboard_shortcut_bindings(self):
+        """Test keyboard shortcut binding structure."""
+        # Read the source file to check keyboard shortcut bindings
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check keyboard shortcut bindings structure
+        assert '("q", "quit", "Quit")' in content
+        assert '("?", "show_help", "Help")' in content
+        assert '("F1", "show_context_help"' in content
+        assert '("i", "init_library", "Init")' in content
+        assert '("s", "scan_library", "Scan")' in content
+        assert '("r", "run_pipeline", "Run")' in content
+        assert '("o", "optimize_videos", "Optimize")' in content
+        assert '("u", "undo_last", "Undo")' in content
+        assert '("l", "list_libraries", "List")' in content
+        assert '("n", "new_library", "New")' in content
+        assert '("c", "change_library", "Change")' in content
+        assert '("p", "provider_settings", "Provider")' in content
+        assert '("v", "view_system_info", "System")' in content
+        assert '("t", "test_connectivity", "Test")' in content
+        assert '("z", "show_terminal_size", "Terminal Size")' in content
+
+    def test_keyboard_shortcut_actions(self):
+        """Test keyboard shortcut action methods."""
+        # Read the source file to check keyboard shortcut actions
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check that all keyboard shortcut actions are implemented
+        assert "def action_quit(self) -> None:" in content
+        assert "def action_show_help(self) -> None:" in content
+        assert "def action_show_context_help(self) -> None:" in content
+        assert "def action_init_library(self) -> None:" in content
+        assert "def action_scan_library(self) -> None:" in content
+        assert "def action_run_pipeline(self) -> None:" in content
+        assert "def action_optimize_videos(self) -> None:" in content
+        assert "def action_undo_last(self) -> None:" in content
+        assert "def action_list_libraries(self) -> None:" in content
+        assert "def action_new_library(self) -> None:" in content
+        assert "def action_change_library(self) -> None:" in content
+        assert "def action_provider_settings(self) -> None:" in content
+        assert "def action_view_system_info(self) -> None:" in content
+        assert "def action_test_connectivity(self) -> None:" in content
+        assert "def action_show_terminal_size(self) -> None:" in content
+
 
 class TestTUIAppHelperMethods:
     """Test TUI app helper method implementations."""
@@ -252,6 +480,53 @@ class TestTUIAppHelperMethods:
         assert "_get_operation_description" in content
         assert "_get_comprehensive_help" in content
         assert "_get_context_help" in content
+
+    def test_modal_helper_methods_structure(self):
+        """Test modal helper methods structure."""
+        # Read the source file to check modal helper methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check modal helper methods structure
+        assert "def _show_path_modal(self, command: str) -> None:" in content
+        assert "self.push_screen(" in content
+        assert "PathInputModal" in content
+        assert (
+            "def _show_settings_modal(self) -> None:" in content
+            or "def action_provider_settings(self) -> None:" in content
+        )
+        assert "SettingsModal" in content
+        assert (
+            "def _show_library_select_modal(self) -> None:" in content
+            or "def action_list_libraries(self) -> None:" in content
+        )
+        assert "LibrarySelectModal" in content
+
+    def test_command_execution_methods_structure(self):
+        """Test command execution methods structure."""
+        # Read the source file to check command execution methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check command execution methods structure
+        assert "def _execute_command(self, command: str, path: str) -> None:" in content
+        assert "@work(thread=True)" in content
+        assert "subprocess.run" in content
+        assert "self._start_operation" in content
+        assert "self._end_operation" in content
+
+    def test_help_methods_structure(self):
+        """Test help methods structure."""
+        # Read the source file to check help methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check help methods structure
+        assert "def _get_comprehensive_help(self) -> str:" in content
+        assert "def _get_context_help(self, element_id: str) -> str:" in content
+        assert "def _get_general_help(self) -> str:" in content
+        assert "def _get_troubleshooting_guide(self) -> str:" in content
+        assert "def _get_command_reference(self) -> str:" in content
 
 
 class TestTUIAppIntegration:
@@ -283,6 +558,18 @@ class TestTUIAppIntegration:
 
         # Check that compose method exists
         assert "def compose(self) -> ComposeResult:" in content
+
+    def test_app_lifecycle_methods(self):
+        """Test app lifecycle methods structure."""
+        # Read the source file to check app lifecycle methods
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check app lifecycle methods structure
+        assert "def on_mount(self) -> None:" in content
+        assert "def compose(self) -> ComposeResult:" in content
+        assert "self.set_interval" in content
+        assert "self._check_terminal_size()" in content
 
 
 class TestTUIAppStructure:
@@ -320,3 +607,81 @@ class TestTUIAppStructure:
         assert "self.libraries_box = None" in content
         assert "self.settings_box = None" in content
         assert "self.progress_box = None" in content
+
+
+class TestTUIAppModalInteractions:
+    """Test TUI app modal interaction patterns."""
+
+    def test_modal_dismiss_patterns(self):
+        """Test modal dismiss patterns in code."""
+        # Read the source file to check modal dismiss patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check modal dismiss patterns
+        assert "self.dismiss()" in content
+        assert "self.dismiss(path)" in content
+        assert "self.dismiss(select_widget.value)" in content
+        assert "self.dismiss(settings)" in content
+
+    def test_modal_validation_patterns(self):
+        """Test modal validation patterns in code."""
+        # Read the source file to check modal validation patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check modal validation patterns
+        assert 'path_input.styles.border = ("solid", "red")' in content
+        assert 'select_widget.styles.border = ("solid", "red")' in content
+        assert "if path:" in content
+        assert "if select_widget.value:" in content
+
+    def test_modal_screen_push_patterns(self):
+        """Test modal screen push patterns in code."""
+        # Read the source file to check modal screen push patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check modal screen push patterns
+        assert "self.push_screen(" in content
+        assert "PathInputModal" in content
+        assert "SettingsModal" in content
+        assert "LibrarySelectModal" in content
+
+
+class TestTUIAppEventPatterns:
+    """Test TUI app event handling patterns."""
+
+    def test_button_event_patterns(self):
+        """Test button event handling patterns in code."""
+        # Read the source file to check button event patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check button event patterns
+        assert 'event.button.id == "cancel"' in content
+        assert 'event.button.id == "execute"' in content
+        assert 'event.button.id == "select"' in content
+        assert 'event.button.id == "save"' in content
+
+    def test_input_event_patterns(self):
+        """Test input event handling patterns in code."""
+        # Read the source file to check input event patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check input event patterns
+        assert "path_input.value.strip()" in content
+        assert "select_widget.value" in content
+        assert 'self.query_one("#path_input", Input)' in content
+        assert 'self.query_one("#library_select", Select)' in content
+
+    def test_resize_event_patterns(self):
+        """Test resize event handling patterns in code."""
+        # Read the source file to check resize event patterns
+        with open("src/mpv_scraper/tui_app.py", "r") as f:
+            content = f.read()
+
+        # Check resize event patterns
+        assert "def on_resize(self, event)" in content
+        assert "self._check_terminal_size()" in content
