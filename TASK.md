@@ -868,3 +868,166 @@ N/A (pure documentation)
 * **Done when:** Docs updated and install path validated end‑to‑end.
 
 ---
+
+## 18 · Sprint 18 (Test Coverage Improvement to >80%)
+**Purpose:** Systematically improve test coverage from 62% to >80% by addressing low-coverage modules and implementing real TUI testing.
+
+### 18.1 Real TUI App Testing Infrastructure
+* **Goal:** Create proper testing infrastructure for Textual-based TUI components.
+* **Tests to Write:**
+  - `tests/unit/test_tui_app.py::test_mpv_scraper_app_initialization`
+  - `tests/unit/test_tui_app.py::test_min_size_constant`
+  - `tests/unit/test_tui_app.py::test_terminal_size_checking`
+* **Steps:**
+  1. Create `tests/unit/test_tui_app.py` for direct `MpvScraperApp` testing.
+  2. Import and test `MpvScraperApp` class directly (not through `run_textual_once`).
+  3. Test `MIN_SIZE` constant, terminal size checking methods, and basic app properties.
+  4. Mock Textual framework dependencies to avoid UI rendering in unit tests.
+* **Done when:** Real TUI app code is tested directly, improving `tui_app.py` coverage from 30% to 60%+.
+
+### 18.2 TUI Event Handling & Modal Testing
+* **Goal:** Test TUI event handlers, modal screens, and user interactions.
+* **Tests to Write:**
+  - `tests/unit/test_tui_app.py::test_path_input_modal`
+  - `tests/unit/test_tui_app.py::test_settings_modal`
+  - `tests/unit/test_tui_app.py::test_library_select_modal`
+  - `tests/unit/test_tui_app.py::test_keyboard_bindings`
+* **Steps:**
+  1. Test modal screen classes (`PathInputModal`, `SettingsModal`, `LibrarySelectModal`).
+  2. Test keyboard binding handlers and action methods.
+  3. Test event handling for resize, focus, and input events.
+  4. Mock Textual widgets and test component interactions.
+* **Done when:** TUI event handling and modal functionality is tested, improving `tui_app.py` coverage to 70%+.
+
+### 18.3 TUI Background Operations & Progress Tracking
+* **Goal:** Test TUI background job execution and progress tracking functionality.
+* **Tests to Write:**
+  - `tests/unit/test_tui_app.py::test_command_execution`
+  - `tests/unit/test_tui_app.py::test_progress_tracking`
+  - `tests/unit/test_tui_app.py::test_jobs_integration`
+* **Steps:**
+  1. Test `_execute_command` method with mocked subprocess calls.
+  2. Test progress tracking methods (`_start_operation`, `_end_operation`, `_update_progress_spinner`).
+  3. Test jobs.json integration and progress bar generation.
+  4. Mock file system operations and job manager interactions.
+* **Done when:** TUI background operations are tested, improving `tui_app.py` coverage to 80%+.
+
+### 18.4 CLI Command Coverage Improvement
+* **Goal:** Improve CLI module coverage from 73% to 85%+ by testing missing command paths.
+* **Tests to Write:**
+  - `tests/unit/test_cli.py::test_cli_error_handling`
+  - `tests/unit/test_cli.py::test_cli_config_loading`
+  - `tests/unit/test_cli.py::test_cli_validation`
+  - `tests/unit/test_cli.py::test_cli_help_output`
+* **Steps:**
+  1. Test CLI error handling paths (missing API keys, invalid paths, network errors).
+  2. Test config loading and validation logic.
+  3. Test help output generation and command documentation.
+  4. Test CLI argument validation and type conversion.
+* **Done when:** CLI module coverage improves from 73% to 85%+.
+
+### 18.5 Scraper Module Coverage Improvement
+* **Goal:** Improve scraper module coverage from 65% to 80%+ by testing error handling and edge cases.
+* **Tests to Write:**
+  - `tests/unit/test_scraper.py::test_scraper_error_handling`
+  - `tests/unit/test_scraper.py::test_scraper_retry_logic`
+  - `tests/unit/test_scraper.py::test_scraper_fallback_providers`
+  - `tests/unit/test_scraper.py::test_scraper_cache_management`
+* **Steps:**
+  1. Test scraper error handling for network failures, API errors, and file system issues.
+  2. Test retry logic and exponential backoff implementation.
+  3. Test fallback provider selection and switching logic.
+  4. Test cache management and invalidation.
+* **Done when:** Scraper module coverage improves from 65% to 80%+.
+
+### 18.6 Video Processing Coverage Improvement
+* **Goal:** Improve video processing module coverage by testing error cases and edge conditions.
+* **Tests to Write:**
+  - `tests/unit/test_video_cleaner.py::test_video_cleaner_error_handling`
+  - `tests/unit/test_video_convert.py::test_video_convert_error_handling`
+  - `tests/unit/test_video_crop.py::test_video_crop_error_handling`
+  - `tests/unit/test_video_cleaner_parallel.py::test_parallel_error_handling`
+* **Steps:**
+  1. Test video processing error handling (ffmpeg failures, invalid files, disk space issues).
+  2. Test parallel processing error handling and worker management.
+  3. Test video format detection and conversion edge cases.
+  4. Test video cropping and optimization error scenarios.
+* **Done when:** Video processing modules improve coverage to 70%+.
+
+### 18.7 API Client Coverage Improvement
+* **Goal:** Improve API client coverage by testing error handling and edge cases.
+* **Tests to Write:**
+  - `tests/unit/test_tvdb.py::test_tvdb_error_handling`
+  - `tests/unit/test_tmdb.py::test_tmdb_error_handling`
+  - `tests/unit/test_tvmaze.py::test_tvmaze_error_handling`
+  - `tests/unit/test_omdb.py::test_omdb_error_handling`
+* **Steps:**
+  1. Test API client error handling (network errors, rate limiting, invalid responses).
+  2. Test authentication failures and token refresh logic.
+  3. Test response parsing and data validation.
+  4. Test caching behavior and cache invalidation.
+* **Done when:** API client modules improve coverage to 80%+.
+
+### 18.8 Fallback Provider Coverage Improvement
+* **Goal:** Improve fallback provider coverage from 21% to 60%+ by testing all provider logic.
+* **Tests to Write:**
+  - `tests/unit/test_fallback.py::test_fallback_provider_selection`
+  - `tests/unit/test_fallback.py::test_fallback_data_mapping`
+  - `tests/unit/test_fallback.py::test_fallback_error_handling`
+  - `tests/unit/test_fallback.py::test_fallback_cache_integration`
+* **Steps:**
+  1. Test fallback provider selection logic and priority handling.
+  2. Test data mapping between different provider formats.
+  3. Test fallback error handling and provider switching.
+  4. Test fallback cache integration and data persistence.
+* **Done when:** Fallback module coverage improves from 21% to 60%+.
+
+### 18.9 Jobs Module Coverage Improvement
+* **Goal:** Improve jobs module coverage from 38% to 70%+ by testing job management functionality.
+* **Tests to Write:**
+  - `tests/unit/test_jobs.py::test_job_manager_operations`
+  - `tests/unit/test_jobs.py::test_job_persistence`
+  - `tests/unit/test_jobs.py::test_job_cancellation`
+  - `tests/unit/test_jobs.py::test_job_observation`
+* **Steps:**
+  1. Test `JobManager` enqueue, observe, and cancel operations.
+  2. Test job persistence to JSON and file system operations.
+  3. Test job cancellation and cleanup logic.
+  4. Test job observation and progress tracking.
+* **Done when:** Jobs module coverage improves from 38% to 70%+.
+
+### 18.10 Integration Test Coverage Expansion
+* **Goal:** Expand integration tests to cover real functionality instead of mock-based testing.
+* **Tests to Write:**
+  - `tests/integration/test_tui_real.py::test_real_tui_initialization`
+  - `tests/integration/test_tui_real.py::test_real_terminal_size_detection`
+  - `tests/integration/test_tui_real.py::test_real_command_execution`
+  - `tests/integration/test_tui_real.py::test_real_progress_tracking`
+* **Steps:**
+  1. Create integration tests that use real Textual framework (with headless mode).
+  2. Test real terminal size detection with actual `shutil.get_terminal_size()`.
+  3. Test real command execution with actual subprocess calls (mocked).
+  4. Test real progress tracking with actual file system operations.
+* **Done when:** Integration tests cover real functionality, improving overall coverage.
+
+### 18.11 Coverage Monitoring & Reporting
+* **Goal:** Implement continuous coverage monitoring and reporting.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Add coverage reporting to CI pipeline with coverage thresholds.
+  2. Generate coverage reports in HTML format for detailed analysis.
+  3. Add coverage badges to README.md.
+  4. Set up coverage alerts for coverage regression.
+* **Done when:** Coverage is continuously monitored and reported.
+
+### 18.12 Documentation & Coverage Analysis Update
+* **Goal:** Update documentation to reflect improved test coverage and testing strategy.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Update `TEST_COVERAGE_ANALYSIS.md` with new coverage metrics.
+  2. Document new testing strategies and real TUI testing approach.
+  3. Update `docs/TESTING.md` with coverage improvement guidelines.
+  4. Add testing best practices and coverage targets to development docs.
+* **Done when:** Documentation reflects improved coverage and testing approach.
+
+---
