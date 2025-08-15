@@ -388,23 +388,69 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
 
                     if jobs_file.exists():
                         data = json.loads(jobs_file.read_text())
-                        # Find the most recent job for this operation
-                        for jid, job in data.items():
-                            if (
-                                job.get("name", "")
-                                .lower()
-                                .startswith(self._current_operation.lower())
-                            ):
-                                progress = job.get("progress", 0)
-                                total = job.get("total", 0)
-                                if total > 0:
-                                    progress_bar = f"\n{self._get_progress_bar(progress, total, 30)}"
-                                    break
+
+                        # For composite operations like "run", show the most recent job
+                        if self._current_operation.lower() == "run":
+                            # Find the most recent job (scan, scrape, or generate)
+                            recent_jobs = [
+                                "generate",
+                                "scrape",
+                                "scan",
+                            ]  # Most recent first
+                            for job_type in recent_jobs:
+                                if job_type in data:
+                                    job = data[job_type]
+                                    progress = job.get("progress", 0)
+                                    total = job.get("total", 0)
+                                    if total > 0:
+                                        progress_bar = f"\n{self._get_progress_bar(progress, total, 30)}"
+                                        break
+                        else:
+                            # For individual operations, find matching job
+                            for jid, job in data.items():
+                                if (
+                                    job.get("name", "")
+                                    .lower()
+                                    .startswith(self._current_operation.lower())
+                                ):
+                                    progress = job.get("progress", 0)
+                                    total = job.get("total", 0)
+                                    if total > 0:
+                                        progress_bar = f"\n{self._get_progress_bar(progress, total, 30)}"
+                                        break
                 except Exception:
                     pass
 
                 progress_text = f"{spinner} {self._current_operation} running... ({duration:.1f}s){progress_bar}\n{progress_info}"
                 self.progress_box.update(progress_text)
+            else:
+                # Show most recent completed job when no active operation
+                try:
+                    from pathlib import Path
+                    import json
+
+                    base = Path(self._root_path) if self._root_path else Path.cwd()
+                    jobs_file = base / ".mpv-scraper" / "jobs.json"
+
+                    if jobs_file.exists():
+                        data = json.loads(jobs_file.read_text())
+                        # Find the most recent completed job
+                        recent_jobs = ["generate", "scrape", "scan"]
+                        for job_type in recent_jobs:
+                            if job_type in data:
+                                job = data[job_type]
+                                if job.get("status") == "completed":
+                                    progress = job.get("progress", 0)
+                                    total = job.get("total", 0)
+                                    if total > 0:
+                                        progress_bar = self._get_progress_bar(
+                                            progress, total, 30
+                                        )
+                                        progress_text = f"✓ {job_type.title()} completed\n{progress_bar}"
+                                        self.progress_box.update(progress_text)
+                                        return
+                except Exception:
+                    pass
 
         def _clear_progress(self) -> None:
             """Clear the progress display."""
