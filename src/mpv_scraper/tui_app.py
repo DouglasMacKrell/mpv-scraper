@@ -186,9 +186,11 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
         #libraries { color: #ebcb8b; }
         #settings { color: #d08770; }
         #progress_panel {
-            color: #81a1c1;
-            border: solid #5e81ac;
-            background: #2e3440;
+            color: #ffffff;
+            border: solid #4fc3f7;
+            background: #1976d2;
+            padding: 1 2;
+            text-align: center;
         }
         Button { margin: 1 1; }
         """
@@ -375,7 +377,33 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 # Get operation-specific progress info
                 progress_info = self._get_operation_progress()
 
-                progress_text = f"{spinner} {self._current_operation} running... ({duration:.1f}s)\n{progress_info}"
+                # Try to get actual progress data for progress bar
+                progress_bar = ""
+                try:
+                    from pathlib import Path
+                    import json
+
+                    base = Path(self._root_path) if self._root_path else Path.cwd()
+                    jobs_file = base / ".mpv-scraper" / "jobs.json"
+
+                    if jobs_file.exists():
+                        data = json.loads(jobs_file.read_text())
+                        # Find the most recent job for this operation
+                        for jid, job in data.items():
+                            if (
+                                job.get("name", "")
+                                .lower()
+                                .startswith(self._current_operation.lower())
+                            ):
+                                progress = job.get("progress", 0)
+                                total = job.get("total", 0)
+                                if total > 0:
+                                    progress_bar = f"\n{self._get_progress_bar(progress, total, 30)}"
+                                    break
+                except Exception:
+                    pass
+
+                progress_text = f"{spinner} {self._current_operation} running... ({duration:.1f}s){progress_bar}\n{progress_info}"
                 self.progress_box.update(progress_text)
 
         def _clear_progress(self) -> None:
@@ -439,6 +467,7 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 return "[" + " " * width + "]"
 
             filled = int((current / total) * width)
+            # Use more visible characters for better accessibility
             bar = "█" * filled + "░" * (width - filled)
             percentage = (current / total) * 100
             return f"[{bar}] {percentage:.1f}%"
