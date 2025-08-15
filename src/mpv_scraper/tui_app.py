@@ -20,6 +20,7 @@ import json
 import shutil
 import platform
 from typing import Optional, List, Dict, Any
+import time
 
 
 def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> None:
@@ -184,6 +185,11 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
         #commands { color: #b48ead; }
         #libraries { color: #ebcb8b; }
         #settings { color: #d08770; }
+        #progress_panel {
+            color: #81a1c1;
+            border: solid #5e81ac;
+            background: #2e3440;
+        }
         Button { margin: 1 1; }
         """
 
@@ -195,6 +201,7 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             self.commands_box = None
             self.libraries_box = None
             self.settings_box = None
+            self.progress_box = None
             self._one_shot = one_shot
             self._root_path = root_path
             from pathlib import Path
@@ -207,6 +214,12 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             )
             self._refresh_rate = 1.0
             self._load_tui_preferences()
+
+            # Progress tracking
+            self._current_operation = None
+            self._operation_start_time = None
+            self._spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+            self._spinner_index = 0
 
         def compose(self) -> ComposeResult:
             yield Header(id="header", show_clock=False)
@@ -255,12 +268,18 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 classes="panel",
                 id="settings_panel",
             )
+            self.progress_box = Static(
+                "",
+                classes="panel",
+                id="progress_panel",
+            )
 
             left = Vertical(
                 command_buttons,
                 library_buttons,
                 settings_buttons,
                 self.jobs_box,
+                self.progress_box,
                 id="left",
             )
             right = Vertical(
@@ -293,9 +312,151 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
         def on_mount(self) -> None:  # type: ignore[override]
             # Refresh panels periodically to reflect recent activity
             self.set_interval(self._refresh_rate, self._refresh_panels)
+            # Update progress spinner more frequently
+            self.set_interval(0.1, self._update_progress_spinner)
             if self._one_shot:
                 # Exit shortly after first render to support non-interactive/CI
                 self.set_timer(0.05, self.exit)
+
+        def _start_operation(self, operation: str) -> None:
+            """Start tracking an operation with progress indicators."""
+            self._current_operation = operation
+            self._operation_start_time = time.time()
+            self._spinner_index = 0
+            self._update_progress_display()
+
+        def _end_operation(self, success: bool = True) -> None:
+            """End operation tracking and show final status."""
+            if self._current_operation:
+                duration = time.time() - self._operation_start_time
+                status = "✓" if success else "✗"
+                duration_str = f"{duration:.1f}s"
+
+                if success:
+                    self.progress_box.update(
+                        f"{status} {self._current_operation} completed in {duration_str}"
+                    )
+                else:
+                    self.progress_box.update(
+                        f"{status} {self._current_operation} failed after {duration_str}"
+                    )
+
+                # Clear operation after a delay
+                self.set_timer(3.0, self._clear_progress)
+
+                self._current_operation = None
+                self._operation_start_time = None
+
+        def _update_progress_spinner(self) -> None:
+            """Update the progress spinner animation."""
+            if self._current_operation and self._operation_start_time:
+                self._spinner_index = (self._spinner_index + 1) % len(
+                    self._spinner_chars
+                )
+                self._update_progress_display()
+
+        def _update_progress_display(self) -> None:
+            """Update the progress display with current operation and spinner."""
+            if self._current_operation and self._operation_start_time:
+                duration = time.time() - self._operation_start_time
+                spinner = self._spinner_chars[self._spinner_index]
+
+                # Get operation-specific progress info
+                progress_info = self._get_operation_progress()
+
+                progress_text = f"{spinner} {self._current_operation} running... ({duration:.1f}s)\n{progress_info}"
+                self.progress_box.update(progress_text)
+
+        def _clear_progress(self) -> None:
+            """Clear the progress display."""
+            self.progress_box.update("")
+
+        def _get_operation_progress(self) -> str:
+            """Get operation-specific progress information."""
+            if not self._current_operation:
+                return ""
+
+            try:
+                from pathlib import Path
+                import json
+
+                base = Path(self._root_path) if self._root_path else Path.cwd()
+                jobs_file = base / ".mpv-scraper" / "jobs.json"
+
+                if jobs_file.exists():
+                    data = json.loads(jobs_file.read_text())
+                    # Find the most recent job for this operation
+                    for jid, job in data.items():
+                        if (
+                            job.get("name", "")
+                            .lower()
+                            .startswith(self._current_operation.lower())
+                        ):
+                            progress = job.get("progress", 0)
+                            total = job.get("total", 0)
+                            status = job.get("status", "running")
+
+                            if total > 0:
+                                percentage = (progress / total) * 100
+                                return (
+                                    f"Progress: {progress}/{total} ({percentage:.1f}%)"
+                                )
+                            else:
+                                return f"Status: {status}"
+
+                # Fallback progress indicators based on operation type
+                operation_progress = {
+                    "scan": "Scanning library structure...",
+                    "scrape": "Fetching metadata from APIs...",
+                    "generate": "Generating gamelist.xml files...",
+                    "optimize": "Processing video files...",
+                    "crop": "Cropping videos to 4:3...",
+                    "init": "Initializing library structure...",
+                    "undo": "Reverting changes...",
+                }
+
+                return operation_progress.get(
+                    self._current_operation.lower(), "Processing..."
+                )
+
+            except Exception:
+                return "Processing..."
+
+        def _get_progress_bar(self, current: int, total: int, width: int = 20) -> str:
+            """Generate a text-based progress bar."""
+            if total <= 0:
+                return "[" + " " * width + "]"
+
+            filled = int((current / total) * width)
+            bar = "█" * filled + "░" * (width - filled)
+            percentage = (current / total) * 100
+            return f"[{bar}] {percentage:.1f}%"
+
+        def _estimate_operation_duration(self, operation: str) -> str:
+            """Estimate duration for different operations."""
+            estimates = {
+                "scan": "10-30 seconds",
+                "scrape": "2-10 minutes",
+                "generate": "30 seconds - 2 minutes",
+                "optimize": "5-30 minutes",
+                "crop": "5-30 minutes",
+                "init": "5-10 seconds",
+                "undo": "10-30 seconds",
+            }
+            return estimates.get(operation.lower(), "variable")
+
+        def _get_operation_description(self, operation: str) -> str:
+            """Get a user-friendly description of the operation."""
+            descriptions = {
+                "scan": "Scanning library for shows and movies",
+                "scrape": "Fetching metadata from TVDB/TMDB APIs",
+                "generate": "Creating gamelist.xml files for EmulationStation",
+                "optimize": "Optimizing video files for 4:3 displays",
+                "crop": "Cropping videos to remove letterboxing",
+                "init": "Setting up new library structure",
+                "undo": "Reverting last operation",
+            }
+            return descriptions.get(operation.lower(), "Processing")
 
         def action_show_help(self) -> None:
             # Toggle help (don't stack multiple panels)
@@ -370,17 +531,25 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 "  Prefer Fallback  Try TVmaze/OMDb first\n"
                 "  Fallback Only    Only use TVmaze/OMDb\n"
                 "  Offline          No network calls; use cache only\n\n"
+                "⏱️  PROGRESS INDICATORS\n"
+                "• Spinning animation shows operations are running\n"
+                "• Progress panel displays current operation and duration\n"
+                "• Estimated times: Scan (10-30s), Scrape (2-10min), Optimize (5-30min)\n"
+                "• Jobs panel shows detailed progress for background operations\n"
+                "• UI remains responsive during long operations\n\n"
                 "💡 TIPS & TRICKS\n"
                 "• Use F1 for context-sensitive help on any element\n"
                 "• Panels auto-refresh to show real-time status\n"
                 "• Check system status for disk space and API keys\n"
                 "• Test connectivity before running scrape operations\n"
-                "• Use undo (u) if something goes wrong\n\n"
+                "• Use undo (u) if something goes wrong\n"
+                "• Long operations show progress in the progress panel\n\n"
                 "🆘 TROUBLESHOOTING\n"
                 "• No shows found? Check library structure\n"
                 "• Scrape failing? Verify API keys and connectivity\n"
                 "• Low disk space? Check system status\n"
                 "• TUI not responding? Press 'q' to quit and restart\n"
+                "• Operation taking too long? Check progress panel for status\n"
             )
 
         def _get_context_help(self, element_id: str) -> str:
@@ -575,6 +744,21 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                     "⚠️  Warnings, ❌ Errors, ✅ Success\n\n"
                     "Monitor your system health here!"
                 ),
+                "progress_panel": (
+                    "⏱️  Progress Panel\n"
+                    "=================\n\n"
+                    "Shows real-time operation progress:\n"
+                    "• Spinning animation indicates active operations\n"
+                    "• Operation name and running duration\n"
+                    "• Progress information from jobs.json\n"
+                    "• Estimated completion times\n\n"
+                    "Operation estimates:\n"
+                    "• Scan: 10-30 seconds\n"
+                    "• Scrape: 2-10 minutes\n"
+                    "• Optimize/Crop: 5-30 minutes\n"
+                    "• Generate: 30 seconds - 2 minutes\n\n"
+                    "Watch here during long operations!"
+                ),
             }
 
             return help_texts.get(element_id, self._get_general_help())
@@ -736,19 +920,24 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
             self.exit()
 
         def action_init_library(self) -> None:
+            self._start_operation("init")
             self._show_path_modal("init")
 
         def action_scan_library(self) -> None:
+            self._start_operation("scan")
             self._execute_command("scan", self._get_current_path())
 
         def action_run_pipeline(self) -> None:
+            self._start_operation("run")
             self._execute_command("run", self._get_current_path())
 
         def action_optimize_videos(self) -> None:
+            self._start_operation("optimize")
             # For now, just run crop with default settings
             self._execute_command("crop", self._get_current_path())
 
         def action_undo_last(self) -> None:
+            self._start_operation("undo")
             self._execute_command("undo", self._get_current_path())
 
         def action_list_libraries(self) -> None:
@@ -1126,11 +1315,14 @@ def run_textual_once(one_shot: bool = False, root_path: str | None = None) -> No
                 # Update command status with result
                 if result.returncode == 0:
                     self.commands_box.update(f"✓ {command} completed successfully")
+                    self._end_operation(success=True)
                 else:
                     self.commands_box.update(f"✗ {command} failed: {result.stderr}")
+                    self._end_operation(success=False)
 
             except Exception as e:
                 self.commands_box.update(f"✗ {command} error: {str(e)}")
+                self._end_operation(success=False)
 
         def _refresh_panels(self) -> None:
             # Lightweight periodic updates
