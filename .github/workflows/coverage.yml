@@ -1,34 +1,26 @@
-# .github/workflows/ci.yml
-name: Python CI
+name: Coverage Report
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, release/v1.0.0 ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, release/v1.0.0 ]
 
 jobs:
-  build:
+  coverage:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.9", "3.10", "3.11"]
+        python-version: ["3.11"]
 
     steps:
     - uses: actions/checkout@v4
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
-
-    - name: Cache pre-commit environments (cache-bust v3)
-      uses: actions/cache@v3
-      with:
-        path: ~/.cache/pre-commit
-        key: ${{ runner.os }}-pre-commit-v3-${{ hashFiles('.pre-commit-config.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pre-commit-v3-
 
     - name: Cache pip wheels
       uses: actions/cache@v3
@@ -45,13 +37,7 @@ jobs:
         pip install -e .
         pip install -r requirements-dev.txt
 
-    - name: Run pre-commit hooks
-      run: |
-        pre-commit clean
-        pre-commit install
-        pre-commit run --all-files
-
-    - name: Test with pytest and coverage
+    - name: Run tests with coverage
       run: |
         pytest --cov=src/mpv_scraper --cov-report=xml --cov-report=html --cov-report=term-missing --cov-fail-under=65
 
@@ -66,6 +52,30 @@ jobs:
     - name: Upload coverage report as artifact
       uses: actions/upload-artifact@v3
       with:
-        name: coverage-report
+        name: coverage-report-${{ github.sha }}
         path: htmlcov/
         retention-days: 30
+
+    - name: Comment PR with coverage report
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const coverage = fs.readFileSync('coverage.xml', 'utf8');
+          const match = coverage.match(/line-rate="([^"]+)"/);
+          const coveragePercent = match ? Math.round(parseFloat(match[1]) * 100) : 'Unknown';
+
+          github.rest.issues.createComment({
+            issue_number: context.issue.number,
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            body: `## Coverage Report 📊
+
+            **Coverage: ${coveragePercent}%**
+
+            Coverage report has been generated and uploaded as an artifact.
+            You can download the HTML report from the Actions tab.
+
+            Coverage threshold: 65%`
+          });
