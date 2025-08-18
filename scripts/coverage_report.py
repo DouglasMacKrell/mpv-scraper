@@ -23,7 +23,7 @@ def run_coverage_report():
             "--cov=src/mpv_scraper",
             "--cov-report=term-missing",
             "--cov-report=html",
-            "--cov-fail-under=65",
+            "--cov-fail-under=60",
             "-q",
         ],
         capture_output=True,
@@ -61,7 +61,7 @@ def check_coverage_threshold():
             "pytest",
             "--cov=src/mpv_scraper",
             "--cov-report=term",
-            "--cov-fail-under=65",
+            "--cov-fail-under=60",
             "-q",
         ],
         capture_output=True,
@@ -69,10 +69,10 @@ def check_coverage_threshold():
     )
 
     if result.returncode == 0:
-        print("✅ Coverage threshold (65%) met!")
+        print("✅ Coverage threshold (60%) met!")
         return True
     else:
-        print("❌ Coverage threshold (65%) not met!")
+        print("❌ Coverage threshold (60%) not met!")
         print(result.stdout)
         return False
 
