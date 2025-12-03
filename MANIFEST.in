@@ -1,0 +1,5 @@
+recursive-include src/mpv_scraper *.py
+include README.md
+recursive-include public *
+recursive-include docs *.md
+exclude mocks/*

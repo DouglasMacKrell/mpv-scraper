@@ -323,22 +323,30 @@ def load_config(path) -> dict:
 
 
 def get_logger(root_dir=None):
-    """Return a configured logger that writes to mpv-scraper.log in root_dir.
+    """Return a configured logger that writes to mpv-scraper.log for ``root_dir``.
 
-    If root_dir is None, uses the current working directory.
+    The logger is namespaced by absolute ``root_dir`` so multiple libraries can
+    be processed in one session without handler conflicts. If ``root_dir`` is
+    None, uses the current working directory.
     """
     import logging
     from logging.handlers import RotatingFileHandler
     from pathlib import Path
 
     root = Path(root_dir) if root_dir else Path.cwd()
+    try:
+        root = root.resolve()
+    except Exception:
+        pass
     log_path = root / "mpv-scraper.log"
 
-    logger = logging.getLogger("mpv_scraper")
+    logger_name = f"mpv_scraper[{log_path}]"
+    logger = logging.getLogger(logger_name)
     if logger.handlers:
         return logger
 
     logger.setLevel(logging.INFO)
+    logger.propagate = False
     handler = RotatingFileHandler(log_path, maxBytes=1_000_000, backupCount=2)
     fmt = logging.Formatter("%(asctime)s %(levelname)s %(message)s")
     handler.setFormatter(fmt)

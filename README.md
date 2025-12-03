@@ -1,5 +1,10 @@
 # MPV Metadata Scraper
 
+[![Tests](https://github.com/DouglasMacKrell/mpv-scraper/workflows/Python%20CI/badge.svg)](https://github.com/DouglasMacKrell/mpv-scraper/actions)
+[![Coverage](https://codecov.io/gh/DouglasMacKrell/mpv-scraper/branch/main/graph/badge.svg)](https://codecov.io/gh/DouglasMacKrell/mpv-scraper)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A command-line tool to automatically scrape metadata for TV shows and movies, generate EmulationStation-compatible `gamelist.xml` files for the Knulli UI, and optimize video files for handheld device playback.
 
 ## 🏗️ System Architecture

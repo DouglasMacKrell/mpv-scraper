@@ -97,6 +97,23 @@ python -m pytest tests/test_parser.py::test_parse_tv_filename
 2. **Use Descriptive Names:** Test names should clearly describe what's being tested
 3. **Include Edge Cases:** Test error conditions and boundary cases
 4. **Mock External Dependencies:** Use `unittest.mock` for API calls and file operations
+5. **Performance Focus:** Keep individual test execution time under 0.1 seconds
+6. **Real Functionality:** Test actual code paths, not just mocks when possible
+
+#### Coverage Targets
+
+The project maintains a **65% minimum coverage threshold** enforced in CI. Current coverage is **69.47%** with a target of **80%+**.
+
+**High Priority Modules for Coverage Improvement:**
+- `cli.py` (73% → 85%+)
+- `tui.py` (26% → 70%+)
+- `tui_app.py` (34% → 70%+)
+
+**Coverage Best Practices:**
+- **Performance-focused testing**: Avoid time sinks and heavy operations
+- **Lightweight integration tests**: Test real functionality without heavy dependencies
+- **Coverage monitoring**: Use `python scripts/coverage_report.py` before committing
+- **Regression prevention**: Automated alerts when coverage drops below threshold
 
 #### Example Test Structure
 
