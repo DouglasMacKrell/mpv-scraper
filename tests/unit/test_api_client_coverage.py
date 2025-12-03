@@ -16,16 +16,21 @@ class TestTVDBAPICoverage:
     """Test TVDB API functionality to improve coverage."""
 
     def test_authenticate_tvdb_success(self):
-        """Test successful TVDB authentication."""
+        """Test successful TVDB V4 authentication."""
         # Clear any cached token first
         from mpv_scraper.tvdb import _set_to_cache
 
-        _set_to_cache("tvdb_token", None)
+        _set_to_cache("tvdb_token_v4", None)
 
-        with patch("os.getenv", return_value="test_api_key"):
+        with patch("os.getenv") as mock_getenv:
+            mock_getenv.side_effect = lambda key: (
+                "test_api_key" if key == "TVDB_API_KEY2" else None
+            )
             with patch("requests.post") as mock_post:
                 mock_response = Mock()
-                mock_response.json.return_value = {"token": "test_token"}
+                # V4 API response format
+                mock_response.json.return_value = {"data": {"token": "test_token"}}
+                mock_response.raise_for_status = Mock()
                 mock_post.return_value = mock_response
 
                 result = authenticate_tvdb()
@@ -33,67 +38,101 @@ class TestTVDBAPICoverage:
                 assert result is not None
                 assert isinstance(result, str)
                 mock_post.assert_called_once()
+                # Verify V4 endpoint
+                assert "api4.thetvdb.com/v4/login" in mock_post.call_args[0][0]
 
     def test_authenticate_tvdb_no_api_key(self):
-        """Test TVDB authentication with no API key."""
+        """Test TVDB V4 authentication with no API key."""
+        from mpv_scraper.tvdb import _set_to_cache
+
+        _set_to_cache("tvdb_token_v4", None)
+
         with patch("os.getenv", return_value=None):
             with pytest.raises(
-                ValueError, match="TVDB_API_KEY environment variable not set"
+                ValueError,
+                match="TVDB_API_KEY2 or TVDB_API_KEY environment variable not set",
             ):
                 authenticate_tvdb()
 
     def test_search_show_basic(self):
-        """Test basic series search functionality."""
-        with patch("os.getenv", return_value="test_api_key"):
-            with patch("requests.get") as mock_get:
-                mock_response = Mock()
-                mock_response.json.return_value = {
-                    "data": [
-                        {"id": 1, "seriesName": "Test Show", "firstAired": "2020-01-01"}
-                    ]
-                }
-                mock_response.status_code = 200
-                mock_get.return_value = mock_response
+        """Test basic series search functionality with V4 API."""
+        # Clear cache first
+        from mpv_scraper.tvdb import _set_to_cache
 
-                results = search_show("Test Show", "test_token")
+        _set_to_cache("search_test_show", None)
 
-                assert results is not None
-                assert len(results) > 0
+        with patch("requests.get") as mock_get:
+            mock_response = Mock()
+            # V4 API response format
+            mock_response.json.return_value = {
+                "data": [{"id": 1, "name": "Test Show", "firstAired": "2020-01-01"}]
+            }
+            mock_response.status_code = 200
+            mock_response.raise_for_status = Mock()
+            mock_get.return_value = mock_response
+
+            results = search_show("Test Show", "test_token")
+
+            assert results is not None
+            assert len(results) > 0
+            # Verify V4 endpoint
+            assert mock_get.called
+            call_url = mock_get.call_args[0][0] if mock_get.call_args else ""
+            assert "api4.thetvdb.com/v4/search" in call_url
 
     def test_get_series_extended_basic(self):
-        """Test basic series extended info retrieval."""
-        with patch("os.getenv", return_value="test_api_key"):
-            with patch("requests.get") as mock_get:
-                mock_series_response = Mock()
-                mock_series_response.json.return_value = {
-                    "data": {
+        """Test basic series extended info retrieval with V4 API."""
+        # Clear cache first
+        from mpv_scraper.tvdb import _set_to_cache
+
+        _set_to_cache("series_1_extended", None)
+
+        with patch("requests.get") as mock_get:
+            mock_series_response = Mock()
+            # V4 API response format
+            mock_series_response.json.return_value = {
+                "data": {
+                    "id": 1,
+                    "name": "Test Show",  # V4 uses "name" not "seriesName"
+                    "overview": "A test show",
+                    "firstAired": "2020-01-01",
+                }
+            }
+            mock_series_response.status_code = 200
+            mock_series_response.raise_for_status = Mock()
+
+            mock_episodes_response = Mock()
+            mock_episodes_response.json.return_value = {
+                "data": [
+                    {
                         "id": 1,
-                        "seriesName": "Test Show",
-                        "overview": "A test show",
-                        "firstAired": "2020-01-01",
+                        "number": 1,  # V4 field name
+                        "seasonNumber": 1,  # V4 field name
+                        "name": "Pilot",  # V4 uses "name" not "episodeName"
                     }
-                }
-                mock_series_response.status_code = 200
+                ]
+            }
+            mock_episodes_response.status_code = 200
+            mock_episodes_response.raise_for_status = Mock()
 
-                mock_episodes_response = Mock()
-                mock_episodes_response.json.return_value = {
-                    "data": [
-                        {
-                            "id": 1,
-                            "airedEpisodeNumber": 1,
-                            "airedSeason": 1,
-                            "episodeName": "Pilot",
-                        }
-                    ]
-                }
-                mock_episodes_response.status_code = 200
+            mock_artwork_response = Mock()
+            mock_artwork_response.status_code = 404
 
-                mock_get.side_effect = [mock_series_response, mock_episodes_response]
+            mock_get.side_effect = [
+                mock_series_response,
+                mock_episodes_response,
+                mock_artwork_response,
+            ]
 
-                series_info = get_series_extended(1, "test_token")
+            series_info = get_series_extended(1, "test_token")
 
-                assert series_info is not None
-                assert "name" in series_info
+            assert series_info is not None
+            assert "name" in series_info
+            # Verify V4 endpoint was called
+            assert mock_get.called
+            assert len(mock_get.call_args_list) >= 1
+            call_url = mock_get.call_args_list[0][0][0]
+            assert "api4.thetvdb.com/v4/series/1" in call_url
 
 
 class TestTMDBAPICoverage:

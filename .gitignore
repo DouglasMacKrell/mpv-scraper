@@ -275,3 +275,6 @@ mocks/**/._*
 
 # Documentation demo scripts
 /docs/demo-scripts/
+
+# Runtime job tracking (created by CLI for TUI progress)
+.mpv-scraper/
