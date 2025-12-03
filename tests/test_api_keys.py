@@ -21,12 +21,13 @@ def test_api_keys_environment():
     print(f"TVDB_API_KEY2 (V4): {'SET' if tvdb_key2 else 'NOT SET'}")
     print(f"TMDB_API_KEY: {'SET' if tmdb_key else 'NOT SET'}")
 
+    # Report key lengths only (not partial keys for security)
     if tvdb_key:
-        print(f"TVDB key format: {tvdb_key[:10]}... (length: {len(tvdb_key)})")
+        print(f"TVDB key length: {len(tvdb_key)} characters")
     if tvdb_key2:
-        print(f"TVDB V4 key format: {tvdb_key2[:10]}... (length: {len(tvdb_key2)})")
+        print(f"TVDB V4 key length: {len(tvdb_key2)} characters")
     if tmdb_key:
-        print(f"TMDB key format: {tmdb_key[:20]}... (length: {len(tmdb_key)})")
+        print(f"TMDB key length: {len(tmdb_key)} characters")
 
     # Don't fail the test, just report presence
     assert True
