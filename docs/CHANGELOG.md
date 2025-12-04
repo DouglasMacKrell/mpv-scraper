@@ -1,15 +1,30 @@
 ## [Unreleased]
 
 ### Added
+- **Incremental Scraping**: Automatically skips already-scraped content, only processes new episodes/movies
+  - `--refresh` flag to force re-scrape of all content
+  - Checks `.scrape_cache.json` and image existence to detect scraped content
+- **Interactive Resolution**: Manual API ID input for ambiguous or failed searches
+  - `--prompt-on-failure` / `--prof` flag to enable interactive mode
+  - Supports selecting from multiple matches or providing manual API IDs
+  - One retry opportunity with better error messaging
+- **Filename API Tags**: Embed API IDs directly in filenames for direct lookup
+  - Format: `{provider-id}` (e.g., `{tvdb-70533}`, `{tmdb-15196}`)
+  - Supports all providers: `tvdb`, `tmdb`, `omdb`, `tvmaze`, `anidb`, `fanarttv`
+  - Bypasses search entirely, uses direct API lookup
+  - Case-insensitive provider names
 - `optimize-parallel`: `-y/--yes` to auto-confirm destructive actions
 - `optimize`/`optimize-parallel`: `--regen-gamelist` to regenerate gamelist.xml after optimization
 - Progress bar with ETA for `optimize-parallel`
 
 ### Changed
 - Parallel optimizer now deletes originals incrementally (post-validation) and uses atomic replace to preserve filenames
+- Scraper now checks for API tags in filenames before performing search
+- Improved error handling with user-friendly prompts for resolution
 
 ### Docs
 - Updated README and user/technical docs for new options and UI
+- Added comprehensive documentation for incremental scraping, interactive resolution, and filename API tags
 # Documentation Changelog
 
 ## 2024-12-19 - Documentation Reorganization & Visual Enhancements

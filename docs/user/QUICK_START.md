@@ -190,6 +190,119 @@ python -m mpv_scraper.cli generate /mpv
 
 The scraper will prompt for ambiguous titles and automatically retry failed downloads.
 
+---
+
+## Advanced Scraping Features
+
+### Incremental Scraping
+
+By default, the scraper checks for already-scraped content and skips it to save time and API calls. This is especially useful when adding new episodes to existing shows or new movies to your library.
+
+**How it works:**
+- Checks for existing `.scrape_cache.json` files
+- Verifies that episode/movie images exist
+- Only scrapes new or missing content
+
+**Force re-scrape everything:**
+```bash
+# Re-scrape all content, ignoring existing cache
+python -m mpv_scraper.cli scrape /mpv --refresh
+```
+
+**Example workflow:**
+```bash
+# Initial scrape
+python -m mpv_scraper.cli scrape /mpv
+
+# Add new episodes to existing show
+# ... copy new files ...
+
+# Re-run scrape - only new episodes are processed
+python -m mpv_scraper.cli scrape /mpv
+```
+
+### Interactive Resolution
+
+When search fails or finds multiple ambiguous matches, you can enable interactive resolution to manually specify the correct API ID.
+
+**Enable interactive mode:**
+```bash
+# Prompt for manual ID input on failures/ambiguity
+python -m mpv_scraper.cli scrape /mpv --prompt-on-failure
+
+# Shorthand version
+python -m mpv_scraper.cli scrape /mpv --prof
+```
+
+**What happens:**
+- On **ambiguous results**: Shows list of matches, you can select by number or provide API ID
+- On **search failure**: Prompts for manual API ID input (e.g., `tvdb-70533` or `tmdb-15196`)
+- **Skip option**: You can skip problematic items to continue the run
+- **One retry**: If ID validation fails, you get one retry opportunity
+
+**API ID format:**
+- Accepts formats: `tvdb-70533`, `TVDB-70533`, `tvdb:70533` (case-insensitive)
+- Supported providers: `tvdb`, `tmdb`, `omdb`, `tvmaze`, `anidb`, `fanarttv`
+- Example: `tvdb-70533` for Twin Peaks, `tmdb-15196` for Clue (1985)
+
+**Example:**
+```bash
+# Scrape with interactive resolution enabled
+python -m mpv_scraper.cli scrape /mpv --prof
+
+# When ambiguity occurs:
+# ⚠️  Metadata lookup issue for: Twin Peaks
+# Found multiple possible matches. Please choose one:
+#   [1] Twin Peaks (1990) - ID: 70533
+#   [2] Twin Peaks: The Return (2017) - ID: 12345
+# Options:
+#   - Enter a number (1-2) to select a match
+#   - Enter an API ID (e.g., 'tvdb-70533' or 'tmdb-15196')
+#   - Enter 'skip' to skip this item
+# Your choice: 1
+```
+
+### Filename API Tags
+
+You can embed API IDs directly in filenames to bypass search entirely and use direct lookup. This is the most accurate and fastest method.
+
+**Format:**
+- Place API tag at the end of filename: `{provider-id}`
+- Example: `Twin Peaks - S01E01 - Pilot {tvdb-70533}.mp4`
+- Example: `Clue (1985) {tmdb-15196}.mkv`
+
+**Supported providers:**
+- `{tvdb-XXXX}` - TVDB ID for TV shows
+- `{tmdb-XXXX}` - TMDB ID for movies
+- `{omdb-XXXX}` - OMDb ID for movies
+- `{tvmaze-XXXX}` - TVmaze ID for TV shows
+- Case-insensitive: `{TVDB-70533}` works the same as `{tvdb-70533}`
+
+**Benefits:**
+- **Faster**: Skips search entirely, uses direct API lookup
+- **More accurate**: No ambiguity, exact match guaranteed
+- **Fewer API calls**: Direct lookup is more efficient than search
+
+**Example filenames:**
+```text
+# TV show with TVDB tag
+Twin Peaks - S01E01 - Pilot {tvdb-70533}.mp4
+
+# Movie with TMDB tag
+Clue (1985) {tmdb-15196}.mkv
+
+# Movie with OMDb tag
+The Terminator (1984) {omdb-tt0088247}.mp4
+```
+
+**How it works:**
+1. Parser extracts API tag from filename
+2. Scraper detects tag before performing search
+3. Uses direct API lookup with the ID
+4. Falls back to search if direct lookup fails
+
+**Note:** API tags are removed from the filename before title parsing, so they don't affect metadata extraction.
+
 You should end up with a structure like:
 
 ```text
@@ -211,6 +324,11 @@ The scraper provides these commands:
 
 - **`scan`** - Discover shows and movies in a directory
 - **`scrape`** - Download metadata and artwork from TVDB/TMDB
+  - `--refresh` - Force re-scrape of all content
+  - `--prompt-on-failure` / `--prof` - Interactive resolution for failures/ambiguity
+  - `--prefer-fallback` - Prefer fallback providers (TVmaze/OMDb)
+  - `--fallback-only` - Use only fallback providers
+  - `--no-remote` - Offline mode (cache/placeholder only)
 - **`generate`** - Create gamelist.xml files from scraped data
 - **`run`** - Complete workflow (scan → scrape → generate)
 - **`undo`** - Revert the last run using transaction.log
