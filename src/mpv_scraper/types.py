@@ -12,6 +12,7 @@ class TVMeta:
     start_ep: int
     end_ep: int
     titles: List[str] = field(default_factory=list)
+    api_tag: Optional[str] = None  # Format: "tvdb-70533" or "tmdb-15196"
 
 
 @dataclass
@@ -20,6 +21,7 @@ class MovieMeta:
 
     title: str
     year: Optional[int]
+    api_tag: Optional[str] = None  # Format: "tvdb-70533" or "tmdb-15196"
 
 
 @dataclass

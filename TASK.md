@@ -1098,3 +1098,90 @@ N/A (pure documentation)
   - All documentation now reflects current 69.47% coverage and 80%+ target
 
 ---
+
+## 19 · Sprint 19 (Incremental Scraping & Interactive Resolution)
+**Purpose:** Add incremental scraping to skip already-processed content and interactive resolution for ambiguous/failed metadata lookups.
+
+### 19.1 Filename API Tag Parsing
+* **Goal:** Parse API tags from filenames in format `{tvdb-70533}` or `{tmdb-15196}` at end of filename.
+* **Tests to Write:**
+  - `tests/test_parser.py::test_parse_filename_with_api_tag_tvdb`
+  - `tests/test_parser.py::test_parse_filename_with_api_tag_tmdb`
+  - `tests/test_parser.py::test_parse_filename_with_api_tag_case_insensitive`
+  - `tests/test_parser.py::test_parse_filename_with_api_tag_multiple_tags_uses_last`
+  - `tests/test_parser.py::test_parse_filename_with_api_tag_all_providers`
+* **Steps:**
+  1. Update `parse_tv_filename()` and `parse_movie_filename()` to extract API tags from `{provider-id}` format.
+  2. Support all providers: `tvdb`, `tmdb`, `omdb`, `tvmaze`, `anidb`, `fanarttv`.
+  3. Normalize to lowercase, accept case-insensitive input.
+  4. If multiple tags present, use last one as fallback.
+  5. Return API tag info in metadata dataclasses.
+* **Done when:** Tests pass and tags are extracted correctly from filenames.
+
+### 19.2 Incremental Scraping Detection
+* **Goal:** Check `.scrape_cache.json` and `transaction.log` to detect already-scraped content.
+* **Tests to Write:**
+  - `tests/test_scraper.py::test_is_episode_scraped_checks_cache`
+  - `tests/test_scraper.py::test_is_movie_scraped_checks_cache`
+  - `tests/test_scraper.py::test_detect_new_episodes_in_existing_show`
+  - `tests/test_scraper.py::test_incremental_scraping_skips_cached_episodes`
+  - `tests/test_scraper.py::test_incremental_scraping_processes_new_episodes`
+* **Steps:**
+  1. Create `_is_episode_scraped(show_dir: Path, season: int, episode: int, cache: dict) -> bool`.
+  2. Create `_is_movie_scraped(movie_path: Path, cache: dict) -> bool`.
+  3. Check `.scrape_cache.json` for episode/movie entries.
+  4. Verify images exist for cached entries.
+  5. Update `scrape_tv_parallel()` to skip already-scraped episodes.
+  6. Update `scrape_movie()` to skip already-scraped movies.
+  7. Add `--refresh` flag to force re-scrape (bypass cache checks).
+* **Done when:** Tests pass and incremental scraping works correctly.
+
+### 19.3 Interactive Resolution (`--prompt-on-failure` / `--prof`)
+* **Goal:** Prompt user on ambiguity or failure, allow manual ID input or skip.
+* **Tests to Write:**
+  - `tests/test_scraper.py::test_prompt_on_ambiguity_multiple_results`
+  - `tests/test_scraper.py::test_prompt_on_failure_no_results`
+  - `tests/test_scraper.py::test_prompt_accepts_api_id_format`
+  - `tests/test_scraper.py::test_prompt_validates_id_matches_filename`
+  - `tests/test_scraper.py::test_prompt_retry_on_mismatch`
+  - `tests/test_scraper.py::test_prompt_skip_option_continues_run`
+* **Steps:**
+  1. Add `--prompt-on-failure` / `--prof` flag to `scrape` command.
+  2. Create `_prompt_for_resolution(filename: str, search_results: List, error: str) -> Optional[str]`.
+  3. On ambiguity: show results, prompt for selection or manual ID.
+  4. On failure: prompt for manual ID or skip.
+  5. Normalize ID format (`tvdb-70533`, `TVDB-70533`, `tvdb:70533` all accepted).
+  6. Validate ID matches filename (e.g., Clue (1985) vs Clueless (1995)).
+  7. One retry with better error messaging on mismatch.
+  8. Skip option continues run without failing.
+* **Done when:** Tests pass and interactive resolution works correctly.
+
+### 19.4 API Tag Integration & Direct Lookup
+* **Goal:** Use filename API tags for direct lookup, bypassing search when tag present.
+* **Tests to Write:**
+  - `tests/test_scraper.py::test_filename_tag_bypasses_search`
+  - `tests/test_scraper.py::test_filename_tag_tvdb_direct_lookup`
+  - `tests/test_scraper.py::test_filename_tag_tmdb_direct_lookup`
+  - `tests/test_scraper.py::test_filename_tag_fallback_providers`
+* **Steps:**
+  1. Check for API tag in parsed metadata before search.
+  2. If tag present, use ID directly for API lookup (skip search).
+  3. Support all provider tags (tvdb, tmdb, omdb, tvmaze, etc.).
+  4. Log when using direct lookup vs search.
+* **Done when:** Tests pass and direct lookup works correctly.
+
+### 19.5 Integration & Documentation
+* **Goal:** Integrate all features, update docs, ensure backward compatibility.
+* **Tests to Write:**
+  - `tests/integration/test_incremental_scraping_flow.py`
+  - `tests/integration/test_interactive_resolution_flow.py`
+* **Steps:**
+  1. Update CLI help text for new flags.
+  2. Update `docs/user/QUICK_START.md` with incremental scraping examples.
+  3. Update `docs/user/FALLBACKS.md` with API tag format documentation.
+  4. Add examples showing `{tvdb-70533}` filename format.
+  5. Document ID format normalization and best practices.
+  6. Ensure all existing tests still pass.
+* **Done when:** Integration tests pass, docs updated, backward compatibility verified.
+
+---

@@ -215,6 +215,91 @@ def _safe_write_json(path: Path, data: Any) -> None:
     path.write_text(json.dumps(data, indent=2, ensure_ascii=False))
 
 
+def _load_scrape_cache(cache_path: Path) -> Optional[Dict[str, Any]]:
+    """Load scrape cache from JSON file if it exists."""
+    if cache_path.exists():
+        try:
+            return json.loads(cache_path.read_text())
+        except (json.JSONDecodeError, OSError):
+            return None
+    return None
+
+
+def _is_episode_scraped(
+    show_dir: Path,
+    season: int,
+    episode: int,
+    cache: Optional[Dict[str, Any]],
+    images_dir: Path,
+    show_name: str,
+) -> bool:
+    """
+    Check if an episode is already scraped by verifying cache and image existence.
+
+    Args:
+        show_dir: Directory containing the show
+        season: Season number
+        episode: Episode number
+        cache: Loaded cache dictionary (None if cache doesn't exist)
+        images_dir: Directory where episode images are stored
+        show_name: Name of the show (for image filename)
+
+    Returns:
+        True if episode is already scraped (exists in cache and image exists), False otherwise
+    """
+    if not cache:
+        return False
+
+    # Check if episode exists in cache
+    episodes = cache.get("episodes", [])
+    episode_found = False
+    for ep in episodes:
+        if ep.get("seasonNumber") == season and ep.get("number") == episode:
+            episode_found = True
+            break
+
+    if not episode_found:
+        return False
+
+    # Check if image exists
+    ep_span = f"S{season:02d}E{episode:02d}"
+    img_name = f"{show_name} - {ep_span}-image.png"
+    img_path = images_dir / img_name
+
+    return img_path.exists()
+
+
+def _is_movie_scraped(
+    movie_path: Path,
+    cache: Optional[Dict[str, Any]],
+    images_dir: Path,
+) -> bool:
+    """
+    Check if a movie is already scraped by verifying cache and image existence.
+
+    Args:
+        movie_path: Path to the movie file
+        cache: Loaded cache dictionary (None if cache doesn't exist)
+        images_dir: Directory where movie images are stored
+
+    Returns:
+        True if movie is already scraped (exists in cache and image exists), False otherwise
+    """
+    if not cache:
+        return False
+
+    # Check if movie exists in cache (cache is a single movie record)
+    # We verify it's a valid movie record by checking for common fields
+    if not cache.get("title") and not cache.get("name"):
+        return False
+
+    # Check if image exists
+    img_name = f"{movie_path.stem}-image.png"
+    img_path = images_dir / img_name
+
+    return img_path.exists()
+
+
 def _get_show_name_variations(show_name: str) -> list[str]:
     """
     Generate variations of a show name for better TVDB matching.
@@ -281,6 +366,7 @@ def scrape_tv_parallel(
     prefer_fallback: bool = False,
     fallback_only: bool = False,
     no_remote: bool = False,
+    refresh: bool = False,
 ) -> List[DownloadTask]:
     """
     Scrape metadata for a TV show directory and queue downloads for parallel processing.
@@ -296,6 +382,10 @@ def scrape_tv_parallel(
         images_dir.mkdir(exist_ok=True, parents=True)
         if transaction_logger:
             transaction_logger.log_create(images_dir)
+
+    # Load existing cache for incremental scraping
+    cache_path = show_dir / CACHE_FILE
+    existing_cache = None if refresh else _load_scrape_cache(cache_path)
 
     # Provider selection
     if no_remote:
@@ -535,11 +625,28 @@ def scrape_tv_parallel(
 
     # Collect all download tasks
     download_tasks = []
+    skipped_count = 0
 
     for file_path, meta in episode_files:
         # Look for API image for the first episode in the span
         target_season = meta.season
         target_episode = meta.start_ep
+
+        # Check if episode is already scraped (incremental scraping)
+        if not refresh and existing_cache:
+            if _is_episode_scraped(
+                show_dir,
+                target_season,
+                target_episode,
+                existing_cache,
+                images_dir,
+                show_dir.name,
+            ):
+                logger.debug(
+                    f"Skipping already-scraped episode S{target_season:02d}E{target_episode:02d} for {show_dir.name}"
+                )
+                skipped_count += 1
+                continue
 
         # Try TVDB first
         api_episode = None
@@ -632,9 +739,12 @@ def scrape_tv_parallel(
     logger.info(
         f"Queued {len(download_tasks)} episode images for {show_dir.name} (parallel processing)"
     )
+    if skipped_count > 0:
+        logger.info(
+            f"Skipped {skipped_count} already-scraped episodes for {show_dir.name} (use --refresh to re-scrape)"
+        )
 
-    # 5. Cache the record
-    cache_path = show_dir / CACHE_FILE
+    # 5. Cache the record (update existing cache or create new)
     _safe_write_json(cache_path, record)
     if transaction_logger:
         transaction_logger.log_create(cache_path)
@@ -651,6 +761,7 @@ def scrape_movie(
     prefer_fallback: bool = False,
     fallback_only: bool = False,
     no_remote: bool = False,
+    refresh: bool = False,
 ) -> None:  # pragma: no cover – covered via integration
     """Scrape a movie file.
 
@@ -667,6 +778,25 @@ def scrape_movie(
     movie_meta = parse_movie_filename(movie_path.name)
     if not movie_meta:
         raise RuntimeError(f"Could not parse movie filename: {movie_path.name!r}")
+
+    # Use top-level images directory if provided, otherwise create local images directory
+    if top_images_dir:
+        images_dir = top_images_dir
+    else:
+        images_dir = movie_path.parent / "images"
+        images_dir.mkdir(exist_ok=True, parents=True)
+        if transaction_logger:
+            transaction_logger.log_create(images_dir)
+
+    # Check if movie is already scraped (incremental scraping)
+    movie_cache_file = movie_path.parent / CACHE_FILE
+    existing_cache = None if refresh else _load_scrape_cache(movie_cache_file)
+    if not refresh and existing_cache:
+        if _is_movie_scraped(movie_path, existing_cache, images_dir):
+            logger.info(
+                f"Skipping already-scraped movie {movie_meta.title} (use --refresh to re-scrape)"
+            )
+            return
 
     # 2. Provider selection
     if no_remote:
@@ -697,15 +827,6 @@ def scrape_movie(
             raise RuntimeError(
                 f"Could not find metadata for movie {movie_meta.title!r}"
             )
-
-    # 4. Use top-level images directory if provided, otherwise create local images directory
-    if top_images_dir:
-        images_dir = top_images_dir
-    else:
-        images_dir = movie_path.parent / "images"
-        images_dir.mkdir(exist_ok=True, parents=True)
-        if transaction_logger:
-            transaction_logger.log_create(images_dir)
 
     # 5. Download poster
     poster_url = record.get("poster_url")
@@ -799,7 +920,6 @@ def scrape_movie(
 
     # 7. Cache raw record for later generate step
     # Store in standard .scrape_cache.json file for consistency with TV shows
-    movie_cache_file = movie_path.parent / ".scrape_cache.json"
     _safe_write_json(movie_cache_file, record)
     if transaction_logger:
         transaction_logger.log_create(movie_cache_file)

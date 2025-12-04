@@ -2,12 +2,19 @@
 
 from __future__ import annotations
 
+import json
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
 
-from mpv_scraper.scraper import scrape_tv_parallel, scrape_movie
+from mpv_scraper.scraper import (
+    scrape_tv_parallel,
+    scrape_movie,
+    _is_episode_scraped,
+    _is_movie_scraped,
+    _load_scrape_cache,
+)
 
 
 def test_missing_artwork_placeholder():
@@ -164,3 +171,83 @@ def test_scraper_continues_on_partial_failures():
             assert (
                 mock_download_marquee.called
             ), "Should attempt to download logo even if it fails"
+
+
+def test_is_episode_scraped_checks_cache():
+    """Test that _is_episode_scraped correctly checks cache and image existence."""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        show_dir = Path(tmpdir) / "Test Show"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        images_dir = show_dir / "images"
+        images_dir.mkdir()
+
+        # Create cache with episode
+        cache = {
+            "episodes": [
+                {
+                    "seasonNumber": 1,
+                    "number": 1,
+                    "overview": "Test episode",
+                }
+            ],
+            "siteRating": 8.5,
+        }
+        cache_file = show_dir / ".scrape_cache.json"
+        cache_file.write_text(json.dumps(cache))
+
+        # Create episode image
+        img_path = images_dir / "Test Show - S01E01-image.png"
+        img_path.touch()
+
+        # Load cache and check
+        loaded_cache = _load_scrape_cache(cache_file)
+        assert _is_episode_scraped(
+            show_dir, 1, 1, loaded_cache, images_dir, "Test Show"
+        )
+
+        # Episode not in cache
+        assert not _is_episode_scraped(
+            show_dir, 1, 2, loaded_cache, images_dir, "Test Show"
+        )
+
+        # Episode in cache but no image
+        img_path.unlink()
+        assert not _is_episode_scraped(
+            show_dir, 1, 1, loaded_cache, images_dir, "Test Show"
+        )
+
+
+def test_is_movie_scraped_checks_cache():
+    """Test that _is_movie_scraped correctly checks cache and image existence."""
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        movie_dir = Path(tmpdir)
+        movie_path = movie_dir / "Clue (1985).mkv"
+        movie_path.touch()
+        images_dir = movie_dir / "images"
+        images_dir.mkdir()
+
+        # Create cache with movie
+        cache = {
+            "title": "Clue",
+            "overview": "Test movie",
+            "release_date": "1985-12-13",
+        }
+        cache_file = movie_dir / ".scrape_cache.json"
+        cache_file.write_text(json.dumps(cache))
+
+        # Create movie image
+        img_path = images_dir / "Clue (1985)-image.png"
+        img_path.touch()
+
+        # Load cache and check
+        loaded_cache = _load_scrape_cache(cache_file)
+        assert _is_movie_scraped(movie_path, loaded_cache, images_dir)
+
+        # No image
+        img_path.unlink()
+        assert not _is_movie_scraped(movie_path, loaded_cache, images_dir)
+
+        # No cache
+        assert not _is_movie_scraped(movie_path, None, images_dir)

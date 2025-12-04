@@ -163,7 +163,14 @@ def scan(path):
     is_flag=True,
     help="Do not perform any network calls; cache/placeholder only",
 )
-def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
+@click.option(
+    "--refresh",
+    is_flag=True,
+    help="Force re-scrape of all content, bypassing incremental scraping checks",
+)
+def scrape(
+    path, prefer_fallback=False, fallback_only=False, no_remote=False, refresh=False
+):
     """Scrape metadata and artwork for DIRECTORY.
 
     Scans *path* and downloads:
@@ -296,6 +303,7 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
                 prefer_fallback=prefer_fallback,
                 fallback_only=fallback_only,
                 no_remote=no_remote,
+                refresh=refresh,
             )
             all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
@@ -316,6 +324,7 @@ def scrape(path, prefer_fallback=False, fallback_only=False, no_remote=False):
                 prefer_fallback=prefer_fallback,
                 fallback_only=fallback_only,
                 no_remote=no_remote,
+                refresh=refresh,
             )
             click.echo(f"✓ Scraped {movie.path.name}")
             logger_out.info("Scraped movie: %s", movie.path.name)
