@@ -338,3 +338,117 @@ def test_prompt_skip_option(monkeypatch):
 
     result = _prompt_for_resolution("Test.mkv", search_results=search_results)
     assert result is None
+
+
+def test_filename_tag_bypasses_search():
+    """Test that filename API tags bypass search and use direct lookup."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        show_dir = Path(tmpdir) / "Twin Peaks"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        # Create episode file with API tag
+        (show_dir / "Twin Peaks - S01E01 - Pilot {tvdb-70533}.mp4").touch()
+
+        with patch("mpv_scraper.scraper.tvdb") as mock_tvdb, patch(
+            "mpv_scraper.scraper.download_image"
+        ), patch("mpv_scraper.scraper.download_marquee"):
+            mock_tvdb.authenticate_tvdb.return_value = "token"
+            # Mock direct lookup (should be called, not search)
+            mock_tvdb.get_series_extended.return_value = {
+                "episodes": [
+                    {
+                        "seasonNumber": 1,
+                        "number": 1,
+                        "overview": "Test episode",
+                    }
+                ],
+                "image": "https://example.com/poster.png",
+                "artworks": {},
+                "siteRating": 8.5,
+            }
+
+            from mpv_scraper.scraper import ParallelDownloadManager
+
+            download_manager = ParallelDownloadManager()
+            scrape_tv_parallel(show_dir, download_manager)
+
+            # Verify search was NOT called (direct lookup used instead)
+            assert not mock_tvdb.search_show.called
+            # Verify direct lookup WAS called
+            assert mock_tvdb.get_series_extended.called
+            assert mock_tvdb.get_series_extended.call_args[0][0] == 70533
+
+
+def test_filename_tag_tvdb_direct_lookup():
+    """Test that TVDB API tag performs direct lookup."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        show_dir = Path(tmpdir) / "Test Show"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        (show_dir / "Test Show - S01E01 - Pilot {tvdb-12345}.mp4").touch()
+
+        with patch("mpv_scraper.scraper.tvdb") as mock_tvdb, patch(
+            "mpv_scraper.scraper.download_image"
+        ), patch("mpv_scraper.scraper.download_marquee"):
+            mock_tvdb.authenticate_tvdb.return_value = "token"
+            mock_tvdb.get_series_extended.return_value = {
+                "episodes": [{"seasonNumber": 1, "number": 1}],
+                "image": "https://example.com/poster.png",
+                "artworks": {},
+            }
+
+            from mpv_scraper.scraper import ParallelDownloadManager
+
+            download_manager = ParallelDownloadManager()
+            scrape_tv_parallel(show_dir, download_manager)
+
+            # Should call get_series_extended with ID 12345
+            mock_tvdb.get_series_extended.assert_called_with(12345, "token")
+            # Should NOT call search_show
+            assert not mock_tvdb.search_show.called
+
+
+def test_filename_tag_tmdb_direct_lookup():
+    """Test that TMDB API tag performs direct lookup for movies."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        movie_file = Path(tmpdir) / "Clue (1985) {tmdb-15196}.mkv"
+        movie_file.touch()
+
+        with patch("mpv_scraper.scraper.tmdb") as mock_tmdb, patch(
+            "mpv_scraper.scraper.download_image"
+        ), patch("mpv_scraper.scraper.download_marquee"):
+            mock_tmdb.get_movie_details.return_value = {
+                "id": 15196,
+                "title": "Clue",
+                "overview": "Test movie",
+                "poster_url": "https://example.com/poster.png",
+            }
+
+            scrape_movie(movie_file)
+
+            # Should call get_movie_details with ID 15196
+            mock_tmdb.get_movie_details.assert_called_with(15196)
+            # Should NOT call search_movie
+            assert not mock_tmdb.search_movie.called
+
+
+def test_filename_tag_fallback_providers():
+    """Test that API tags work with fallback providers."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        show_dir = Path(tmpdir) / "Test Show"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        (show_dir / "Test Show - S01E01 - Pilot {tvmaze-12345}.mp4").touch()
+
+        with patch("mpv_scraper.tvmaze.get_show_episodes") as mock_get_episodes, patch(
+            "mpv_scraper.scraper.download_image"
+        ), patch("mpv_scraper.scraper.download_marquee"):
+            mock_get_episodes.return_value = [
+                {"season": 1, "number": 1, "name": "Pilot"}
+            ]
+
+            from mpv_scraper.scraper import ParallelDownloadManager
+
+            download_manager = ParallelDownloadManager()
+            # Use fallback-only to trigger TVmaze path
+            scrape_tv_parallel(show_dir, download_manager, fallback_only=True)
+
+            # Should call get_show_episodes with ID 12345
+            mock_get_episodes.assert_called_with(12345)

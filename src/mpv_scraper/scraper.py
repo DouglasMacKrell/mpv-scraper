@@ -624,34 +624,109 @@ def scrape_tv_parallel(
             except Exception:
                 try_tvdb = False
 
+        # Check for API tag in filename before searching
+        from mpv_scraper.parser import parse_tv_filename
+
+        episode_files = list(show_dir.glob("*.mp4")) + list(show_dir.glob("*.mkv"))
+        parsed_meta = None
+        api_tag = None
+        if episode_files:
+            parsed_meta = parse_tv_filename(episode_files[0].name)
+            if parsed_meta and parsed_meta.api_tag:
+                api_tag = parsed_meta.api_tag
+                logger.info(
+                    f"Found API tag in filename for {show_dir.name}: {api_tag}. Using direct lookup."
+                )
+
         # Search and get record
         if use_tvmaze and not try_tvdb:
             # Fallback path via TVmaze
             from mpv_scraper import tvmaze
 
-            results = tvmaze.search_show(show_dir.name)
-            if not results:
-                raise RuntimeError(
-                    f"TVmaze could not find series for {show_dir.name!r}"
-                )
-            series_id = results[0]["id"]
-            episodes = tvmaze.get_show_episodes(series_id)
-            record = {"episodes": episodes, "artworks": {}}
+            # Check if API tag specifies TVmaze
+            if api_tag:
+                normalized = _normalize_api_id(api_tag)
+                if normalized:
+                    provider, show_id_str = normalized
+                    if provider == "tvmaze":
+                        episodes = tvmaze.get_show_episodes(int(show_id_str))
+                        record = {"episodes": episodes, "artworks": {}}
+                    else:
+                        logger.warning(
+                            f"API tag {api_tag} specifies {provider}, but using TVmaze fallback. Ignoring tag."
+                        )
+                        results = tvmaze.search_show(show_dir.name)
+                        if not results:
+                            raise RuntimeError(
+                                f"TVmaze could not find series for {show_dir.name!r}"
+                            )
+                        series_id = results[0]["id"]
+                        episodes = tvmaze.get_show_episodes(series_id)
+                        record = {"episodes": episodes, "artworks": {}}
+                else:
+                    results = tvmaze.search_show(show_dir.name)
+                    if not results:
+                        raise RuntimeError(
+                            f"TVmaze could not find series for {show_dir.name!r}"
+                        )
+                    series_id = results[0]["id"]
+                    episodes = tvmaze.get_show_episodes(series_id)
+                    record = {"episodes": episodes, "artworks": {}}
+            else:
+                results = tvmaze.search_show(show_dir.name)
+                if not results:
+                    raise RuntimeError(
+                        f"TVmaze could not find series for {show_dir.name!r}"
+                    )
+                series_id = results[0]["id"]
+                episodes = tvmaze.get_show_episodes(series_id)
+                record = {"episodes": episodes, "artworks": {}}
         else:
             # TVDB path
             token = headers.get("Authorization", "")[7:] if headers else None
             if not token:
                 # If we ended here with no token and not using TVmaze, bail
                 raise RuntimeError("TVDB auth missing and fallback not selected")
-            show_name_variations = _get_show_name_variations(show_dir.name)
-            search_results = None
-            for variation in show_name_variations:
-                try:
-                    search_results = tvdb.search_show(variation, token)
-                    if search_results:
-                        break
-                except Exception:
-                    continue
+
+            # Check if API tag specifies direct lookup
+            if api_tag:
+                normalized = _normalize_api_id(api_tag)
+                if normalized:
+                    provider, series_id_str = normalized
+                    if provider == "tvdb":
+                        logger.info(f"Using API tag for direct TVDB lookup: {api_tag}")
+                        record = tvdb.get_series_extended(int(series_id_str), token)
+                        if record:
+                            # Success - skip search
+                            search_results = [{"id": int(series_id_str)}]
+                        else:
+                            logger.warning(
+                                f"Failed to fetch record for {api_tag}. Falling back to search."
+                            )
+                            search_results = None
+                    else:
+                        logger.warning(
+                            f"API tag {api_tag} specifies {provider}, but TVDB is primary. Ignoring tag."
+                        )
+                        search_results = None
+                else:
+                    logger.warning(
+                        f"Invalid API tag format: {api_tag}. Falling back to search."
+                    )
+                    search_results = None
+            else:
+                search_results = None
+
+            # Perform search if no direct lookup was successful
+            if not search_results:
+                show_name_variations = _get_show_name_variations(show_dir.name)
+                for variation in show_name_variations:
+                    try:
+                        search_results = tvdb.search_show(variation, token)
+                        if search_results:
+                            break
+                    except Exception:
+                        continue
             if not search_results:
                 error_msg = f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
                 if prompt_on_failure:
@@ -1097,31 +1172,74 @@ def scrape_movie(
             )
             return
 
-    # 2. Provider selection
+    # 2. Check for API tag in filename before searching
+    api_tag = movie_meta.api_tag if movie_meta.api_tag else None
+    if api_tag:
+        logger.info(
+            f"Found API tag in filename for {movie_meta.title}: {api_tag}. Using direct lookup."
+        )
+
+    # 3. Provider selection
     if no_remote:
         record = {}
     else:
         try_tmdb = not fallback_only
         record = None
-        if try_tmdb:
-            try:
-                search_results = tmdb.search_movie(movie_meta.title, movie_meta.year)
-            except Exception:
-                search_results = []
-            if search_results:
-                movie_id = search_results[0]["id"]
-                record = tmdb.get_movie_details(movie_id)
-        if record is None:
-            # Try OMDb fallback if available
-            from mpv_scraper import omdb
 
-            try:
-                omdb_results = omdb.search_movie(movie_meta.title, movie_meta.year)
-            except Exception:
-                omdb_results = []
-            if omdb_results:
-                imdb_id = omdb_results[0]["id"]
-                record = omdb.get_movie_details(imdb_id)
+        # Check if API tag specifies direct lookup
+        if api_tag:
+            normalized = _normalize_api_id(api_tag)
+            if normalized:
+                provider, movie_id_str = normalized
+                if provider == "tmdb":
+                    logger.info(f"Using API tag for direct TMDB lookup: {api_tag}")
+                    try:
+                        record = tmdb.get_movie_details(int(movie_id_str))
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to fetch record for {api_tag}: {e}. Falling back to search."
+                        )
+                        record = None
+                elif provider == "omdb":
+                    logger.info(f"Using API tag for direct OMDb lookup: {api_tag}")
+                    from mpv_scraper import omdb
+
+                    try:
+                        record = omdb.get_movie_details(movie_id_str)
+                    except Exception as e:
+                        logger.warning(
+                            f"Failed to fetch record for {api_tag}: {e}. Falling back to search."
+                        )
+                        record = None
+                else:
+                    logger.warning(
+                        f"API tag {api_tag} specifies {provider}, which is not supported for movies. Falling back to search."
+                    )
+                    record = None
+
+        # Perform search if no direct lookup was successful
+        if record is None:
+            if try_tmdb:
+                try:
+                    search_results = tmdb.search_movie(
+                        movie_meta.title, movie_meta.year
+                    )
+                except Exception:
+                    search_results = []
+                if search_results:
+                    movie_id = search_results[0]["id"]
+                    record = tmdb.get_movie_details(movie_id)
+            if record is None:
+                # Try OMDb fallback if available
+                from mpv_scraper import omdb
+
+                try:
+                    omdb_results = omdb.search_movie(movie_meta.title, movie_meta.year)
+                except Exception:
+                    omdb_results = []
+                if omdb_results:
+                    imdb_id = omdb_results[0]["id"]
+                    record = omdb.get_movie_details(imdb_id)
         if record is None:
             raise RuntimeError(
                 f"Could not find metadata for movie {movie_meta.title!r}"
