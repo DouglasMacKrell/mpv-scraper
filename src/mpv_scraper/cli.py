@@ -355,6 +355,7 @@ def scrape(
         # Process results
         successful_downloads = 0
         failed_downloads = 0
+        fallback_screenshot_tasks = []
         for task, success, error in results:
             if success:
                 successful_downloads += 1
@@ -364,6 +365,27 @@ def scrape(
                 click.echo(
                     f"✗ Failed to download {task.source} image for {task.episode_info}: {error}"
                 )
+                # If API image download failed and we have a video path, fall back to screenshot
+                if (
+                    task.source in ["TVDB", "TMDB"]
+                    and task.video_path
+                    and task.video_path.exists()
+                ):
+                    # Create screenshot fallback task
+                    from mpv_scraper.scraper import DownloadTask
+
+                    screenshot_task = DownloadTask(
+                        url="",  # Not used for screenshots
+                        dest_path=task.dest_path,
+                        source="SCREENSHOT",
+                        show_name=task.show_name,
+                        episode_info=task.episode_info,
+                        video_path=task.video_path,
+                    )
+                    fallback_screenshot_tasks.append(screenshot_task)
+                    logger.info(
+                        f"Will generate screenshot fallback for {task.episode_info} after download failures"
+                    )
 
         click.echo(
             f"✓ Completed parallel downloads: {successful_downloads} successful, {failed_downloads} failed"
@@ -373,6 +395,32 @@ def scrape(
             successful_downloads,
             failed_downloads,
         )
+
+        # Execute fallback screenshot generation for failed API downloads
+        if fallback_screenshot_tasks:
+            click.echo(
+                f"Generating {len(fallback_screenshot_tasks)} fallback screenshots for failed downloads..."
+            )
+            for task in fallback_screenshot_tasks:
+                download_manager.add_task(task)
+            screenshot_results = download_manager.execute_downloads()
+            screenshot_success = sum(
+                1 for _, success, _ in screenshot_results if success
+            )
+            screenshot_failed = len(screenshot_results) - screenshot_success
+            click.echo(
+                f"✓ Fallback screenshots: {screenshot_success} successful, {screenshot_failed} failed"
+            )
+            logger_out.info(
+                "Fallback screenshots: %d success, %d failed",
+                screenshot_success,
+                screenshot_failed,
+            )
+            # Log creation of successful screenshot files
+            for task, success, _ in screenshot_results:
+                if success:
+                    logger.log_create(task.dest_path)
+
         _jobs_inc()
     else:
         click.echo("No downloads to process.")

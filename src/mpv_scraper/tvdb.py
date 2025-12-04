@@ -9,9 +9,12 @@ import click
 import os
 import requests
 import json
+import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import time
+
+logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path.home() / ".cache" / "mpv-scraper"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -244,6 +247,129 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
             episodes_response_data if isinstance(episodes_response_data, list) else []
         )
 
+    # Fetch episode artwork for episodes that don't have images in the episode object
+    # TVDB V4 may require fetching episode artwork separately
+    episode_artwork_map = {}
+    episodes_needing_artwork = []
+
+    # First pass: identify episodes without images
+    for ep in episodes_data:
+        if isinstance(ep, dict) and ep.get("id"):
+            # Check if episode already has an image in the response
+            has_image = (
+                (
+                    ep.get("image")
+                    and isinstance(ep.get("image"), str)
+                    and ep.get("image").strip()
+                )
+                or (
+                    ep.get("filename")
+                    and isinstance(ep.get("filename"), str)
+                    and ep.get("filename").strip()
+                )
+                or (
+                    ep.get("imageUrl")
+                    and isinstance(ep.get("imageUrl"), str)
+                    and ep.get("imageUrl").strip()
+                )
+            )
+            if not has_image:
+                episodes_needing_artwork.append(ep.get("id"))
+
+    # Fetch artwork for all episodes that need it with proper rate limiting
+    # TVDB API typically allows ~2 requests per second, so we use 0.5s delay (2 req/sec)
+    for idx, episode_id in enumerate(episodes_needing_artwork):
+        try:
+            # Rate limit: wait between requests (except for the first one)
+            if idx > 0:
+                time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+
+            # Make request with retry logic for rate limit errors
+            max_retries = 3
+            retry_delay = 2  # Start with 2 seconds
+            artwork_response = None
+
+            for attempt in range(max_retries):
+                try:
+                    artwork_response = requests.get(
+                        f"https://api4.thetvdb.com/v4/episodes/{episode_id}/artworks",
+                        headers=headers,
+                        timeout=10,
+                    )
+
+                    # Handle rate limiting (429 Too Many Requests)
+                    if artwork_response.status_code == 429:
+                        # Check for Retry-After header
+                        retry_after = artwork_response.headers.get("Retry-After")
+                        if retry_after:
+                            wait_time = int(retry_after) + 1  # Add 1 second buffer
+                        else:
+                            wait_time = retry_delay * (
+                                2**attempt
+                            )  # Exponential backoff
+
+                        if attempt < max_retries - 1:
+                            logger.debug(
+                                f"Rate limited (429) for episode {episode_id}, waiting {wait_time}s before retry {attempt + 1}/{max_retries}"
+                            )
+                            time.sleep(wait_time)
+                            continue
+                        else:
+                            # Max retries reached, skip this episode
+                            logger.warning(
+                                f"Rate limited (429) for episode {episode_id} after {max_retries} attempts, skipping"
+                            )
+                            break
+
+                    # If we got a successful response or non-rate-limit error, break retry loop
+                    artwork_response.raise_for_status()
+                    break
+
+                except requests.exceptions.RequestException as e:
+                    if attempt < max_retries - 1:
+                        logger.debug(
+                            f"Request failed for episode {episode_id}: {e}, retrying in {retry_delay}s"
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        logger.debug(
+                            f"Request failed for episode {episode_id} after {max_retries} attempts: {e}"
+                        )
+                        raise
+
+            if artwork_response and artwork_response.status_code == 200:
+                artwork_data = artwork_response.json().get("data", [])
+                if isinstance(artwork_data, dict):
+                    artwork_data = artwork_data.get(
+                        "artworks", artwork_data.get("results", [])
+                    )
+                if artwork_data and isinstance(artwork_data, list):
+                    # Look for screencap/thumbnail type artwork
+                    for artwork in artwork_data:
+                        artwork_type = artwork.get("type", "").lower()
+                        if artwork_type in ("screencap", "thumbnail", "episode"):
+                            img_path = artwork.get("image") or artwork.get(
+                                "fileName", ""
+                            )
+                            if img_path:
+                                if img_path.startswith("http"):
+                                    episode_artwork_map[episode_id] = img_path
+                                else:
+                                    episode_artwork_map[episode_id] = (
+                                        f"https://artworks.thetvdb.com/banners/{img_path}"
+                                    )
+                                break
+        except Exception as e:
+            # Skip if artwork fetch fails for this episode
+            logger.debug(f"Failed to fetch artwork for episode {episode_id}: {e}")
+            continue
+
+    if episode_artwork_map:
+        logger.info(
+            f"Fetched artwork for {len(episode_artwork_map)}/{len(episodes_needing_artwork)} episodes that needed it"
+        )
+
     # Get image URLs from series data
     # V4 API may use different field names
     poster_url = None
@@ -296,16 +422,48 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     transformed_episodes = []
     for ep in episodes_data:
         if isinstance(ep, dict):
-            # Get episode image - V4 may use different field names
+            # Get episode image - V4 API may return image in different fields
             episode_image = None
+
+            # Try direct image field first (full URL)
             if ep.get("image"):
-                episode_image = (
-                    ep.get("image")
-                    if ep.get("image").startswith("http")
-                    else f"https://www.thetvdb.com/banners/{ep.get('image')}"
-                )
+                img_val = ep.get("image")
+                if isinstance(img_val, str) and img_val.strip():
+                    if img_val.startswith("http"):
+                        episode_image = img_val
+                    else:
+                        episode_image = f"https://www.thetvdb.com/banners/{img_val}"
+
+            # Try filename field
             elif ep.get("filename"):
-                episode_image = f"https://www.thetvdb.com/banners/{ep.get('filename')}"
+                filename_val = ep.get("filename")
+                if isinstance(filename_val, str) and filename_val.strip():
+                    episode_image = f"https://www.thetvdb.com/banners/{filename_val}"
+
+            # V4 API may have imageUrl field
+            elif ep.get("imageUrl"):
+                img_url_val = ep.get("imageUrl")
+                if isinstance(img_url_val, str) and img_url_val.strip():
+                    episode_image = img_url_val
+
+            # V4 API may have artwork/image in nested structure
+            elif ep.get("artwork") and isinstance(ep.get("artwork"), dict):
+                artwork = ep.get("artwork")
+                if artwork.get("image"):
+                    img_val = artwork.get("image")
+                    if isinstance(img_val, str) and img_val.strip():
+                        if img_val.startswith("http"):
+                            episode_image = img_val
+                        else:
+                            episode_image = f"https://www.thetvdb.com/banners/{img_val}"
+
+            # Use artwork fetched from separate endpoint if available
+            if (
+                not episode_image
+                and ep.get("id")
+                and ep.get("id") in episode_artwork_map
+            ):
+                episode_image = episode_artwork_map[ep.get("id")]
 
             # V4 API uses different field names - try both V3 and V4 formats
             season_num = (

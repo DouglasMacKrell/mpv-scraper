@@ -624,13 +624,29 @@ def scrape_tv_parallel(
             except Exception:
                 try_tvdb = False
 
-        # Check for API tag in filename before searching
-        from mpv_scraper.parser import parse_tv_filename
+        # Check for API tag in folder name first, then in filenames
+        from mpv_scraper.parser import _extract_api_tag, parse_tv_filename
+        import re
+
+        # Extract API tag from folder name (e.g., "Show Name (2018) {tvdb-347765}")
+        folder_api_tag = _extract_api_tag(show_dir.name)
+
+        # Clean folder name by removing API tag for searching
+        clean_show_name = show_dir.name
+        if folder_api_tag:
+            # Remove {provider-id} pattern (case-insensitive) from folder name
+            clean_show_name = re.sub(
+                r"\s*\{[a-zA-Z]+-\d+\}\s*", "", clean_show_name, flags=re.IGNORECASE
+            ).strip()
+            logger.info(
+                f"Found API tag in folder name for {show_dir.name}: {folder_api_tag}. Using direct lookup."
+            )
 
         episode_files = list(show_dir.glob("*.mp4")) + list(show_dir.glob("*.mkv"))
         parsed_meta = None
-        api_tag = None
-        if episode_files:
+        api_tag = folder_api_tag  # Prefer folder API tag
+        if not api_tag and episode_files:
+            # Fall back to filename API tag if folder doesn't have one
             parsed_meta = parse_tv_filename(episode_files[0].name)
             if parsed_meta and parsed_meta.api_tag:
                 api_tag = parsed_meta.api_tag
@@ -655,28 +671,28 @@ def scrape_tv_parallel(
                         logger.warning(
                             f"API tag {api_tag} specifies {provider}, but using TVmaze fallback. Ignoring tag."
                         )
-                        results = tvmaze.search_show(show_dir.name)
+                        results = tvmaze.search_show(clean_show_name)
                         if not results:
                             raise RuntimeError(
-                                f"TVmaze could not find series for {show_dir.name!r}"
+                                f"TVmaze could not find series for {clean_show_name!r}"
                             )
                         series_id = results[0]["id"]
                         episodes = tvmaze.get_show_episodes(series_id)
                         record = {"episodes": episodes, "artworks": {}}
                 else:
-                    results = tvmaze.search_show(show_dir.name)
+                    results = tvmaze.search_show(clean_show_name)
                     if not results:
                         raise RuntimeError(
-                            f"TVmaze could not find series for {show_dir.name!r}"
+                            f"TVmaze could not find series for {clean_show_name!r}"
                         )
                     series_id = results[0]["id"]
                     episodes = tvmaze.get_show_episodes(series_id)
                     record = {"episodes": episodes, "artworks": {}}
             else:
-                results = tvmaze.search_show(show_dir.name)
+                results = tvmaze.search_show(clean_show_name)
                 if not results:
                     raise RuntimeError(
-                        f"TVmaze could not find series for {show_dir.name!r}"
+                        f"TVmaze could not find series for {clean_show_name!r}"
                     )
                 series_id = results[0]["id"]
                 episodes = tvmaze.get_show_episodes(series_id)
@@ -719,7 +735,7 @@ def scrape_tv_parallel(
 
             # Perform search if no direct lookup was successful
             if not search_results:
-                show_name_variations = _get_show_name_variations(show_dir.name)
+                show_name_variations = _get_show_name_variations(clean_show_name)
                 for variation in show_name_variations:
                     try:
                         search_results = tvdb.search_show(variation, token)
@@ -728,7 +744,7 @@ def scrape_tv_parallel(
                     except Exception:
                         continue
             if not search_results:
-                error_msg = f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
+                error_msg = f"TVDB could not find series for {clean_show_name!r} (tried variations: {show_name_variations})"
                 if prompt_on_failure:
                     # Parse filename to get metadata
                     from mpv_scraper.parser import parse_tv_filename
@@ -1036,14 +1052,28 @@ def scrape_tv_parallel(
                 break
 
         if api_episode and api_episode.get("image"):
-            img_url = api_episode["image"]
-            episodes_with_images += 1
-            tvdb_episode_count += 1
-            logger.debug(
-                f"Found TVDB episode image for S{target_season:02d}E{target_episode:02d}"
-            )
-        else:
-            # Try TMDB from bulk-fetched data
+            img_url_candidate = api_episode["image"]
+            # Validate that image URL is not empty and looks like a valid URL
+            if (
+                img_url_candidate
+                and isinstance(img_url_candidate, str)
+                and img_url_candidate.strip()
+            ):
+                img_url = img_url_candidate
+                episodes_with_images += 1
+                tvdb_episode_count += 1
+                logger.debug(
+                    f"Found TVDB episode image for S{target_season:02d}E{target_episode:02d}"
+                )
+            else:
+                # Invalid image URL (empty string, None, etc.) - treat as no image, try TMDB
+                img_url = None
+                logger.debug(
+                    f"TVDB episode image URL is invalid for S{target_season:02d}E{target_episode:02d}: {repr(img_url_candidate)}"
+                )
+
+        # Try TMDB if TVDB didn't provide a valid image URL
+        if not img_url:
             # Handle year-based episodes by mapping to season 1 for TMDB
             tmdb_season = 1 if target_season > 100 else target_season
             tmdb_key = f"S{tmdb_season:02d}E{target_episode:02d}"
@@ -1070,7 +1100,7 @@ def scrape_tv_parallel(
 
             dest = images_dir / f"{show_dir.name} - {span_name}-image.png"
 
-            # Create download task
+            # Create download task (include video_path for fallback screenshot generation)
             task = DownloadTask(
                 url=img_url,
                 dest_path=dest,
@@ -1078,6 +1108,7 @@ def scrape_tv_parallel(
                 show_name=show_dir.name,
                 episode_info=span_name,
                 headers=headers,
+                video_path=file_path,  # Include video path for fallback screenshot generation
             )
             download_tasks.append(task)
         else:
