@@ -168,8 +168,20 @@ def scan(path):
     is_flag=True,
     help="Force re-scrape of all content, bypassing incremental scraping checks",
 )
+@click.option(
+    "--prompt-on-failure",
+    "--prof",
+    "prompt_on_failure",
+    is_flag=True,
+    help="Prompt user for manual API ID input when search fails or is ambiguous",
+)
 def scrape(
-    path, prefer_fallback=False, fallback_only=False, no_remote=False, refresh=False
+    path,
+    prefer_fallback=False,
+    fallback_only=False,
+    no_remote=False,
+    refresh=False,
+    prompt_on_failure=False,
 ):
     """Scrape metadata and artwork for DIRECTORY.
 
@@ -304,6 +316,7 @@ def scrape(
                 fallback_only=fallback_only,
                 no_remote=no_remote,
                 refresh=refresh,
+                prompt_on_failure=prompt_on_failure,
             )
             all_tasks.extend(tasks)
             click.echo(f"✓ Scraped {show.path.name}")
@@ -325,6 +338,7 @@ def scrape(
                 fallback_only=fallback_only,
                 no_remote=no_remote,
                 refresh=refresh,
+                prompt_on_failure=prompt_on_failure,
             )
             click.echo(f"✓ Scraped {movie.path.name}")
             logger_out.info("Scraped movie: %s", movie.path.name)

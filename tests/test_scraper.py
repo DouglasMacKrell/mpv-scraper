@@ -14,6 +14,9 @@ from mpv_scraper.scraper import (
     _is_episode_scraped,
     _is_movie_scraped,
     _load_scrape_cache,
+    _normalize_api_id,
+    _validate_id_matches_filename,
+    _prompt_for_resolution,
 )
 
 
@@ -251,3 +254,87 @@ def test_is_movie_scraped_checks_cache():
 
         # No cache
         assert not _is_movie_scraped(movie_path, None, images_dir)
+
+
+def test_normalize_api_id():
+    """Test that API ID normalization works correctly."""
+    # Test dash separator
+    assert _normalize_api_id("tvdb-70533") == ("tvdb", "70533")
+    assert _normalize_api_id("TVDB-70533") == ("tvdb", "70533")  # Case insensitive
+    assert _normalize_api_id("tmdb-15196") == ("tmdb", "15196")
+
+    # Test colon separator
+    assert _normalize_api_id("tvdb:70533") == ("tvdb", "70533")
+    assert _normalize_api_id("TVDB:70533") == ("tvdb", "70533")
+
+    # Test invalid formats
+    assert _normalize_api_id("invalid-format") is None
+    assert _normalize_api_id("unsupported-12345") is None
+    assert _normalize_api_id("tvdb-abc") is None  # Non-numeric ID
+    assert _normalize_api_id("just-text") is None
+
+
+def test_validate_id_matches_filename():
+    """Test that ID validation works correctly."""
+
+    # Valid IDs
+    is_valid, error = _validate_id_matches_filename("70533", "tvdb", "test.mkv", None)
+    assert is_valid
+    assert error is None
+
+    # Invalid ID (non-numeric)
+    is_valid, error = _validate_id_matches_filename("abc", "tvdb", "test.mkv", None)
+    assert not is_valid
+    assert error is not None
+
+
+def test_prompt_on_ambiguity_multiple_results(monkeypatch):
+    """Test that prompt works on ambiguous results."""
+    from mpv_scraper.types import TVMeta
+
+    search_results = [
+        {"id": 1, "name": "Show A", "year": "2020"},
+        {"id": 2, "name": "Show B", "year": "2021"},
+    ]
+    parsed_meta = TVMeta(show="Test Show", season=1, start_ep=1, end_ep=1)
+
+    # Mock user input: select first result
+    inputs = ["1"]
+    monkeypatch.setattr("click.prompt", lambda *args, **kwargs: inputs.pop(0))
+
+    result = _prompt_for_resolution(
+        "Test Show - S01E01.mkv", search_results=search_results, parsed_meta=parsed_meta
+    )
+    assert result == "tvdb-1"  # Should return normalized API ID
+
+
+def test_prompt_on_failure_no_results(monkeypatch):
+    """Test that prompt works on search failure."""
+    from mpv_scraper.types import MovieMeta
+
+    parsed_meta = MovieMeta(title="Test Movie", year=2020)
+    error = "Could not find metadata"
+
+    # Mock user input: provide API ID
+    inputs = ["tmdb-15196"]
+    monkeypatch.setattr("click.prompt", lambda *args, **kwargs: inputs.pop(0))
+
+    result = _prompt_for_resolution(
+        "Test Movie (2020).mkv",
+        search_results=None,
+        error=error,
+        parsed_meta=parsed_meta,
+    )
+    assert result == "tmdb-15196"
+
+
+def test_prompt_skip_option(monkeypatch):
+    """Test that skip option works correctly."""
+    search_results = [{"id": 1, "name": "Show A"}]
+
+    # Mock user input: skip
+    inputs = ["skip"]
+    monkeypatch.setattr("click.prompt", lambda *args, **kwargs: inputs.pop(0))
+
+    result = _prompt_for_resolution("Test.mkv", search_results=search_results)
+    assert result is None

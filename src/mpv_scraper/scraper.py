@@ -23,6 +23,12 @@ from mpv_scraper.utils import normalize_rating
 import mpv_scraper.tvdb as tvdb  # noqa: WPS433 – runtime import is intentional
 import mpv_scraper.tmdb as tmdb  # noqa: WPS433 – runtime import is intentional
 
+# Import click for user prompts
+import click
+
+# Import supported providers from parser
+from mpv_scraper.parser import SUPPORTED_API_PROVIDERS
+
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -300,6 +306,219 @@ def _is_movie_scraped(
     return img_path.exists()
 
 
+def _normalize_api_id(api_id_str: str) -> Optional[tuple[str, str]]:
+    """
+    Normalize API ID format from various input formats.
+
+    Accepts formats like:
+    - "tvdb-70533"
+    - "TVDB-70533"
+    - "tvdb:70533"
+    - "TVDB:70533"
+
+    Returns:
+        Tuple of (provider, id) or None if invalid format.
+    """
+    # Remove whitespace
+    api_id_str = api_id_str.strip()
+
+    # Try dash separator first
+    if "-" in api_id_str:
+        parts = api_id_str.split("-", 1)
+        if len(parts) == 2:
+            provider, api_id = parts
+            provider = provider.lower()
+            if provider in SUPPORTED_API_PROVIDERS and api_id.isdigit():
+                return (provider, api_id)
+
+    # Try colon separator
+    if ":" in api_id_str:
+        parts = api_id_str.split(":", 1)
+        if len(parts) == 2:
+            provider, api_id = parts
+            provider = provider.lower()
+            if provider in SUPPORTED_API_PROVIDERS and api_id.isdigit():
+                return (provider, api_id)
+
+    return None
+
+
+def _validate_id_matches_filename(
+    api_id: str, provider: str, filename: str, parsed_meta: Optional[Any]
+) -> tuple[bool, Optional[str]]:
+    """
+    Validate that the provided API ID matches the filename.
+
+    Args:
+        api_id: The API ID to validate
+        provider: The provider name (tvdb, tmdb, etc.)
+        filename: The original filename
+        parsed_meta: Parsed metadata (TVMeta or MovieMeta)
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    # Basic validation - check if ID is numeric
+    if not api_id.isdigit():
+        return (False, f"Invalid API ID format: {api_id}")
+
+    # For now, we trust the user's input
+    # Future enhancement: could fetch metadata and compare titles/years
+    return (True, None)
+
+
+def _prompt_for_resolution(
+    filename: str,
+    search_results: Optional[List[Dict[str, Any]]] = None,
+    error: Optional[str] = None,
+    parsed_meta: Optional[Any] = None,
+) -> Optional[str]:
+    """
+    Prompt user for resolution when search fails or is ambiguous.
+
+    Args:
+        filename: The filename being processed
+        search_results: List of search results (if ambiguous)
+        error: Error message (if search failed)
+        parsed_meta: Parsed metadata (TVMeta or MovieMeta)
+
+    Returns:
+        API ID string in format "provider-id" or None if user skips
+    """
+    click.echo("")
+    click.echo(f"⚠️  Metadata lookup issue for: {filename}")
+
+    if search_results and len(search_results) > 1:
+        # Ambiguity case
+        click.echo("Found multiple possible matches. Please choose one:")
+        for i, result in enumerate(search_results[:10], 1):  # Limit to 10 results
+            name = (
+                result.get("name")
+                or result.get("seriesName")
+                or result.get("title")
+                or "Unknown"
+            )
+            year = (
+                result.get("year")
+                or result.get("firstAired")
+                or result.get("firstAirTime")
+                or result.get("release_date")
+                or "N/A"
+            )
+            # Extract year from date string if needed
+            if isinstance(year, str) and len(year) >= 4:
+                year = year[:4]
+            result_id = result.get("id") or "N/A"
+            click.echo(f"  [{i}] {name} ({year}) - ID: {result_id}")
+
+        click.echo("")
+        click.echo("Options:")
+        click.echo(
+            f"  - Enter a number (1-{min(len(search_results), 10)}) to select a match"
+        )
+        click.echo("  - Enter an API ID (e.g., 'tvdb-70533' or 'tmdb-15196')")
+        click.echo("  - Enter 'skip' to skip this item")
+        choice = click.prompt("Your choice", default="skip")
+
+        if choice.lower() == "skip":
+            return None
+
+        # Check if it's a number selection
+        try:
+            choice_num = int(choice)
+            if 1 <= choice_num <= min(len(search_results), 10):
+                selected = search_results[choice_num - 1]
+                # Extract provider from context (TV shows use TVDB, movies use TMDB)
+                if parsed_meta and hasattr(parsed_meta, "api_tag"):
+                    # Use parsed API tag if available
+                    if parsed_meta.api_tag:
+                        return parsed_meta.api_tag
+                # Default: TV shows -> tvdb, movies -> tmdb
+                provider = "tvdb" if hasattr(parsed_meta, "season") else "tmdb"
+                result_id = str(selected.get("id", ""))
+                if result_id:
+                    return f"{provider}-{result_id}"
+        except ValueError:
+            pass
+
+        # Try to parse as API ID
+        normalized = _normalize_api_id(choice)
+        if normalized:
+            provider, api_id = normalized
+            is_valid, error_msg = _validate_id_matches_filename(
+                api_id, provider, filename, parsed_meta
+            )
+            if is_valid:
+                return f"{provider}-{api_id}"
+            else:
+                click.echo(f"⚠️  {error_msg}")
+                # One retry
+                retry_choice = click.prompt(
+                    "Enter API ID again or 'skip' to skip", default="skip"
+                )
+                if retry_choice.lower() == "skip":
+                    return None
+                normalized_retry = _normalize_api_id(retry_choice)
+                if normalized_retry:
+                    provider, api_id = normalized_retry
+                    is_valid, error_msg = _validate_id_matches_filename(
+                        api_id, provider, filename, parsed_meta
+                    )
+                    if is_valid:
+                        return f"{provider}-{api_id}"
+                    else:
+                        click.echo(f"⚠️  {error_msg}. Skipping this item.")
+                        return None
+                return None
+
+    elif error:
+        # Failure case
+        click.echo(f"❌ {error}")
+        click.echo("")
+        click.echo("Options:")
+        click.echo("  - Enter an API ID (e.g., 'tvdb-70533' or 'tmdb-15196')")
+        click.echo("  - Enter 'skip' to skip this item")
+        choice = click.prompt("Your choice", default="skip")
+
+        if choice.lower() == "skip":
+            return None
+
+        # Try to parse as API ID
+        normalized = _normalize_api_id(choice)
+        if normalized:
+            provider, api_id = normalized
+            is_valid, error_msg = _validate_id_matches_filename(
+                api_id, provider, filename, parsed_meta
+            )
+            if is_valid:
+                return f"{provider}-{api_id}"
+            else:
+                click.echo(f"⚠️  {error_msg}")
+                # One retry
+                retry_choice = click.prompt(
+                    "Enter API ID again or 'skip' to skip", default="skip"
+                )
+                if retry_choice.lower() == "skip":
+                    return None
+                normalized_retry = _normalize_api_id(retry_choice)
+                if normalized_retry:
+                    provider, api_id = normalized_retry
+                    is_valid, error_msg = _validate_id_matches_filename(
+                        api_id, provider, filename, parsed_meta
+                    )
+                    if is_valid:
+                        return f"{provider}-{api_id}"
+                    else:
+                        click.echo(f"⚠️  {error_msg}. Skipping this item.")
+                        return None
+                return None
+        else:
+            click.echo("⚠️  Invalid API ID format. Skipping this item.")
+            return None
+
+    return None
+
+
 def _get_show_name_variations(show_name: str) -> list[str]:
     """
     Generate variations of a show name for better TVDB matching.
@@ -367,6 +586,7 @@ def scrape_tv_parallel(
     fallback_only: bool = False,
     no_remote: bool = False,
     refresh: bool = False,
+    prompt_on_failure: bool = False,
 ) -> List[DownloadTask]:
     """
     Scrape metadata for a TV show directory and queue downloads for parallel processing.
@@ -433,36 +653,114 @@ def scrape_tv_parallel(
                 except Exception:
                     continue
             if not search_results:
-                raise RuntimeError(
-                    f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
+                error_msg = f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
+                if prompt_on_failure:
+                    # Parse filename to get metadata
+                    from mpv_scraper.parser import parse_tv_filename
+
+                    episode_files = list(show_dir.glob("*.mp4")) + list(
+                        show_dir.glob("*.mkv")
+                    )
+                    parsed_meta = None
+                    if episode_files:
+                        parsed_meta = parse_tv_filename(episode_files[0].name)
+
+                    api_id = _prompt_for_resolution(
+                        show_dir.name,
+                        search_results=None,
+                        error=error_msg,
+                        parsed_meta=parsed_meta,
+                    )
+                    if api_id:
+                        # Extract provider and ID
+                        normalized = _normalize_api_id(api_id)
+                        if normalized:
+                            provider, series_id_str = normalized
+                            if provider == "tvdb":
+                                record = tvdb.get_series_extended(
+                                    int(series_id_str), token
+                                )
+                                if record:
+                                    # Success - continue with this record
+                                    pass
+                                else:
+                                    logger.warning(
+                                        f"Failed to fetch record for {api_id}. Skipping."
+                                    )
+                                    return []
+                            else:
+                                logger.warning(
+                                    f"Provider {provider} not supported for TV shows. Skipping."
+                                )
+                                return []
+                        else:
+                            logger.warning(
+                                f"Invalid API ID format: {api_id}. Skipping."
+                            )
+                            return []
+                    else:
+                        logger.info(f"User skipped {show_dir.name}")
+                        return []
+                else:
+                    raise RuntimeError(error_msg)
+
+            # Handle ambiguous results (multiple matches)
+            if len(search_results) > 1 and prompt_on_failure:
+                # Parse filename to get metadata
+                from mpv_scraper.parser import parse_tv_filename
+
+                episode_files = list(show_dir.glob("*.mp4")) + list(
+                    show_dir.glob("*.mkv")
                 )
-            series_id = search_results[0]["id"]
-            record = tvdb.get_series_extended(series_id, token)
-            if not record:
-                raise RuntimeError(
-                    f"Failed to fetch extended record for id {series_id}"
+                parsed_meta = None
+                if episode_files:
+                    parsed_meta = parse_tv_filename(episode_files[0].name)
+
+                api_id = _prompt_for_resolution(
+                    show_dir.name,
+                    search_results=search_results,
+                    error=None,
+                    parsed_meta=parsed_meta,
                 )
+                if api_id:
+                    # Extract provider and ID
+                    normalized = _normalize_api_id(api_id)
+                    if normalized:
+                        provider, series_id_str = normalized
+                        if provider == "tvdb":
+                            record = tvdb.get_series_extended(int(series_id_str), token)
+                            if record:
+                                # Success - continue with this record
+                                pass
+                            else:
+                                logger.warning(
+                                    f"Failed to fetch record for {api_id}. Skipping."
+                                )
+                                return []
+                        else:
+                            logger.warning(
+                                f"Provider {provider} not supported for TV shows. Skipping."
+                            )
+                            return []
+                    else:
+                        logger.warning(f"Invalid API ID format: {api_id}. Skipping.")
+                        return []
+                else:
+                    logger.info(f"User skipped {show_dir.name}")
+                    return []
+            else:
+                # Use first result (default behavior)
+                series_id = search_results[0]["id"]
+                record = tvdb.get_series_extended(series_id, token)
+                if not record:
+                    error_msg = f"Failed to fetch extended record for id {series_id}"
+                    if prompt_on_failure:
+                        logger.warning(f"{error_msg}. Skipping.")
+                        return []
+                    else:
+                        raise RuntimeError(error_msg)
 
-    # 1. Look up series with name variations
-    show_name_variations = _get_show_name_variations(show_dir.name)
-    search_results = None
-
-    for variation in show_name_variations:
-        try:
-            search_results = tvdb.search_show(variation, token)
-            if search_results:
-                logger.info(f"Found show '{show_dir.name}' in TVDB as '{variation}'")
-                break
-        except Exception as e:
-            logger.debug(f"TVDB search failed for '{variation}': {e}")
-            continue
-
-    if not search_results:
-        raise RuntimeError(
-            f"TVDB could not find series for {show_dir.name!r} (tried variations: {show_name_variations})"
-        )
-
-    # 'record' now present
+    # 'record' now present (already fetched above)
 
     # Check if TVDB has poor logo data and try TMDB fallback
     has_good_logo = bool(record.get("artworks", {}).get("clearLogo"))
@@ -762,6 +1060,7 @@ def scrape_movie(
     fallback_only: bool = False,
     no_remote: bool = False,
     refresh: bool = False,
+    prompt_on_failure: bool = False,
 ) -> None:  # pragma: no cover – covered via integration
     """Scrape a movie file.
 
