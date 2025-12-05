@@ -488,6 +488,7 @@ def generate(path):
                 "path": f"./{show.path.name}",
                 "name": show.path.name,
                 "image": f"./images/{show.path.name}-poster.png",
+                "marquee": f"./images/{show.path.name}-marquee.png",
             }
         )
 
@@ -1341,12 +1342,51 @@ def convert_without_subs(path, dry_run, overwrite):
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
+@click.option(
+    "--prefer-fallback", is_flag=True, help="Prefer fallback providers (TVmaze/OMDb)"
+)
+@click.option(
+    "--fallback-only", is_flag=True, help="Use only fallback providers; skip TVDB/TMDB"
+)
+@click.option(
+    "--no-remote",
+    is_flag=True,
+    help="Do not perform any network calls; cache/placeholder only",
+)
+@click.option(
+    "--refresh",
+    is_flag=True,
+    help="Force re-scrape of all content, bypassing incremental scraping checks",
+)
+@click.option(
+    "--prompt-on-failure",
+    "--prof",
+    "prompt_on_failure",
+    is_flag=True,
+    help="Prompt user for manual API ID input when search fails or is ambiguous",
+)
 @click.pass_context
-def run(ctx, path):
+def run(
+    ctx,
+    path,
+    prefer_fallback=False,
+    fallback_only=False,
+    no_remote=False,
+    refresh=False,
+    prompt_on_failure=False,
+):
     """End-to-end scan → scrape → generate workflow for DIRECTORY."""
     ctx = click.get_current_context()
     ctx.invoke(scan, path=path)
-    ctx.invoke(scrape, path=path)
+    ctx.invoke(
+        scrape,
+        path=path,
+        prefer_fallback=prefer_fallback,
+        fallback_only=fallback_only,
+        no_remote=no_remote,
+        refresh=refresh,
+        prompt_on_failure=prompt_on_failure,
+    )
     ctx.invoke(generate, path=path)
 
 

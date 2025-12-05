@@ -1,4 +1,13 @@
-# Video Processing Guide
+# Video Processing
+
+## Screenshot Timing
+
+The scraper uses intelligent timing to avoid capturing frames during intro sequences or logo displays. When generating fallback screenshots:
+
+- **Videos longer than 2 minutes**: Captures at the specified percentage (default 25%), but ensures at least 30 seconds have elapsed to skip intro sequences.
+- **Videos shorter than 2 minutes**: Skips forward by at least 30 seconds or 40% of the video duration, whichever is less, to avoid intro/logo frames.
+
+This ensures that screenshots capture actual episode content rather than title cards or theme song sequences. Guide
 
 The MPV Scraper includes powerful video processing capabilities to optimize your media for handheld device playback, convert formats, and crop videos for specific aspect ratios.
 

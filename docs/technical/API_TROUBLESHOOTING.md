@@ -43,6 +43,28 @@ flowchart TD
     style A fill:#ffcdd2
 ```
 
+## Episode Image Fetching
+
+### TVDB V4 Episode Artwork
+
+The scraper fetches episode images from TVDB V4 API using the `/v4/episodes/{episode_id}/artworks` endpoint. The artwork fetching logic:
+
+1. **Prefers `screencap` type**: Actual episode frames are preferred over thumbnails.
+2. **Falls back to `thumbnail`**: If no screencap is available, uses thumbnail artwork.
+3. **Handles multiple URL formats**: Supports both full URLs and relative paths from TVDB V4 API.
+4. **Checks multiple fields**: Looks for image URLs in `image`, `fileName`, and `url` fields.
+
+### Shows Without Seasons
+
+Some shows (e.g., Super Kitties) don't have traditional seasons and may have `seasonNumber=None` in the API response. The scraper handles this by:
+
+- Matching episodes even when the show's `seasonNumber` is `None` and the filename specifies season 1.
+- Treating `None` and `0`/`1` as equivalent for matching purposes.
+
+### Lazy Artwork Fetching
+
+If an episode doesn't have an image in the cached data, the scraper will attempt to fetch artwork lazily from TVDB's artwork endpoint. This ensures that episodes with missing artwork can still get images without requiring a full re-scrape.
+
 ## Common Issues
 
 ### Common Error: 401 Unauthorized

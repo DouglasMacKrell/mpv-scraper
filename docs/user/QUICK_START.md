@@ -147,6 +147,10 @@ The command consumes the generated `transaction.log` (created during a run) and 
 
 All downloaded artwork is automatically saved as PNGs, including series/movie logo files used for the EmulationStation `<marquee>` tag.  If an image is wider than **500 px** or the file exceeds **600 KB**, the scraper resizes it proportionally and applies additional compression so it always meets EmulationStation performance recommendations.
 
+### Folder Entries with Logos
+
+The scraper now includes series logos (`marquee` field) in folder entries in the top-level `gamelist.xml`. This means that when browsing shows in EmulationStation, you'll see the series logo displayed alongside the poster image for each show folder.
+
 ## Error Handling & Resilience
 
 The scraper includes robust error handling to ensure successful completion:

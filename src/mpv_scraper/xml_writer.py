@@ -77,6 +77,10 @@ def write_top_gamelist(entries: List[Dict[str, Any]], dest: Path) -> None:
                 ET.SubElement(folder_el, "image").text = _ensure_relative(
                     entry["image"]
                 )
+            if entry.get("marquee"):
+                ET.SubElement(folder_el, "marquee").text = _ensure_relative(
+                    entry["marquee"]
+                )
         else:
             # This is a game entry - use the same logic as write_show_gamelist
             game_el = ET.SubElement(root, "game", id=str(len(root.findall("game")) + 1))

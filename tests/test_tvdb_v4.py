@@ -568,3 +568,143 @@ class TestTVDBV4Integration:
                 series_info = get_series_extended(search_results[0]["id"], token)
                 assert series_info is not None
                 assert series_info["id"] == 1
+
+
+class TestTVDBV4EpisodeArtwork:
+    """Test TVDB V4 API episode artwork fetching."""
+
+    def test_fetch_episode_artwork_screencap_preference(self):
+        """Test that fetch_episode_artwork prefers screencap type over thumbnail."""
+        from mpv_scraper.tvdb import fetch_episode_artwork
+
+        with patch("requests.get") as mock_get, patch("time.sleep"):
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "data": [
+                    {
+                        "type": "thumbnail",
+                        "image": "thumbnail.jpg",
+                    },
+                    {
+                        "type": "screencap",
+                        "image": "screencap.jpg",
+                    },
+                ]
+            }
+            mock_get.return_value = mock_response
+
+            result = fetch_episode_artwork(12345, "test_token")
+
+            # Should prefer screencap over thumbnail
+            assert result is not None
+            assert "screencap.jpg" in result
+            assert "thumbnail.jpg" not in result
+
+    def test_fetch_episode_artwork_fallback_to_thumbnail(self):
+        """Test that fetch_episode_artwork falls back to thumbnail if no screencap."""
+        from mpv_scraper.tvdb import fetch_episode_artwork
+
+        with patch("requests.get") as mock_get, patch("time.sleep"):
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "data": [
+                    {
+                        "type": "thumbnail",
+                        "image": "thumbnail.jpg",
+                    }
+                ]
+            }
+            mock_get.return_value = mock_response
+
+            result = fetch_episode_artwork(12345, "test_token")
+
+            # Should fall back to thumbnail
+            assert result is not None
+            assert "thumbnail.jpg" in result
+
+    def test_fetch_episode_artwork_handles_v4_urls(self):
+        """Test that fetch_episode_artwork handles TVDB V4 URL formats."""
+        from mpv_scraper.tvdb import fetch_episode_artwork
+
+        with patch("requests.get") as mock_get, patch("time.sleep"):
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "data": [
+                    {
+                        "type": "screencap",
+                        "image": "v4/episode/12345/screencap/abc123.jpg",
+                    }
+                ]
+            }
+            mock_get.return_value = mock_response
+
+            result = fetch_episode_artwork(12345, "test_token")
+
+            # Should build full URL correctly
+            assert result is not None
+            assert "artworks.thetvdb.com" in result
+            assert "v4/episode" in result
+
+    def test_fetch_episode_artwork_handles_full_urls(self):
+        """Test that fetch_episode_artwork handles already-full URLs."""
+        from mpv_scraper.tvdb import fetch_episode_artwork
+
+        with patch("requests.get") as mock_get, patch("time.sleep"):
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "data": [
+                    {
+                        "type": "screencap",
+                        "image": "https://artworks.thetvdb.com/banners/v4/episode/12345/screencap.jpg",
+                    }
+                ]
+            }
+            mock_get.return_value = mock_response
+
+            result = fetch_episode_artwork(12345, "test_token")
+
+            # Should return full URL as-is
+            assert result is not None
+            assert result.startswith("https://")
+
+    def test_fetch_episode_artwork_rate_limited(self):
+        """Test that fetch_episode_artwork handles 429 rate limit errors."""
+        from mpv_scraper.tvdb import fetch_episode_artwork
+
+        with patch("requests.get") as mock_get, patch("time.sleep"):
+            mock_response = Mock()
+            mock_response.status_code = 429
+            mock_get.return_value = mock_response
+
+            result = fetch_episode_artwork(12345, "test_token")
+
+            # Should return None on rate limit
+            assert result is None
+
+    def test_fetch_episode_artwork_checks_multiple_fields(self):
+        """Test that fetch_episode_artwork checks image, fileName, and url fields."""
+        from mpv_scraper.tvdb import fetch_episode_artwork
+
+        with patch("requests.get") as mock_get, patch("time.sleep"):
+            mock_response = Mock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "data": [
+                    {
+                        "type": "screencap",
+                        # No 'image' field, but has 'fileName'
+                        "fileName": "screencap.jpg",
+                    }
+                ]
+            }
+            mock_get.return_value = mock_response
+
+            result = fetch_episode_artwork(12345, "test_token")
+
+            # Should use fileName field
+            assert result is not None
+            assert "screencap.jpg" in result

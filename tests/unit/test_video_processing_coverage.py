@@ -135,6 +135,98 @@ class TestVideoCaptureCoverage:
 
             assert result is False
 
+    def test_capture_at_percentage_skips_intro(self):
+        """Test that capture_at_percentage skips at least 30 seconds to avoid intro/logo."""
+        from mpv_scraper.video_capture import capture_at_percentage
+
+        with patch(
+            "mpv_scraper.video_capture.get_video_duration"
+        ) as mock_duration, patch(
+            "mpv_scraper.video_capture.capture_video_frame"
+        ) as mock_capture:
+            # 5 minute video - 25% would be 75 seconds
+            mock_duration.return_value = 300.0
+            mock_capture.return_value = True
+
+            video_path = Path("/tmp/test_video.mp4")
+            output_path = Path("/tmp/frame.jpg")
+
+            result = capture_at_percentage(video_path, output_path, percentage=25.0)
+
+            assert result is True
+            # Should use 75 seconds (25% of 300), not 30 seconds
+            call_args = mock_capture.call_args
+            assert call_args[0][2] == "75.00"  # timestamp as string
+
+    def test_capture_at_percentage_minimum_skip(self):
+        """Test that capture_at_percentage enforces minimum 30 second skip for longer videos."""
+        from mpv_scraper.video_capture import capture_at_percentage
+
+        with patch(
+            "mpv_scraper.video_capture.get_video_duration"
+        ) as mock_duration, patch(
+            "mpv_scraper.video_capture.capture_video_frame"
+        ) as mock_capture:
+            # 2 minute video - 25% would be 30 seconds, but we want at least 30
+            mock_duration.return_value = 120.0
+            mock_capture.return_value = True
+
+            video_path = Path("/tmp/test_video.mp4")
+            output_path = Path("/tmp/frame.jpg")
+
+            result = capture_at_percentage(video_path, output_path, percentage=10.0)
+
+            assert result is True
+            # Should use 30 seconds (minimum), not 12 seconds (10% of 120)
+            call_args = mock_capture.call_args
+            assert call_args[0][2] == "30.00"  # timestamp as string
+
+    def test_capture_at_percentage_short_video(self):
+        """Test that capture_at_percentage handles short videos (< 2 minutes) correctly."""
+        from mpv_scraper.video_capture import capture_at_percentage
+
+        with patch(
+            "mpv_scraper.video_capture.get_video_duration"
+        ) as mock_duration, patch(
+            "mpv_scraper.video_capture.capture_video_frame"
+        ) as mock_capture:
+            # 90 second video - should skip 30 seconds or 40% (36 seconds), whichever is less
+            mock_duration.return_value = 90.0
+            mock_capture.return_value = True
+
+            video_path = Path("/tmp/test_video.mp4")
+            output_path = Path("/tmp/frame.jpg")
+
+            result = capture_at_percentage(video_path, output_path, percentage=25.0)
+
+            assert result is True
+            # Should use 30 seconds (min of 30 and 36)
+            call_args = mock_capture.call_args
+            assert call_args[0][2] == "30.00"  # timestamp as string
+
+    def test_capture_at_percentage_very_short_video(self):
+        """Test that capture_at_percentage handles very short videos correctly."""
+        from mpv_scraper.video_capture import capture_at_percentage
+
+        with patch(
+            "mpv_scraper.video_capture.get_video_duration"
+        ) as mock_duration, patch(
+            "mpv_scraper.video_capture.capture_video_frame"
+        ) as mock_capture:
+            # 60 second video - 40% would be 24 seconds
+            mock_duration.return_value = 60.0
+            mock_capture.return_value = True
+
+            video_path = Path("/tmp/test_video.mp4")
+            output_path = Path("/tmp/frame.jpg")
+
+            result = capture_at_percentage(video_path, output_path, percentage=25.0)
+
+            assert result is True
+            # Should use 24 seconds (40% of 60, which is less than 30)
+            call_args = mock_capture.call_args
+            assert call_args[0][2] == "24.00"  # timestamp as string
+
 
 class TestVideoCleanerCoverage:
     """Test video cleaner functionality to improve coverage."""

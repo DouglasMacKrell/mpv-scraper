@@ -122,6 +122,10 @@ def capture_at_percentage(
     """
     Capture a frame at a specific percentage through the video.
 
+    For TV shows, we want to avoid capturing during the intro/logo sequence.
+    Typically, intros are 30-60 seconds, so capturing at 25% helps avoid them.
+    However, for very short videos, we may need to adjust.
+
     Args:
         video_path: Path to the input video file
         output_path: Path where the screenshot will be saved
@@ -137,8 +141,17 @@ def capture_at_percentage(
     if not duration:
         return False
 
-    # Calculate timestamp
-    timestamp_seconds = (duration * percentage) / 100.0
+    # For very short videos (< 2 minutes), skip forward more to avoid intro
+    # For longer videos, use the percentage
+    if duration < 120:  # Less than 2 minutes
+        # Skip at least 30 seconds or 40% of video, whichever is less
+        min_skip = min(30.0, duration * 0.4)
+        timestamp_seconds = min_skip
+    else:
+        # Calculate timestamp - ensure at least 30 seconds in to skip intro
+        calculated_time = (duration * percentage) / 100.0
+        timestamp_seconds = max(30.0, calculated_time)
+
     timestamp = f"{timestamp_seconds:.2f}"
 
     return capture_video_frame(video_path, output_path, timestamp, width, height)

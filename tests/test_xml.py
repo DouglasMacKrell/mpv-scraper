@@ -45,6 +45,39 @@ class TestWriteTopGamelist:
             assert folder2.find("name").text == "Movies"
             assert folder2.find("image").text == "./images/movies.png"
 
+    def test_write_top_gamelist_with_marquee(self):
+        """Test that folder entries can include marquee/logo field."""
+        folders = [
+            {
+                "path": "./Test Show",
+                "name": "Test Show",
+                "image": "./images/test-poster.png",
+                "marquee": "./images/test-marquee.png",
+            },
+            {
+                "path": "./Movies",
+                "name": "Movies",
+                "image": "./images/movies-poster.png",
+                # No marquee - should be optional
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest = Path(temp_dir) / "gamelist.xml"
+            write_top_gamelist(folders, dest)
+
+            tree = ET.parse(dest)
+            root = tree.getroot()
+
+            # Check first folder has marquee
+            folder1 = root[0]
+            assert folder1.find("marquee") is not None
+            assert folder1.find("marquee").text == "./images/test-marquee.png"
+
+            # Check second folder doesn't have marquee (optional)
+            folder2 = root[1]
+            assert folder2.find("marquee") is None
+
 
 class TestWriteShowGamelist:
     """Test show/movie gamelist.xml generation."""

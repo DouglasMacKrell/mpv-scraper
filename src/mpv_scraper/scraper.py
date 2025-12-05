@@ -1043,11 +1043,17 @@ def scrape_tv_parallel(
         source = "TVDB"
 
         # Find matching episode in TVDB data
+        # Handle episodes with seasonNumber=None (some shows don't have seasons)
         for ep in record.get("episodes", []):
-            if (
-                ep.get("seasonNumber") == target_season
-                and ep.get("number") == target_episode
-            ):
+            ep_season = ep.get("seasonNumber")
+            ep_number = ep.get("number")
+            # Match if season and episode match, or if both seasons are None/0 and episode matches
+            season_match = (
+                ep_season == target_season
+                or (ep_season is None and target_season in (None, 0, 1))
+                or (target_season is None and ep_season in (None, 0, 1))
+            )
+            if season_match and ep_number == target_episode:
                 api_episode = ep
                 break
 
@@ -1086,10 +1092,45 @@ def scrape_tv_parallel(
                     f"Found TMDB episode image for {tmdb_key} (mapped from S{target_season:02d}E{target_episode:02d})"
                 )
             else:
-                no_image_count += 1
-                logger.debug(
-                    f"No episode image found for S{target_season:02d}E{target_episode:02d} (TVDB: {bool(api_episode)}, TMDB: {tmdb_key in tmdb_episode_images})"
-                )
+                # Try lazy fetching artwork from TVDB if episode exists but has no image
+                if api_episode and api_episode.get("id") and not no_remote and try_tvdb:
+                    try:
+                        from mpv_scraper.tvdb import fetch_episode_artwork
+
+                        # Get TVDB token from headers if available
+                        tvdb_token = None
+                        if headers and "Authorization" in headers:
+                            tvdb_token = headers["Authorization"].replace("Bearer ", "")
+                        else:
+                            try:
+                                tvdb_token = tvdb.authenticate_tvdb()
+                            except Exception:
+                                pass
+
+                        if tvdb_token:
+                            artwork_url = fetch_episode_artwork(
+                                api_episode.get("id"), tvdb_token
+                            )
+                            if artwork_url:
+                                img_url = artwork_url
+                                source = "TVDB"
+                                episodes_with_images += 1
+                                tvdb_episode_count += 1
+                                logger.debug(
+                                    f"Fetched artwork lazily for S{target_season:02d}E{target_episode:02d} from TVDB"
+                                )
+                                # Update the episode in the record so it's cached for next time
+                                api_episode["image"] = artwork_url
+                    except Exception as e:
+                        logger.debug(
+                            f"Failed to fetch artwork lazily for S{target_season:02d}E{target_episode:02d}: {e}"
+                        )
+
+                if not img_url:
+                    no_image_count += 1
+                    logger.debug(
+                        f"No episode image found for S{target_season:02d}E{target_episode:02d} (TVDB: {bool(api_episode)}, TMDB: {tmdb_key in tmdb_episode_images})"
+                    )
 
         if img_url:
             # Create the span filename (e.g., "S04E01-E02" for span)

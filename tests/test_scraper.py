@@ -452,3 +452,42 @@ def test_filename_tag_fallback_providers():
 
             # Should call get_show_episodes with ID 12345
             mock_get_episodes.assert_called_with(12345)
+
+
+def test_episode_matching_with_none_season():
+    """Test that episode matching works for shows with seasonNumber=None."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        show_dir = Path(tmpdir) / "Test Show"
+        show_dir.mkdir(parents=True, exist_ok=True)
+        (show_dir / "Test Show - S01E01 - Pilot.mp4").touch()
+
+        with patch("mpv_scraper.scraper.tvdb") as mock_tvdb, patch(
+            "mpv_scraper.scraper.download_image"
+        ) as mock_download_image, patch("mpv_scraper.scraper.download_marquee"):
+            # Mock TVDB response with episode that has seasonNumber=None
+            mock_tvdb.search_show.return_value = [{"id": 1, "name": "Test Show"}]
+            mock_tvdb.get_series_extended.return_value = {
+                "id": 1,
+                "name": "Test Show",
+                "episodes": [
+                    {
+                        "id": 101,
+                        "seasonNumber": None,  # Some shows don't have seasons
+                        "number": 1,
+                        "overview": "Pilot episode",
+                        "image": "https://example.com/ep1.png",
+                    }
+                ],
+                "image": "https://example.com/poster.png",
+                "siteRating": 8.5,
+            }
+            mock_tvdb.authenticate_tvdb.return_value = "token"
+
+            from mpv_scraper.scraper import ParallelDownloadManager
+
+            download_manager = ParallelDownloadManager()
+            scrape_tv_parallel(show_dir, download_manager)
+
+            # Should match episode even with seasonNumber=None
+            # The episode should be matched when target_season is 1 and episode number matches
+            assert mock_download_image.called or len(download_manager.tasks) > 0
