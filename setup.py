@@ -5,7 +5,7 @@ README = (Path(__file__).parent / "README.md").read_text(encoding="utf-8")
 
 setup(
     name="mpv_scraper",
-    version="1.0.0",
+    version="1.1.0",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
     include_package_data=True,

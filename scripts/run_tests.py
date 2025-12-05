@@ -6,6 +6,16 @@ Runs tests efficiently by detecting which tests are affected by changed files.
 
 import sys
 import subprocess
+from pathlib import Path
+
+
+def get_python_executable():
+    """Get the correct python executable to use."""
+    # Check for local .venv
+    venv_python = Path.cwd() / ".venv" / "bin" / "python"
+    if venv_python.exists():
+        return str(venv_python)
+    return sys.executable
 
 
 def get_changed_files():
@@ -44,14 +54,15 @@ def should_run_full_suite(changed_files):
 def run_tests():
     """Run appropriate tests based on changed files."""
     changed_files = get_changed_files()
+    python_exe = get_python_executable()
 
     if should_run_full_suite(changed_files):
         print("Running full test suite due to critical file changes...")
-        cmd = [sys.executable, "-m", "pytest"]
+        cmd = [python_exe, "-m", "pytest"]
     else:
         print("Running tests for changed files...")
         # Run tests that might be affected by the changes
-        cmd = [sys.executable, "-m", "pytest", "--tb=short"]
+        cmd = [python_exe, "-m", "pytest", "--tb=short"]
 
     try:
         result = subprocess.run(cmd, check=True)
