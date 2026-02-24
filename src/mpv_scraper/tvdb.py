@@ -164,7 +164,7 @@ def fetch_episode_artwork(episode_id: int, token: str) -> Optional[str]:
                 # Prefer screencap over thumbnail, as screencaps are actual episode frames
                 # TVDB V4 API uses "screencap" type for episode images
                 thumbnail_url = None
-                
+
                 for artwork in artwork_data:
                     artwork_type = artwork.get("type", "").lower()
                     img_path = (

@@ -6,14 +6,25 @@ This document explains how to run the full automated test suite, what each group
 
 ## 1. Environment Setup
 
+### First-Time Setup
+
+Create a virtual environment and install dependencies (required on macOS and most Linux—system Python cannot install packages directly):
+
 ```bash
-# 1. Activate venv
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
+### Per-Session Setup
+
+```bash
+# 1. Activate venv (required every new shell)
 source .venv/bin/activate
 
-# 2. Install dev dependencies
-pip install -r requirements-dev.txt
-
-# 3. Set up API keys (for real API tests)
+# 2. Set up API keys (for real API tests)
 # Create .env file or export environment variables:
 export TVDB_API_KEY2="your_v4_api_key"  # For V4 API tests
 export TVDB_API_KEY="your_api_key"      # Fallback
@@ -251,8 +262,11 @@ tests/
 ## 10. Running Tests Locally - Quick Start
 
 ```bash
-# 1. Activate virtual environment
+# 0. Ensure venv is set up (see Environment Setup above if not)
 source .venv/bin/activate
+
+# 1. Run all pre-commit hooks (recommended before commit)
+pre-commit run --all-files
 
 # 2. Run all tests (excluding integration)
 pytest -q

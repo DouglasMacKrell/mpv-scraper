@@ -2,6 +2,19 @@
 
 This guide covers the development workflow, testing, and quality assurance processes for the MPV Metadata Scraper.
 
+## First-Time Setup
+
+Create a virtual environment before running tests or pre-commit. See [Testing Guide](TESTING.md#1-environment-setup) for details.
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e .
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+pre-commit install
+```
+
 ## Test Automation Setup
 
 ### Pre-commit Hooks
@@ -11,7 +24,10 @@ The project uses pre-commit hooks to ensure code quality and test coverage. Thes
 #### Installation
 
 ```bash
-# Install pre-commit
+# Activate venv first
+source .venv/bin/activate
+
+# Install pre-commit (included in requirements-dev.txt)
 pip install pre-commit
 
 # Install the hooks
@@ -212,11 +228,12 @@ pre-commit autoupdate
 which python
 echo $VIRTUAL_ENV
 
-# Recreate virtual environment if needed
+# Recreate virtual environment if needed (see TESTING.md for setup)
 deactivate
 rm -rf .venv
 python3 -m venv .venv
 source .venv/bin/activate
+pip install -e .
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 ```
