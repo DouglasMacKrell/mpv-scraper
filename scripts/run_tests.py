@@ -34,34 +34,41 @@ def get_changed_files():
 
 def should_run_full_suite(changed_files):
     """Determine if we should run the full test suite."""
-    # Run full suite if any of these files are changed
-    critical_files = [
+    critical_paths = [
         "src/mpv_scraper/",
+        ".github/",
         "pytest.ini",
         "setup.py",
+        "pyproject.toml",
+        ".pre-commit-config.yaml",
         "requirements.txt",
         "requirements-dev.txt",
     ]
 
     for file_path in changed_files:
-        for critical in critical_files:
-            if file_path.startswith(critical):
+        for critical in critical_paths:
+            if critical.endswith("/"):
+                if file_path.startswith(critical):
+                    return True
+            elif file_path == critical or file_path.endswith("/" + critical):
                 return True
 
     return False
 
 
-def run_tests():
-    """Run appropriate tests based on changed files."""
+def run_tests(ci_mode: bool = False):
+    """Run tests. In CI mode (--ci), always run full suite with coverage."""
     changed_files = get_changed_files()
     python_exe = get_python_executable()
 
-    if should_run_full_suite(changed_files):
-        print("Running full test suite due to critical file changes...")
+    if ci_mode or should_run_full_suite(changed_files):
+        if ci_mode:
+            print("Running full test suite (CI mode)...")
+        else:
+            print("Running full test suite due to critical file changes...")
         cmd = [python_exe, "-m", "pytest"]
     else:
-        print("Running tests for changed files...")
-        # Run tests that might be affected by the changes
+        print("Running full test suite...")
         cmd = [python_exe, "-m", "pytest", "--tb=short"]
 
     try:
@@ -73,5 +80,6 @@ def run_tests():
 
 
 if __name__ == "__main__":
-    exit_code = run_tests()
+    ci_mode = "--ci" in sys.argv
+    exit_code = run_tests(ci_mode=ci_mode)
     sys.exit(exit_code)

@@ -16,6 +16,8 @@ source .venv/bin/activate
 pip install -e .
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
+pre-commit install
+pre-commit install --hook-type pre-push
 ```
 
 ### Per-Session Setup

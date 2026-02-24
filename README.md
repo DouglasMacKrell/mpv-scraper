@@ -253,11 +253,14 @@ This project uses pre-commit hooks to ensure code quality and test coverage:
 
 ### Pre-push Hooks
 
-A Git pre-push hook ensures all tests pass before pushing to remote:
+A pre-push hook (via pre-commit) runs the full test suite before every push, matching CI:
 
-- **Full Test Suite:** Runs the complete test suite before allowing push
+```bash
+pre-commit install --hook-type pre-push
+```
+
+- **Full Test Suite:** Runs the complete test suite with coverage before allowing push
 - **Automatic Blocking:** Push is blocked if any tests fail
-- **Helpful Error Messages:** Provides clear guidance on fixing test failures
 
 ### Running Tests Manually
 

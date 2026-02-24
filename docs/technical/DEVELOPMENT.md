@@ -13,6 +13,7 @@ pip install -e .
 pip install -r requirements.txt
 pip install -r requirements-dev.txt
 pre-commit install
+pre-commit install --hook-type pre-push
 ```
 
 ## Test Automation Setup
@@ -46,6 +47,9 @@ pre-commit install
 # Run all pre-commit hooks on all files
 pre-commit run --all-files
 
+# Run pre-push hooks (full test suite) without pushing
+pre-commit run --hook-stage push --all-files
+
 # Run specific hook
 pre-commit run pytest
 pre-commit run black
@@ -57,7 +61,7 @@ A Git pre-push hook ensures all tests pass before pushing to remote.
 
 #### Installation
 
-The pre-push hook is already installed in `.git/hooks/pre-push`. It will run automatically on every push.
+The pre-push hook is installed via pre-commit. Run `pre-commit install --hook-type pre-push` to enable it. It runs the full test suite before every push, matching CI.
 
 #### What It Does
 

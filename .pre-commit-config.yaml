@@ -23,3 +23,9 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+    -   id: pytest-push
+        name: pytest (pre-push)
+        entry: scripts/run_tests.py --ci
+        language: system
+        pass_filenames: false
+        stages: [push]
