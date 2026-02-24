@@ -95,6 +95,7 @@ flowchart LR
 
 - **[📖 Documentation Index](docs/README.md)** - Complete guide to all documentation
 - **[🚀 Quick Start](docs/user/QUICK_START.md)** - Get up and running in minutes
+- **[🔑 Obtaining API Keys](docs/user/API_KEYS.md)** - Step-by-step guide for TVDB, TMDB, and OMDb keys
 - **[🔁 Fallback Providers](docs/user/FALLBACKS.md)** - Run without paid keys (TVmaze/OMDb)
 - **[🖥️ User Interface](docs/USER_INTERFACE.md)** - TUI usage and logs
 - **[🎬 Video Processing Guide](docs/user/VIDEO_PROCESSING.md)** - Video optimization and conversion
@@ -134,7 +135,7 @@ flowchart LR
     ```
 
 5.  **Set up API keys:**
-    Export your API keys as environment variables.
+    See the [Obtaining API Keys](docs/user/API_KEYS.md) guide for step-by-step instructions. Then export your keys:
     ```bash
     export TVDB_API_KEY="YOUR_TVDB_API_KEY"
     export TMDB_API_KEY="YOUR_TMDB_API_KEY"

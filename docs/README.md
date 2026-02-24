@@ -12,6 +12,7 @@ graph TD
     A --> E[CHANGELOG.md]
 
     C --> F[QUICK_START.md]
+    C --> F2[API_KEYS.md]
     C --> G[VIDEO_PROCESSING.md]
 
     D --> H[API_TROUBLESHOOTING.md]
@@ -30,6 +31,8 @@ graph TD
 
 ### 🎯 **For End Users**
 - **[Quick Start Guide](user/QUICK_START.md)** - Get up and running in minutes
+- **[Obtaining API Keys](user/API_KEYS.md)** - Step-by-step guide to get TVDB, TMDB, and OMDb keys
+- **[Fallback Providers](user/FALLBACKS.md)** - Run without paid keys (TVmaze/OMDb)
 - **[Video Processing Guide](user/VIDEO_PROCESSING.md)** - Video optimization, conversion, and cropping
 
 ### 🔧 **For Developers & Advanced Users**
@@ -46,9 +49,10 @@ graph TD
 
 ### **Getting Started**
 1. **New User?** → [Quick Start Guide](user/QUICK_START.md)
-2. **Video Processing?** → [Video Processing Guide](user/VIDEO_PROCESSING.md)
-3. **API Issues?** → [API Troubleshooting](technical/API_TROUBLESHOOTING.md)
-4. **Performance Problems?** → [Performance Guide](technical/PERFORMANCE.md)
+2. **Need API Keys?** → [Obtaining API Keys](user/API_KEYS.md)
+3. **Video Processing?** → [Video Processing Guide](user/VIDEO_PROCESSING.md)
+4. **API Issues?** → [API Troubleshooting](technical/API_TROUBLESHOOTING.md)
+5. **Performance Problems?** → [Performance Guide](technical/PERFORMANCE.md)
 
 ### **Development**
 1. **Contributing?** → [Development Guide](technical/DEVELOPMENT.md)
@@ -60,6 +64,8 @@ graph TD
 | Document | Purpose | Audience |
 |----------|---------|----------|
 | [Quick Start](user/QUICK_START.md) | Basic setup and usage | End users |
+| [Obtaining API Keys](user/API_KEYS.md) | Step-by-step guide for TVDB, TMDB, OMDb keys | First-time users |
+| [Fallback Providers](user/FALLBACKS.md) | Run without paid keys | End users |
 | [Video Processing](user/VIDEO_PROCESSING.md) | Video optimization & conversion | End users |
 | [API Troubleshooting](technical/API_TROUBLESHOOTING.md) | Fix authentication issues | Advanced users |
 | [Performance](technical/PERFORMANCE.md) | Optimize large libraries | Advanced users |
@@ -72,7 +78,7 @@ graph TD
 
 ### **First Time Setup**
 1. Read [Quick Start Guide](user/QUICK_START.md)
-2. Set up API keys (see [API Troubleshooting](technical/API_TROUBLESHOOTING.md))
+2. Obtain API keys (see [Obtaining API Keys](user/API_KEYS.md))
 3. Run your first scrape
 
 ### **Video Processing**
@@ -126,4 +132,4 @@ When updating documentation:
 
 ---
 
-**Need help?** Start with the [Quick Start Guide](user/QUICK_START.md) or check the [Video Processing Guide](user/VIDEO_PROCESSING.md) for video-related features.
+**Need help?** Start with the [Quick Start Guide](user/QUICK_START.md). First-time users should read [Obtaining API Keys](user/API_KEYS.md) for key setup. Check the [Video Processing Guide](user/VIDEO_PROCESSING.md) for video-related features.
