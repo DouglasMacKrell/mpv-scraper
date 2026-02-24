@@ -587,21 +587,35 @@ def generate(path):
             img_path = top_images_dir / img_name
 
             # Check if the scraper already downloaded an episode image
-            api_image_exists = img_path.exists()
+            image_exists = img_path.exists()
 
-            # Only generate screenshot as fallback if no API image was downloaded
-            if not api_image_exists:
+            # Determine if existing image came from API (TVDB/TMDB) or framegrab
+            image_from_api = False
+            if show_cache and meta:
+                for ep in show_cache.get("episodes", []):
+                    if (
+                        ep.get("seasonNumber") == meta.season
+                        and ep.get("number") == meta.start_ep
+                    ):
+                        img_url = ep.get("image")
+                        image_from_api = bool(
+                            img_url and isinstance(img_url, str) and img_url.strip()
+                        )
+                        break
+
+            # Only generate screenshot as fallback if no image exists
+            if not image_exists:
                 from mpv_scraper.video_capture import capture_at_percentage
 
                 if capture_at_percentage(file_path, img_path, percentage=25.0):
                     _log_creation(img_path)
-                    click.echo(f"Generated fallback screenshot for {file_path.name}")
+                    click.echo(f"Generated framegrab for {file_path.name}")
                 else:
-                    click.echo(
-                        f"Failed to generate fallback screenshot for {file_path.name}"
-                    )
-            else:
+                    click.echo(f"Failed to generate framegrab for {file_path.name}")
+            elif image_from_api:
                 click.echo(f"Using API image for {file_path.name}")
+            else:
+                click.echo(f"Using framegrab for {file_path.name}")
 
             # Create marquee and box images for show (once per show)
             # show_marquee_name = f"{show.path.name}-marquee.png"

@@ -34,13 +34,14 @@ def capture_video_frame(
         True if successful, False otherwise
     """
     try:
-        # Build ffmpeg command
+        # Build ffmpeg command - -ss before -i enables fast input seeking (keyframe skip)
+        # instead of decoding from start, which times out on long/large files
         cmd = [
             "ffmpeg",
-            "-i",
-            str(video_path),
             "-ss",
             timestamp,
+            "-i",
+            str(video_path),
             "-vframes",
             "1",
             "-vf",
@@ -49,12 +50,12 @@ def capture_video_frame(
             str(output_path),
         ]
 
-        # Run ffmpeg
+        # Run ffmpeg - 2 min timeout for large MKVs (1080p WEBRip) that need time to seek
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=30,  # 30 second timeout
+            timeout=120,
         )
 
         if result.returncode == 0:
@@ -99,7 +100,7 @@ def get_video_duration(video_path: Path) -> Optional[float]:
             str(video_path),
         ]
 
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
 
         if result.returncode == 0:
             return float(result.stdout.strip())

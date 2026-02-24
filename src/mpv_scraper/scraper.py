@@ -25,6 +25,7 @@ import mpv_scraper.tmdb as tmdb  # noqa: WPS433 – runtime import is intentiona
 
 # Import click for user prompts
 import click
+import sys
 
 # Import supported providers from parser
 from mpv_scraper.parser import SUPPORTED_API_PROVIDERS
@@ -79,10 +80,12 @@ class ParallelDownloadManager:
                             f"✓ Downloaded {task.source} image: {task.episode_info}"
                         )
                     elif task.source == "SCREENSHOT":
-                        # Generate screenshot
-                        from mpv_scraper.video_capture import capture_video_frame
+                        # Generate screenshot at 25% to avoid theme song/intro frames
+                        from mpv_scraper.video_capture import capture_at_percentage
 
-                        capture_video_frame(task.video_path, task.dest_path)
+                        capture_at_percentage(
+                            task.video_path, task.dest_path, percentage=25.0
+                        )
                         logger.debug(f"✓ Generated screenshot: {task.episode_info}")
 
                     with self.lock:
@@ -367,6 +370,29 @@ def _validate_id_matches_filename(
     return (True, None)
 
 
+def _safe_prompt(prompt_text: str, default: str = "skip") -> str:
+    """
+    Read user input with robust handling for terminals that send CR instead of LF.
+
+    Cursor IDE and some terminal configs send carriage return (\\r) on Enter.
+    readline() only stops on \\n, so it hangs forever. We read char-by-char until
+    we see \\r or \\n, treating both as line terminator.
+    """
+    try:
+        click.echo(f"{prompt_text} [{default}]: ", nl=False)
+        sys.stdout.flush()
+        chars = []
+        while True:
+            c = sys.stdin.read(1)
+            if c in ("\r", "\n", ""):  # CR, LF, or EOF
+                break
+            chars.append(c)
+        value = "".join(chars).strip()
+        return value if value else default
+    except (EOFError, KeyboardInterrupt):
+        return default
+
+
 def _prompt_for_resolution(
     filename: str,
     search_results: Optional[List[Dict[str, Any]]] = None,
@@ -418,7 +444,7 @@ def _prompt_for_resolution(
         )
         click.echo("  - Enter an API ID (e.g., 'tvdb-70533' or 'tmdb-15196')")
         click.echo("  - Enter 'skip' to skip this item")
-        choice = click.prompt("Your choice", default="skip")
+        choice = _safe_prompt("Your choice", "skip")
 
         if choice.lower() == "skip":
             return None
@@ -453,8 +479,8 @@ def _prompt_for_resolution(
             else:
                 click.echo(f"⚠️  {error_msg}")
                 # One retry
-                retry_choice = click.prompt(
-                    "Enter API ID again or 'skip' to skip", default="skip"
+                retry_choice = _safe_prompt(
+                    "Enter API ID again or 'skip' to skip", "skip"
                 )
                 if retry_choice.lower() == "skip":
                     return None
@@ -478,7 +504,7 @@ def _prompt_for_resolution(
         click.echo("Options:")
         click.echo("  - Enter an API ID (e.g., 'tvdb-70533' or 'tmdb-15196')")
         click.echo("  - Enter 'skip' to skip this item")
-        choice = click.prompt("Your choice", default="skip")
+        choice = _safe_prompt("Your choice", "skip")
 
         if choice.lower() == "skip":
             return None
@@ -495,8 +521,8 @@ def _prompt_for_resolution(
             else:
                 click.echo(f"⚠️  {error_msg}")
                 # One retry
-                retry_choice = click.prompt(
-                    "Enter API ID again or 'skip' to skip", default="skip"
+                retry_choice = _safe_prompt(
+                    "Enter API ID again or 'skip' to skip", "skip"
                 )
                 if retry_choice.lower() == "skip":
                     return None
@@ -1088,6 +1114,9 @@ def scrape_tv_parallel(
                 source = "TMDB"
                 episodes_with_images += 1
                 tmdb_episode_count += 1
+                # Update record so generate can identify this as API-sourced
+                if api_episode:
+                    api_episode["image"] = img_url
                 logger.debug(
                     f"Found TMDB episode image for {tmdb_key} (mapped from S{target_season:02d}E{target_episode:02d})"
                 )

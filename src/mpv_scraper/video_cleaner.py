@@ -308,7 +308,10 @@ def optimize_video_file(
             # Attach filters, audio and container flags
             if vf_chain:
                 cmd_parts += ["-vf", ",".join(vf_chain)]
+            # Normalize audio to -14 LUFS (streaming standard) so quiet content is audible
             cmd_parts += [
+                "-af",
+                "loudnorm=I=-14:TP=-1",
                 "-c:a",
                 preset.audio_codec,
                 "-b:a",

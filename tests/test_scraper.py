@@ -300,7 +300,10 @@ def test_prompt_on_ambiguity_multiple_results(monkeypatch):
 
     # Mock user input: select first result
     inputs = ["1"]
-    monkeypatch.setattr("click.prompt", lambda *args, **kwargs: inputs.pop(0))
+    monkeypatch.setattr(
+        "mpv_scraper.scraper._safe_prompt",
+        lambda prompt_text, default: inputs.pop(0) if inputs else default,
+    )
 
     result = _prompt_for_resolution(
         "Test Show - S01E01.mkv", search_results=search_results, parsed_meta=parsed_meta
@@ -317,7 +320,10 @@ def test_prompt_on_failure_no_results(monkeypatch):
 
     # Mock user input: provide API ID
     inputs = ["tmdb-15196"]
-    monkeypatch.setattr("click.prompt", lambda *args, **kwargs: inputs.pop(0))
+    monkeypatch.setattr(
+        "mpv_scraper.scraper._safe_prompt",
+        lambda prompt_text, default: inputs.pop(0) if inputs else default,
+    )
 
     result = _prompt_for_resolution(
         "Test Movie (2020).mkv",
@@ -334,7 +340,10 @@ def test_prompt_skip_option(monkeypatch):
 
     # Mock user input: skip
     inputs = ["skip"]
-    monkeypatch.setattr("click.prompt", lambda *args, **kwargs: inputs.pop(0))
+    monkeypatch.setattr(
+        "mpv_scraper.scraper._safe_prompt",
+        lambda prompt_text, default: inputs.pop(0) if inputs else default,
+    )
 
     result = _prompt_for_resolution("Test.mkv", search_results=search_results)
     assert result is None
