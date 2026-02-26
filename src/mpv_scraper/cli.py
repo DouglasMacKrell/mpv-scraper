@@ -1178,6 +1178,7 @@ def optimize_parallel(
     from mpv_scraper.video_cleaner_parallel import (
         build_optimization_tasks,
         get_optimal_worker_count,
+        get_video_files_for_analysis,
         estimate_parallel_processing_time,
         process_optimization_tasks,
     )
@@ -1292,9 +1293,44 @@ def optimize_parallel(
                     click.echo("Aborted by user.")
                     return 1
 
-    # Phase 1: Analyze videos (show message so user knows work is in progress)
-    click.echo("Analyzing videos for compatibility...")
-    tasks, skipped = build_optimization_tasks(directory, preset_config, fix_audio)
+    # Phase 1: Analyze videos (with progress bar or fallback for non-TTY)
+    import sys
+
+    files_to_analyze = get_video_files_for_analysis(directory)
+    if files_to_analyze:
+        if sys.stderr.isatty():
+            with click.progressbar(
+                files_to_analyze,
+                label="Analyzing videos for compatibility",
+                show_eta=True,
+                show_percent=True,
+                item_show_func=lambda f: f.name if f else None,
+                file=sys.stderr,
+            ) as bar:
+                tasks, skipped = build_optimization_tasks(
+                    directory,
+                    preset_config,
+                    fix_audio,
+                    file_iterator=bar,
+                )
+        else:
+            # Non-TTY: show incremental progress (e.g. Cursor terminal, CI)
+            def fallback_iterator():
+                for i, f in enumerate(files_to_analyze, 1):
+                    click.echo(
+                        f"  Analyzing {i}/{len(files_to_analyze)}: {f.name}",
+                        err=True,
+                    )
+                    yield f
+
+            tasks, skipped = build_optimization_tasks(
+                directory,
+                preset_config,
+                fix_audio,
+                file_iterator=fallback_iterator(),
+            )
+    else:
+        tasks, skipped = build_optimization_tasks(directory, preset_config, fix_audio)
 
     # Log task breakdown
     if skipped > 0:
@@ -1312,21 +1348,42 @@ def optimize_parallel(
         successful = 0
         errors = []
     elif tasks:
-        with click.progressbar(
-            length=len(tasks),
-            label="Optimizing videos",
-            show_eta=True,
-            show_percent=True,
-        ) as bar:
+        total = len(tasks)
+        if sys.stderr.isatty():
+            with click.progressbar(
+                length=total,
+                label="Optimizing videos",
+                show_eta=True,
+                show_percent=True,
+                file=sys.stderr,
+            ) as bar:
+                successful, errors = process_optimization_tasks(
+                    tasks=tasks,
+                    preset_config=preset_config,
+                    max_workers=workers,
+                    replace_originals=replace_originals,
+                    progress_callback=lambda n: bar.update(n),
+                    dry_run=False,
+                )
+        else:
+            # Non-TTY: show incremental progress per completed video
+            completed = [0]
+
+            def progress_echo(n):
+                completed[0] += n
+                click.echo(
+                    f"  Optimized {completed[0]}/{total} video(s)",
+                    err=True,
+                )
+
             successful, errors = process_optimization_tasks(
                 tasks=tasks,
                 preset_config=preset_config,
                 max_workers=workers,
                 replace_originals=replace_originals,
-                progress_callback=lambda n: bar.update(n),
+                progress_callback=progress_echo,
                 dry_run=False,
             )
-        total = len(tasks)
     else:
         total = 0
         successful = 0

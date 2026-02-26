@@ -262,39 +262,57 @@ def optimize_single_file_worker(
         return (task.input_path, False, f"Exception: {str(e)}")
 
 
+def get_video_files_for_analysis(directory: Path) -> List[Path]:
+    """Return list of video files to analyze (excludes ._ and _optimized.mp4)."""
+    video_files = []
+    for ext in [".mp4", ".mkv", ".avi", ".mov"]:
+        video_files.extend(directory.glob(f"**/*{ext}"))
+    return [
+        f
+        for f in video_files
+        if not f.name.startswith("._") and not f.name.endswith("_optimized.mp4")
+    ]
+
+
+def _needs_audio_pass(analysis, video_file: Path, fix_audio: bool) -> Tuple[bool, str]:
+    """
+    Determine if a video-compatible file needs an audio-only pass.
+    Returns (needs_pass, reason). Only runs loudness check when fix_audio and codec OK.
+    """
+    if not fix_audio:
+        return False, ""
+    if analysis.audio_needs_optimization:
+        return True, f"audio={analysis.audio_codec}"
+    # Codec OK - check if quiet (expensive: full decode)
+    lufs = measure_audio_loudness_lufs(video_file)
+    if lufs is not None and lufs < QUIET_AUDIO_THRESHOLD_LUFS:
+        return True, f"quiet ({lufs:.1f} LUFS < {QUIET_AUDIO_THRESHOLD_LUFS})"
+    return False, ""
+
+
 def build_optimization_tasks(
     directory: Path,
     preset_config: dict,
     fix_audio: bool = False,
+    file_iterator=None,
 ) -> Tuple[List[ParallelOptimizationTask], int]:
     """
     Scan directory and build list of optimization tasks.
     Returns (tasks, skipped_compatible). Use for progress bar length.
+    If file_iterator is provided (e.g. click.progressbar), iterate over it for progress.
+    Audio is always analyzed (from ffprobe); loudness check only when fix_audio.
     """
-    video_files = []
-    for ext in [".mp4", ".mkv", ".avi", ".mov"]:
-        video_files.extend(directory.glob(f"**/*{ext}"))
+    if file_iterator is None:
+        file_iterator = get_video_files_for_analysis(directory)
 
     tasks = []
     skipped_compatible = 0
-    for video_file in video_files:
-        if video_file.name.startswith("._") or video_file.name.endswith(
-            "_optimized.mp4"
-        ):
-            continue
-
+    for video_file in file_iterator:
         analysis = analyze_video_file(video_file)
         if analysis is not None and not analysis.is_problematic:
-            needs_audio_pass = False
-            if fix_audio and analysis.audio_needs_optimization:
-                needs_audio_pass = True
-                reason = f"audio={analysis.audio_codec}"
-            elif fix_audio and not analysis.audio_needs_optimization:
-                lufs = measure_audio_loudness_lufs(video_file)
-                if lufs is not None and lufs < QUIET_AUDIO_THRESHOLD_LUFS:
-                    needs_audio_pass = True
-                    reason = f"quiet ({lufs:.1f} LUFS < {QUIET_AUDIO_THRESHOLD_LUFS})"
-
+            needs_audio_pass, reason = _needs_audio_pass(
+                analysis, video_file, fix_audio
+            )
             if needs_audio_pass:
                 output_path = video_file.with_name(f"{video_file.stem}_optimized.mp4")
                 task = ParallelOptimizationTask(
