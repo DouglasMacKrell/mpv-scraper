@@ -57,6 +57,7 @@ The video optimizer automatically detects and fixes problematic video files that
 - **AI-upscaled content** with complex encoding
 - **High bitrate files** that overwhelm device capabilities
 - **Incompatible codecs** (HEVC/H.265 on older devices)
+- **Audio compatibility**: Incompatible audio (DTS, AC3 → AAC) and quiet audio (< -20 LUFS → normalized to -14 LUFS) are part of the handheld check
 
 ### Smart Problem Detection
 
@@ -149,9 +150,9 @@ python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals 
 # Regenerate gamelist.xml after optimization completes
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals -y --regen-gamelist
 
-# Audio-only pass: re-encode audio (DTS/AC3 -> AAC) or normalize volume on videos that meet video ceiling
-# Covers: incompatible audio codecs, and quiet audio (< -20 LUFS, normalized to -14 LUFS)
-python -m mpv_scraper.cli optimize-parallel /path/to/videos --fix-audio
+# Audio compatibility is part of the handheld check—no separate flag needed.
+# Videos that meet video ceiling but have DTS/AC3 or quiet audio (< -20 LUFS) get audio-only pass.
+python -m mpv_scraper.cli optimize-parallel /path/to/videos
 ```
 
 ### Optimization Presets

@@ -3,7 +3,7 @@
 ## [1.2.0] - 2026-01-04
 ### Added
 - **ES-DE Video Previews**: 30-second preview clips from the 25% mark for gamelist integration (`/mpv/videos/`, `--no-previews` to skip)
-- **`--fix-audio`**: Audio-only pass for incompatible codecs (DTS/AC3 → AAC); normalizes quiet videos (< -20 LUFS) to -14 LUFS
+- **Audio compatibility**: Part of handheld check—audio-only pass for incompatible codecs (DTS/AC3 → AAC) and quiet videos (< -20 LUFS → -14 LUFS)
 - **`optimize-parallel`**: `-y/--yes` to auto-confirm destructive actions; `--regen-gamelist` to regenerate gamelist.xml after optimization
 - **Progress bars**: Two-phase flow (analysis then optimization) with determinate bar; non-TTY fallback (`Analyzing N/total`, `Optimized N/total`)
 - **TVDB logos**: ClearLogo via `/v4/series/{id}/extended?meta=artworks`; `--refresh` bypasses TVDB cache for fresh logo fetches

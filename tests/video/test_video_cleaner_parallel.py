@@ -7,7 +7,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 import tempfile
 
-from mpv_scraper.video_cleaner import VideoAnalysis
 from mpv_scraper.video_cleaner_parallel import (
     ParallelOptimizationTask,
     optimize_single_file_worker,
@@ -753,9 +752,9 @@ class TestParallelOptimizeVideos:
             assert result[1] == 1  # successful
             assert result[2] == []  # errors
 
-    @patch("mpv_scraper.video_cleaner_parallel.analyze_video_file")
-    def test_skips_already_compatible_files(self, mock_analyze):
-        """Already-compatible files (ffprobe) are skipped, no conversion."""
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
+    def test_skips_already_compatible_files(self, mock_build_tasks):
+        """Already-compatible files are skipped; only problematic ones get tasks."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             compatible = temp_path / "already_ok.mp4"
@@ -763,38 +762,14 @@ class TestParallelOptimizeVideos:
             compatible.touch()
             problematic.touch()
 
-            def analyze(p):
-                if "already_ok" in p.name:
-                    return VideoAnalysis(
-                        file_path=p,
-                        codec="h264",
-                        profile="High",
-                        width=1280,
-                        height=720,
-                        bitrate=1500000,
-                        pixel_format="yuv420p",
-                        file_size_mb=50.0,
-                        duration_seconds=600.0,
-                        is_problematic=False,
-                        issues=[],
-                        optimization_score=0.0,
-                    )
-                return VideoAnalysis(
-                    file_path=p,
-                    codec="hevc",
-                    profile="Main 10",
-                    width=1920,
-                    height=1080,
-                    bitrate=5000000,
-                    pixel_format="yuv420p10le",
-                    file_size_mb=200.0,
-                    duration_seconds=600.0,
-                    is_problematic=True,
-                    issues=["HEVC/H.265 codec (CPU intensive)"],
-                    optimization_score=0.5,
-                )
-
-            mock_analyze.side_effect = analyze
+            # build_optimization_tasks returns (tasks, skipped) - 1 task for problematic, 1 skipped
+            mock_task = ParallelOptimizationTask(
+                input_path=problematic,
+                output_path=problematic.with_name("needs_work_optimized.mp4"),
+                preset_name="test_preset",
+                preset_config={},
+            )
+            mock_build_tasks.return_value = ([mock_task], 1)
 
             result = parallel_optimize_videos(
                 directory=temp_path,
@@ -813,12 +788,12 @@ class TestParallelOptimizeVideos:
                 dry_run=True,
             )
 
-            # Only the problematic file should be in the task list
+            # Only the problematic file in task list; 1 skipped
             assert result[0] == 1
             assert result[1] == 0
             assert result[2] == []
-            mock_analyze.assert_any_call(compatible)
-            mock_analyze.assert_any_call(problematic)
+            assert result[3] == 1  # skipped_compatible
+            mock_build_tasks.assert_called_once()
 
 
 class TestEstimateParallelProcessingTime:

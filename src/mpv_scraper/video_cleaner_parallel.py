@@ -274,16 +274,46 @@ def get_video_files_for_analysis(directory: Path) -> List[Path]:
     ]
 
 
-def _needs_audio_pass(analysis, video_file: Path, fix_audio: bool) -> Tuple[bool, str]:
+def _analyze_single_file_worker(
+    video_file: Path,
+) -> Tuple[Path, Optional[object], bool, str]:
+    """
+    Worker for parallel analysis. Runs ffprobe + loudness check for compatibility.
+    Returns (video_file, analysis, needs_audio_pass, reason).
+    Must be top-level for ProcessPoolExecutor pickling.
+    """
+    from mpv_scraper.video_cleaner import (
+        QUIET_AUDIO_THRESHOLD_LUFS,
+        analyze_video_file,
+        measure_audio_loudness_lufs,
+    )
+
+    analysis = analyze_video_file(video_file)
+    if analysis is None:
+        return (video_file, None, False, "")
+    if analysis.is_problematic:
+        return (video_file, analysis, False, "")
+    if analysis.audio_needs_optimization:
+        return (video_file, analysis, True, f"audio={analysis.audio_codec}")
+    lufs = measure_audio_loudness_lufs(video_file)
+    if lufs is not None and lufs < QUIET_AUDIO_THRESHOLD_LUFS:
+        return (
+            video_file,
+            analysis,
+            True,
+            f"quiet ({lufs:.1f} LUFS < {QUIET_AUDIO_THRESHOLD_LUFS})",
+        )
+    return (video_file, analysis, False, "")
+
+
+def _needs_audio_pass(analysis, video_file: Path) -> Tuple[bool, str]:
     """
     Determine if a video-compatible file needs an audio-only pass.
-    Returns (needs_pass, reason). Only runs loudness check when fix_audio and codec OK.
+    Returns (needs_pass, reason). Audio compatibility is part of handheld check.
     """
-    if not fix_audio:
-        return False, ""
     if analysis.audio_needs_optimization:
         return True, f"audio={analysis.audio_codec}"
-    # Codec OK - check if quiet (expensive: full decode)
+    # Codec OK - check if quiet (expensive: full decode per file)
     lufs = measure_audio_loudness_lufs(video_file)
     if lufs is not None and lufs < QUIET_AUDIO_THRESHOLD_LUFS:
         return True, f"quiet ({lufs:.1f} LUFS < {QUIET_AUDIO_THRESHOLD_LUFS})"
@@ -293,26 +323,83 @@ def _needs_audio_pass(analysis, video_file: Path, fix_audio: bool) -> Tuple[bool
 def build_optimization_tasks(
     directory: Path,
     preset_config: dict,
-    fix_audio: bool = False,
     file_iterator=None,
+    progress_callback=None,
 ) -> Tuple[List[ParallelOptimizationTask], int]:
     """
     Scan directory and build list of optimization tasks.
     Returns (tasks, skipped_compatible). Use for progress bar length.
-    If file_iterator is provided (e.g. click.progressbar), iterate over it for progress.
-    Audio is always analyzed (from ffprobe); loudness check only when fix_audio.
+    Audio compatibility (codec + loudness) is part of the check.
+    Uses parallel analysis when len(files) > 1 (loudness check is expensive per file).
+    progress_callback: Optional[Callable[[int, int, Optional[str]], None]] - (current, total, filename).
     """
+    files = get_video_files_for_analysis(directory)
+    if not files:
+        return [], 0
+
+    # Parallel path when multiple files: loudness check is expensive (full decode per file)
+    if len(files) > 1:
+        max_workers = min(get_optimal_worker_count(), len(files))
+        tasks = []
+        skipped_compatible = 0
+        completed = 0
+        total = len(files)
+
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            futures = {
+                executor.submit(_analyze_single_file_worker, f): f for f in files
+            }
+            for future in as_completed(futures):
+                video_file, analysis, needs_audio_pass, reason = future.result()
+                completed += 1
+                if progress_callback:
+                    progress_callback(completed, total, video_file.name)
+
+                if analysis is None:
+                    continue
+                if not analysis.is_problematic:
+                    if needs_audio_pass:
+                        output_path = video_file.with_name(
+                            f"{video_file.stem}_optimized.mp4"
+                        )
+                        task = ParallelOptimizationTask(
+                            input_path=video_file,
+                            output_path=output_path,
+                            preset_name=preset_config.get("name", "handheld"),
+                            preset_config=preset_config,
+                            audio_only=True,
+                        )
+                        tasks.append(task)
+                        logger.debug(f"Audio-only pass: {video_file.name} [{reason}]")
+                    else:
+                        skipped_compatible += 1
+                        logger.debug(
+                            f"Already compatible (skip): {video_file.name} "
+                            f"[{analysis.codec}, {analysis.width}x{analysis.height}]"
+                        )
+                else:
+                    output_path = video_file.with_name(
+                        f"{video_file.stem}_optimized.mp4"
+                    )
+                    task = ParallelOptimizationTask(
+                        input_path=video_file,
+                        output_path=output_path,
+                        preset_name=preset_config.get("name", "handheld"),
+                        preset_config=preset_config,
+                    )
+                    tasks.append(task)
+        return tasks, skipped_compatible
+
+    # Sequential path
     if file_iterator is None:
-        file_iterator = get_video_files_for_analysis(directory)
+        file_iterator = files
 
     tasks = []
     skipped_compatible = 0
     for video_file in file_iterator:
         analysis = analyze_video_file(video_file)
         if analysis is not None and not analysis.is_problematic:
-            needs_audio_pass, reason = _needs_audio_pass(
-                analysis, video_file, fix_audio
-            )
+            needs_audio_pass, reason = _needs_audio_pass(analysis, video_file)
             if needs_audio_pass:
                 output_path = video_file.with_name(f"{video_file.stem}_optimized.mp4")
                 task = ParallelOptimizationTask(
@@ -442,7 +529,6 @@ def parallel_optimize_videos(
     dry_run: bool = False,
     replace_originals: bool = False,
     progress_callback: Optional[Callable[[int], None]] = None,
-    fix_audio: bool = False,
 ) -> Tuple[int, int, List[str], int]:
     """
     Optimize multiple video files in parallel.
@@ -452,20 +538,18 @@ def parallel_optimize_videos(
         preset_config: Optimization preset configuration
         max_workers: Maximum number of worker processes (auto-detect if None)
         dry_run: If True, only show what would be processed
-        fix_audio: If True, run audio-only pass on videos that meet compatibility
-            ceiling but have incompatible audio (e.g. DTS, AC3 -> AAC)
 
     Returns:
         Tuple of (total_processed, successful_count, error_messages, skipped_compatible)
+
+    Audio compatibility (codec + loudness) is part of the handheld check.
     """
     if max_workers is None:
         max_workers = get_optimal_worker_count()
 
     logger.info(f"Starting parallel optimization with {max_workers} workers")
 
-    tasks, skipped_compatible = build_optimization_tasks(
-        directory, preset_config, fix_audio
-    )
+    tasks, skipped_compatible = build_optimization_tasks(directory, preset_config)
 
     audio_only_count = sum(1 for t in tasks if t.audio_only)
     if skipped_compatible > 0:

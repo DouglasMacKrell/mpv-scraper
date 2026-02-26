@@ -217,7 +217,7 @@ python -m mpv_scraper.cli optimize-parallel /path/to/videos --workers 8
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset compatibility
 
 # Audio-only pass for videos that meet ceiling but have DTS/AC3 audio
-python -m mpv_scraper.cli optimize-parallel /path/to/videos --fix-audio
+python -m mpv_scraper.cli optimize-parallel /path/to/videos
 
 # Dry run to see what would be processed
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --dry-run

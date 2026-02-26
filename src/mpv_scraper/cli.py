@@ -1160,13 +1160,8 @@ def optimize(path, preset, dry_run, overwrite, regen_gamelist):
     is_flag=True,
     help="Regenerate gamelist.xml for PATH after optimization completes",
 )
-@click.option(
-    "--fix-audio",
-    is_flag=True,
-    help="Run audio-only pass on videos that meet ceiling: incompatible audio (DTS/AC3->AAC) or quiet audio (loudnorm to -14 LUFS)",
-)
 def optimize_parallel(
-    path, preset, workers, dry_run, replace_originals, yes, regen_gamelist, fix_audio
+    path, preset, workers, dry_run, replace_originals, yes, regen_gamelist
 ):
     """Optimize videos in DIRECTORY using parallel processing for faster results.
 
@@ -1239,10 +1234,6 @@ def optimize_parallel(
 
     # Inform preset choice
     click.echo(f"Using preset: {preset}")
-    if fix_audio:
-        click.echo(
-            "Fix-audio mode: audio-only pass (codec conversion + volume normalization)"
-        )
 
     # Count files for time estimation (recursive: supports nested dirs like Season 1/)
     video_files = []
@@ -1298,39 +1289,68 @@ def optimize_parallel(
 
     files_to_analyze = get_video_files_for_analysis(directory)
     if files_to_analyze:
-        if sys.stderr.isatty():
-            with click.progressbar(
-                files_to_analyze,
-                label="Analyzing videos for compatibility",
-                show_eta=True,
-                show_percent=True,
-                item_show_func=lambda f: f.name if f else None,
-                file=sys.stderr,
-            ) as bar:
+        if len(files_to_analyze) > 1:
+            # Parallel analysis (loudness check is expensive per file)
+            if sys.stderr.isatty():
+                with click.progressbar(
+                    length=len(files_to_analyze),
+                    label="Analyzing videos for compatibility",
+                    show_eta=True,
+                    show_percent=True,
+                    file=sys.stderr,
+                ) as bar:
+
+                    def progress_cb(_cur, _total, name):
+                        bar.update(1)
+
+                    tasks, skipped = build_optimization_tasks(
+                        directory,
+                        preset_config,
+                        progress_callback=progress_cb,
+                    )
+            else:
+
+                def progress_cb(cur, total, name):
+                    click.echo(f"  Analyzing {cur}/{total}: {name}", err=True)
+
                 tasks, skipped = build_optimization_tasks(
                     directory,
                     preset_config,
-                    fix_audio,
-                    file_iterator=bar,
+                    progress_callback=progress_cb,
                 )
         else:
-            # Non-TTY: show incremental progress (e.g. Cursor terminal, CI)
-            def fallback_iterator():
-                for i, f in enumerate(files_to_analyze, 1):
-                    click.echo(
-                        f"  Analyzing {i}/{len(files_to_analyze)}: {f.name}",
-                        err=True,
+            # Single file: sequential
+            if sys.stderr.isatty():
+                with click.progressbar(
+                    files_to_analyze,
+                    label="Analyzing videos for compatibility",
+                    show_eta=True,
+                    show_percent=True,
+                    item_show_func=lambda f: f.name if f else None,
+                    file=sys.stderr,
+                ) as bar:
+                    tasks, skipped = build_optimization_tasks(
+                        directory,
+                        preset_config,
+                        file_iterator=bar,
                     )
-                    yield f
+            else:
 
-            tasks, skipped = build_optimization_tasks(
-                directory,
-                preset_config,
-                fix_audio,
-                file_iterator=fallback_iterator(),
-            )
+                def fallback_iterator():
+                    for i, f in enumerate(files_to_analyze, 1):
+                        click.echo(
+                            f"  Analyzing {i}/{len(files_to_analyze)}: {f.name}",
+                            err=True,
+                        )
+                        yield f
+
+                tasks, skipped = build_optimization_tasks(
+                    directory,
+                    preset_config,
+                    file_iterator=fallback_iterator(),
+                )
     else:
-        tasks, skipped = build_optimization_tasks(directory, preset_config, fix_audio)
+        tasks, skipped = build_optimization_tasks(directory, preset_config)
 
     # Log task breakdown
     if skipped > 0:

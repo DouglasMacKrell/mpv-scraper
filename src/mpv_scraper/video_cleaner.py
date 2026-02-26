@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Audio codecs considered compatible with handheld playback (no re-encode needed)
 AUDIO_COMPATIBLE_CODECS = frozenset({"aac", "mp3", "opus"})
 
-# LUFS below this threshold is considered "quiet" - will get loudnorm when --fix-audio
+# LUFS below this threshold is considered "quiet" - gets loudnorm as part of compatibility check
 # Target is -14 LUFS (streaming standard); -20 = 6 dB below target
 QUIET_AUDIO_THRESHOLD_LUFS = -20.0
 
@@ -223,7 +223,7 @@ def measure_audio_loudness_lufs(
 ) -> Optional[float]:
     """
     Measure integrated loudness (LUFS) of the primary audio stream.
-    Requires full decode; use only when --fix-audio needs to detect quiet videos.
+    Requires full decode; used during compatibility analysis to detect quiet videos.
 
     Args:
         video_path: Path to video file
