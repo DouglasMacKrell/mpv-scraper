@@ -15,7 +15,14 @@ import platform
 import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from mpv_scraper.video_capture import get_video_duration
+from mpv_scraper.video_cleaner import analyze_video_file
+
 logger = logging.getLogger(__name__)
+
+# Minimum ratio of output duration to input duration to consider an existing
+# _optimized.mp4 valid (avoids treating partial/failed outputs as complete)
+DURATION_RATIO_THRESHOLD = 0.95
 
 
 @dataclass
@@ -55,11 +62,25 @@ def optimize_single_file_worker(
         Tuple of (input_path, success, error_message)
     """
     try:
-        # Check if output already exists and is valid
-        if (
-            task.output_path.exists() and task.output_path.stat().st_size > 1024 * 1024
-        ):  # > 1MB
-            return (task.input_path, True, "Already optimized")
+        # Check if output already exists and is valid (avoids treating partial/failed outputs as complete)
+        if task.output_path.exists() and task.output_path.stat().st_size > 1024 * 1024:
+            inp_dur = get_video_duration(task.input_path)
+            out_dur = get_video_duration(task.output_path)
+            if inp_dur is not None and out_dur is not None:
+                ratio = out_dur / inp_dur
+                if ratio >= DURATION_RATIO_THRESHOLD:
+                    return (task.input_path, True, "Already optimized")
+                # Partial output from failed run; remove and retry
+                try:
+                    task.output_path.unlink()
+                    logger.warning(
+                        f"Removed partial output ({ratio:.1%} of input): {task.output_path.name}"
+                    )
+                except OSError:
+                    pass
+            else:
+                # Can't verify duration; treat as valid to avoid infinite retries on probe errors
+                return (task.input_path, True, "Already optimized")
 
         # Determine platform
         is_macos = platform.system() == "Darwin"
@@ -74,9 +95,13 @@ def optimize_single_file_worker(
         x264_preset = task.preset_config.get("preset", "faster")
         tune = task.preset_config.get("tune")
 
+        # Error-resilient input flags for corrupted/malformed source files
+        resilient_flags = ["-err_detect", "ignore_err", "-fflags", "+genpts+igndts"]
+
         # Build hardware (videotoolbox) command using bitrate control
         hw_cmd: List[str] = [
             "ffmpeg",
+            *resilient_flags,
             "-i",
             str(task.input_path),
             "-c:v",
@@ -110,6 +135,7 @@ def optimize_single_file_worker(
         # Build software (libx264) command using CRF
         sw_cmd: List[str] = [
             "ffmpeg",
+            *resilient_flags,
             "-i",
             str(task.input_path),
             "-c:v",
@@ -144,11 +170,46 @@ def optimize_single_file_worker(
             sw_cmd.extend(["-tune", tune])
             # tune is not used for videotoolbox
 
-        # Choose attempt order
+        # Fallback: same as sw_cmd but without loudnorm (for corrupt audio that breaks the filter)
+        sw_cmd_no_loudnorm: List[str] = [
+            "ffmpeg",
+            *resilient_flags,
+            "-i",
+            str(task.input_path),
+            "-c:v",
+            "libx264",
+            "-profile:v",
+            target_profile,
+            "-preset",
+            x264_preset,
+            "-crf",
+            crf,
+            "-vf",
+            f"scale={target_resolution[0]}:{target_resolution[1]}:force_original_aspect_ratio=decrease",
+            "-pix_fmt",
+            "yuv420p",
+            "-c:a",
+            audio_codec,
+            "-b:a",
+            str(audio_bitrate),
+            "-movflags",
+            "+faststart",
+            "-f",
+            "mp4",
+            "-threads",
+            "0",
+            "-y",
+            str(task.output_path),
+        ]
+        if tune:
+            sw_cmd_no_loudnorm.extend(["-tune", tune])
+
+        # Choose attempt order: hardware → software → software without loudnorm (corrupt audio fallback)
         attempts: List[Tuple[str, List[str]]] = []
         if is_macos:
             attempts.append(("hardware (h264_videotoolbox)", hw_cmd))
         attempts.append(("software (libx264)", sw_cmd))
+        attempts.append(("software (libx264, no loudnorm)", sw_cmd_no_loudnorm))
 
         # Run FFmpeg with timeout
         timeout = task.preset_config.get("timeout", 1800)  # 30 minutes default
@@ -215,13 +276,25 @@ def parallel_optimize_videos(
         video_files.extend(directory.glob(f"*{ext}"))
 
     # Filter out already optimized files and AppleDouble files
+    # Skip files already compatible (ffprobe check) - avoid unnecessary reconversion
     tasks = []
+    skipped_compatible = 0
     for video_file in video_files:
         if video_file.name.startswith("._") or video_file.name.endswith(
             "_optimized.mp4"
         ):
             continue
 
+        analysis = analyze_video_file(video_file)
+        if analysis is not None and not analysis.is_problematic:
+            skipped_compatible += 1
+            logger.debug(
+                f"Already compatible (skip): {video_file.name} "
+                f"[{analysis.codec}, {analysis.width}x{analysis.height}]"
+            )
+            continue
+
+        # Probe failed or file is problematic: include for optimization
         output_path = video_file.with_name(f"{video_file.stem}_optimized.mp4")
 
         task = ParallelOptimizationTask(
@@ -232,10 +305,20 @@ def parallel_optimize_videos(
         )
         tasks.append(task)
 
+    if skipped_compatible > 0:
+        logger.info(
+            f"Skipped {skipped_compatible} already-compatible file(s) "
+            "(no conversion needed)"
+        )
+
     if dry_run:
         logger.info(
             f"DRY RUN: Would process {len(tasks)} video files with {max_workers} workers"
         )
+        if skipped_compatible > 0:
+            logger.info(
+                f"DRY RUN: Would skip {skipped_compatible} already-compatible file(s)"
+            )
         return len(tasks), 0, []
 
     if not tasks:

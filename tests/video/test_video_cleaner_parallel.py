@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 import tempfile
 
+from mpv_scraper.video_cleaner import VideoAnalysis
 from mpv_scraper.video_cleaner_parallel import (
     ParallelOptimizationTask,
     optimize_single_file_worker,
@@ -59,10 +60,15 @@ class TestParallelOptimizationTask:
 class TestOptimizeSingleFileWorker:
     """Test single file optimization worker."""
 
+    @patch("mpv_scraper.video_cleaner_parallel.get_video_duration")
     @patch("mpv_scraper.video_cleaner_parallel.subprocess.run")
-    def test_optimize_single_file_worker_success_hardware(self, mock_run):
+    def test_optimize_single_file_worker_success_hardware(
+        self, mock_run, mock_get_duration
+    ):
         """Test successful optimization with hardware acceleration."""
         mock_run.return_value = Mock(returncode=0)
+        # Simulate valid pre-existing output: same duration for input and output
+        mock_get_duration.side_effect = lambda p: 120.0
 
         task = ParallelOptimizationTask(
             input_path=Path("/test/input.mp4"),
@@ -94,9 +100,16 @@ class TestOptimizeSingleFileWorker:
 
         # Successful completion is sufficient in isolated test mode
 
+    @patch("mpv_scraper.video_cleaner_parallel.get_video_duration")
     @patch("mpv_scraper.video_cleaner_parallel.subprocess.run")
-    def test_optimize_single_file_worker_success_software(self, mock_run):
+    def test_optimize_single_file_worker_success_software(
+        self, mock_run, mock_get_duration
+    ):
         """Test successful optimization with software encoding (hardware fallback)."""
+        # Simulate partial output (10s of 120s) so we remove it and retry
+        mock_get_duration.side_effect = lambda p: (
+            120.0 if "_optimized" not in str(p) else 10.0
+        )
         # First call fails (hardware not available), second succeeds (software)
         mock_run.side_effect = [
             Mock(returncode=1, stderr=b"Hardware encoder not available"),
@@ -132,6 +145,44 @@ class TestOptimizeSingleFileWorker:
         assert result[1] is True
 
         # Success is sufficient regardless of path taken
+
+    @patch("mpv_scraper.video_cleaner_parallel.get_video_duration")
+    @patch("mpv_scraper.video_cleaner_parallel.subprocess.run")
+    def test_removes_partial_output_and_retries(self, mock_run, mock_get_duration):
+        """Partial _optimized.mp4 from failed run is removed and retried."""
+        # Input 22 min, output only 13 sec (~1% ratio) - clearly partial
+        mock_get_duration.side_effect = lambda p: (
+            1320.0 if "_optimized" not in str(p) else 13.0
+        )
+        mock_run.return_value = Mock(returncode=0)
+
+        task = ParallelOptimizationTask(
+            input_path=Path("/test/Show - S02E08 - Title.mp4"),
+            output_path=Path("/test/Show - S02E08 - Title_optimized.mp4"),
+            preset_name="test_preset",
+            preset_config={
+                "name": "test_preset",
+                "target_codec": "libx264",
+                "target_profile": "high",
+                "target_bitrate": 1500000,
+                "target_resolution": (1280, 720),
+                "crf": 23,
+                "preset": "faster",
+                "audio_codec": "aac",
+                "audio_bitrate": 128000,
+                "timeout": 1800,
+            },
+        )
+
+        with patch("pathlib.Path.exists", return_value=True), patch(
+            "pathlib.Path.stat"
+        ) as mock_stat:
+            mock_stat.return_value = Mock(st_size=2 * 1024 * 1024)
+            result = optimize_single_file_worker(task)
+
+        assert result[0] == Path("/test/Show - S02E08 - Title.mp4")
+        assert result[1] is True
+        mock_run.assert_called()
 
     @patch("mpv_scraper.video_cleaner_parallel.subprocess.run")
     def test_optimize_single_file_worker_failure(self, mock_run):
@@ -665,6 +716,73 @@ class TestParallelOptimizeVideos:
             assert result[0] == 1  # total
             assert result[1] == 1  # successful
             assert result[2] == []  # errors
+
+    @patch("mpv_scraper.video_cleaner_parallel.analyze_video_file")
+    def test_skips_already_compatible_files(self, mock_analyze):
+        """Already-compatible files (ffprobe) are skipped, no conversion."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            compatible = temp_path / "already_ok.mp4"
+            problematic = temp_path / "needs_work.mp4"
+            compatible.touch()
+            problematic.touch()
+
+            def analyze(p):
+                if "already_ok" in p.name:
+                    return VideoAnalysis(
+                        file_path=p,
+                        codec="h264",
+                        profile="High",
+                        width=1280,
+                        height=720,
+                        bitrate=1500000,
+                        pixel_format="yuv420p",
+                        file_size_mb=50.0,
+                        duration_seconds=600.0,
+                        is_problematic=False,
+                        issues=[],
+                        optimization_score=0.0,
+                    )
+                return VideoAnalysis(
+                    file_path=p,
+                    codec="hevc",
+                    profile="Main 10",
+                    width=1920,
+                    height=1080,
+                    bitrate=5000000,
+                    pixel_format="yuv420p10le",
+                    file_size_mb=200.0,
+                    duration_seconds=600.0,
+                    is_problematic=True,
+                    issues=["HEVC/H.265 codec (CPU intensive)"],
+                    optimization_score=0.5,
+                )
+
+            mock_analyze.side_effect = analyze
+
+            result = parallel_optimize_videos(
+                directory=temp_path,
+                preset_config={
+                    "name": "test_preset",
+                    "target_codec": "libx264",
+                    "target_profile": "high",
+                    "target_bitrate": 1500000,
+                    "target_resolution": (1280, 720),
+                    "crf": 23,
+                    "preset": "faster",
+                    "audio_codec": "aac",
+                    "audio_bitrate": 128000,
+                    "timeout": 1800,
+                },
+                dry_run=True,
+            )
+
+            # Only the problematic file should be in the task list
+            assert result[0] == 1
+            assert result[1] == 0
+            assert result[2] == []
+            mock_analyze.assert_any_call(compatible)
+            mock_analyze.assert_any_call(problematic)
 
 
 class TestEstimateParallelProcessingTime:

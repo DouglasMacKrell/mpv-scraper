@@ -1002,41 +1002,9 @@ def scrape_tv_parallel(
 
     logger.info(f"Found {len(episode_files)} episode files for {show_dir.name}")
 
-    # Bulk fetch TMDB episode images for all seasons to avoid API bombing
-    tmdb_episode_images = {}
-    all_seasons = list(
-        set([meta.season for _, meta in episode_files])
-    )  # All unique seasons
-
-    if all_seasons and episode_files:
-        try:
-            # Use the parsed show name from the first episode file (more accurate than directory name)
-            parsed_show_name = episode_files[0][1].show
-            logger.info(
-                f"Using parsed show name for TMDB bulk fetch: '{parsed_show_name}'"
-            )
-
-            # Handle year-based episodes (like Popeye S1934E03)
-            # For year-based episodes, treat them as season 1 for TMDB purposes
-            tmdb_seasons_to_fetch = []
-            for season in all_seasons:
-                if season > 100:  # Likely a year (1934, 1987, etc.)
-                    tmdb_seasons_to_fetch.append(1)  # Treat as season 1
-                    logger.info(f"Treating year-based season {season} as TMDB season 1")
-                else:
-                    tmdb_seasons_to_fetch.append(season)
-
-            # Remove duplicates and fetch
-            unique_tmdb_seasons = list(set(tmdb_seasons_to_fetch))
-            for season in unique_tmdb_seasons:
-                season_images = _try_tmdb_season_images(parsed_show_name, season)
-                tmdb_episode_images.update(season_images)
-
-            logger.info(
-                f"Bulk fetched {len(tmdb_episode_images)} TMDB episode images for {parsed_show_name} (seasons {unique_tmdb_seasons})"
-            )
-        except Exception as e:
-            logger.debug(f"TMDB bulk fetch failed for {parsed_show_name}: {e}")
+    # TMDB is a fallback only - fetch season images lazily when TVDB fails for an episode
+    tmdb_episode_images: Dict[str, str] = {}
+    tmdb_seasons_fetched: set[int] = set()
 
     # Collect all download tasks
     download_tasks = []
@@ -1104,11 +1072,19 @@ def scrape_tv_parallel(
                     f"TVDB episode image URL is invalid for S{target_season:02d}E{target_episode:02d}: {repr(img_url_candidate)}"
                 )
 
-        # Try TMDB if TVDB didn't provide a valid image URL
+        # Try TMDB only when TVDB didn't provide a valid image URL (true fallback)
         if not img_url:
             # Handle year-based episodes by mapping to season 1 for TMDB
             tmdb_season = 1 if target_season > 100 else target_season
             tmdb_key = f"S{tmdb_season:02d}E{target_episode:02d}"
+
+            # Lazy fetch this season from TMDB only when we need it
+            if tmdb_season not in tmdb_seasons_fetched:
+                parsed_show_name = episode_files[0][1].show
+                season_images = _try_tmdb_season_images(parsed_show_name, tmdb_season)
+                tmdb_episode_images.update(season_images)
+                tmdb_seasons_fetched.add(tmdb_season)
+
             if tmdb_key in tmdb_episode_images:
                 img_url = tmdb_episode_images[tmdb_key]
                 source = "TMDB"

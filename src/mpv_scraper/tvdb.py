@@ -320,14 +320,23 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     # V4 API returns {"data": {...}}
     series_data = series_response.json().get("data", {})
 
-    # Get episodes - V4 API uses /episodes endpoint with series filter
+    # Get episodes - use "official" (aired order) for year-based shows like Popeye
+    # where TVDB uses release year as season number (S1933, S1934, etc.)
     episodes_response = requests.get(
-        f"https://api4.thetvdb.com/v4/series/{series_id_for_url}/episodes/default",
+        f"https://api4.thetvdb.com/v4/series/{series_id_for_url}/episodes/official",
         headers=headers,
         timeout=10,
     )
 
-    # If default endpoint doesn't work, try alternative endpoint
+    # Fallback to default if official returns 404 (some series may not have it)
+    if episodes_response.status_code == 404:
+        episodes_response = requests.get(
+            f"https://api4.thetvdb.com/v4/series/{series_id_for_url}/episodes/default",
+            headers=headers,
+            timeout=10,
+        )
+
+    # Last resort: generic episodes endpoint
     if episodes_response.status_code == 404:
         episodes_response = requests.get(
             "https://api4.thetvdb.com/v4/episodes",

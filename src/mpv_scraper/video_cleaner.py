@@ -256,8 +256,14 @@ def optimize_video_file(
 
         # Build ffmpeg command with optional hardware acceleration on macOS
         # Prefer hardware encoder for speed; fall back to software if it fails
-        def build_cmd(use_hardware: bool) -> List[str]:
-            cmd_parts: List[str] = ["ffmpeg"]
+        def build_cmd(use_hardware: bool, use_loudnorm: bool = True) -> List[str]:
+            cmd_parts: List[str] = [
+                "ffmpeg",
+                "-err_detect",
+                "ignore_err",
+                "-fflags",
+                "+genpts+igndts",
+            ]
             if use_hardware and is_macos:
                 cmd_parts += ["-hwaccel", "videotoolbox"]
             cmd_parts += ["-i", str(input_path)]
@@ -309,13 +315,23 @@ def optimize_video_file(
             if vf_chain:
                 cmd_parts += ["-vf", ",".join(vf_chain)]
             # Normalize audio to -14 LUFS (streaming standard) so quiet content is audible
+            if use_loudnorm:
+                cmd_parts += [
+                    "-af",
+                    "loudnorm=I=-14:TP=-1",
+                    "-c:a",
+                    preset.audio_codec,
+                    "-b:a",
+                    str(preset.audio_bitrate),
+                ]
+            else:
+                cmd_parts += [
+                    "-c:a",
+                    preset.audio_codec,
+                    "-b:a",
+                    str(preset.audio_bitrate),
+                ]
             cmd_parts += [
-                "-af",
-                "loudnorm=I=-14:TP=-1",
-                "-c:a",
-                preset.audio_codec,
-                "-b:a",
-                str(preset.audio_bitrate),
                 "-movflags",
                 "+faststart",
                 "-y" if overwrite else "-n",
@@ -323,11 +339,14 @@ def optimize_video_file(
             ]
             return cmd_parts
 
-        # Try hardware first (on macOS), then fallback to software
+        # Try hardware first (on macOS), then fallback to software, then without loudnorm (corrupt audio)
         attempts: List[Tuple[str, List[str]]] = []
         if is_macos:
             attempts.append(("hardware (h264_videotoolbox)", build_cmd(True)))
         attempts.append(("software (libx264)", build_cmd(False)))
+        attempts.append(
+            ("software (libx264, no loudnorm)", build_cmd(False, use_loudnorm=False))
+        )
 
         for label, cmd in attempts:
             logger.info(
