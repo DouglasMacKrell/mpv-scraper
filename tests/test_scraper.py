@@ -410,7 +410,9 @@ def test_filename_tag_tvdb_direct_lookup():
             scrape_tv_parallel(show_dir, download_manager)
 
             # Should call get_series_extended with ID 12345
-            mock_tvdb.get_series_extended.assert_called_with(12345, "token")
+            mock_tvdb.get_series_extended.assert_called_with(
+                12345, "token", refresh=False
+            )
             # Should NOT call search_show
             assert not mock_tvdb.search_show.called
 

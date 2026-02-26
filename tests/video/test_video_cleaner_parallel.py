@@ -409,6 +409,42 @@ class TestParallelOptimizeVideos:
             assert result[2] == []  # errors
 
     @pytest.mark.integration
+    def test_parallel_optimize_videos_finds_nested_videos(self):
+        """Test that recursive glob finds videos in nested subfolders (Season 1/)."""
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            # Create nested structure like Big Guy and Rusty.../Season 1/episode.mp4
+            season_dir = temp_path / "Season 1"
+            season_dir.mkdir()
+            nested_video = season_dir / "episode.mp4"
+            nested_video.write_bytes(b"dummy nested video")
+
+            preset_config = {
+                "name": "test_preset",
+                "target_codec": "libx264",
+                "target_profile": "high",
+                "target_bitrate": 1500000,
+                "target_resolution": (1280, 720),
+                "crf": 23,
+                "preset": "faster",
+                "tune": "film",
+                "audio_codec": "aac",
+                "audio_bitrate": 128000,
+                "timeout": 10,
+            }
+
+            result = parallel_optimize_videos(
+                directory=temp_path,
+                preset_config=preset_config,
+                max_workers=1,
+                dry_run=True,
+            )
+
+            assert result[0] == 1  # nested video found
+            assert result[1] == 0  # successful (dry run)
+            assert result[2] == []  # errors
+
+    @pytest.mark.integration
     @patch("mpv_scraper.video_cleaner_parallel.ProcessPoolExecutor")
     @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
     def test_parallel_optimize_videos_partial_failure(

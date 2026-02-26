@@ -103,7 +103,7 @@ def extract_preview_clip(
             "-bufsize",
             str(target_bitrate * 2),
             "-vf",
-            f"scale={width}:{height}:force_original_aspect_ratio=decrease",
+            f"scale={width}:{height}:force_original_aspect_ratio=decrease,scale=trunc(iw/2)*2:trunc(ih/2)*2",
             "-pix_fmt",
             "yuv420p",
             "-c:a",

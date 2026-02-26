@@ -43,6 +43,16 @@ flowchart TD
     style A fill:#ffcdd2
 ```
 
+## Series Logo Fetching
+
+### TVDB V4 ClearLogo
+
+The scraper fetches series logos (ClearLogo) via `/v4/series/{id}/extended?meta=artworks`. The older `/v4/series/{id}/artworks?type=clearlogo` endpoint returns **400 "invalid artwork type id"** because the API expects a numeric type ID, not the slug. ClearLogo for series uses type id **23**. The extended endpoint returns an `artworks` array; we filter for `type==23` and use the first result's `image` URL.
+
+### Stale Cache and Missing Logos
+
+TVDB series data is cached in `~/.cache/mpv-scraper/` for 24 hours. If logos were missing before a fix, cached records may still lack logos. Use `--refresh` when scraping to bypass the scrape cache and force fresh TVDB fetches (including logos). To clear TVDB cache manually: `rm ~/.cache/mpv-scraper/series_*_extended.json`.
+
 ## Episode Image Fetching
 
 ### TVDB V4 Episode Artwork

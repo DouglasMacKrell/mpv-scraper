@@ -668,7 +668,11 @@ def scrape_tv_parallel(
                 f"Found API tag in folder name for {show_dir.name}: {folder_api_tag}. Using direct lookup."
             )
 
-        episode_files = list(show_dir.glob("*.mp4")) + list(show_dir.glob("*.mkv"))
+        episode_files = [
+            f
+            for f in list(show_dir.glob("*.mp4")) + list(show_dir.glob("*.mkv"))
+            if not f.name.startswith("._")
+        ]
         parsed_meta = None
         api_tag = folder_api_tag  # Prefer folder API tag
         if not api_tag and episode_files:
@@ -737,7 +741,9 @@ def scrape_tv_parallel(
                     provider, series_id_str = normalized
                     if provider == "tvdb":
                         logger.info(f"Using API tag for direct TVDB lookup: {api_tag}")
-                        record = tvdb.get_series_extended(int(series_id_str), token)
+                        record = tvdb.get_series_extended(
+                            int(series_id_str), token, refresh=refresh
+                        )
                         if record:
                             # Success - skip search
                             search_results = [{"id": int(series_id_str)}]
@@ -795,7 +801,7 @@ def scrape_tv_parallel(
                             provider, series_id_str = normalized
                             if provider == "tvdb":
                                 record = tvdb.get_series_extended(
-                                    int(series_id_str), token
+                                    int(series_id_str), token, refresh=refresh
                                 )
                                 if record:
                                     # Success - continue with this record
@@ -826,9 +832,11 @@ def scrape_tv_parallel(
                 # Parse filename to get metadata
                 from mpv_scraper.parser import parse_tv_filename
 
-                episode_files = list(show_dir.glob("*.mp4")) + list(
-                    show_dir.glob("*.mkv")
-                )
+                episode_files = [
+                    f
+                    for f in list(show_dir.glob("*.mp4")) + list(show_dir.glob("*.mkv"))
+                    if not f.name.startswith("._")
+                ]
                 parsed_meta = None
                 if episode_files:
                     parsed_meta = parse_tv_filename(episode_files[0].name)
@@ -845,7 +853,9 @@ def scrape_tv_parallel(
                     if normalized:
                         provider, series_id_str = normalized
                         if provider == "tvdb":
-                            record = tvdb.get_series_extended(int(series_id_str), token)
+                            record = tvdb.get_series_extended(
+                                int(series_id_str), token, refresh=refresh
+                            )
                             if record:
                                 # Success - continue with this record
                                 pass
@@ -868,7 +878,7 @@ def scrape_tv_parallel(
             else:
                 # Use first result (default behavior)
                 series_id = search_results[0]["id"]
-                record = tvdb.get_series_extended(series_id, token)
+                record = tvdb.get_series_extended(series_id, token, refresh=refresh)
                 if not record:
                     error_msg = f"Failed to fetch extended record for id {series_id}"
                     if prompt_on_failure:
@@ -984,15 +994,19 @@ def scrape_tv_parallel(
     # First, analyze the actual files to understand the structure
     from mpv_scraper.parser import parse_tv_filename
 
-    # Get all episode files and their spans
+    # Get all episode files and their spans (skip AppleDouble/._ files on macOS)
     episode_files = []
     for file_path in show_dir.glob("*.mp4"):
+        if file_path.name.startswith("._"):
+            continue
         meta = parse_tv_filename(file_path.name)
         if meta:
             episode_files.append((file_path, meta))
 
     # Also check for .mkv files (Scooby Doo uses .mkv)
     for file_path in show_dir.glob("*.mkv"):
+        if file_path.name.startswith("._"):
+            continue
         meta = parse_tv_filename(file_path.name)
         if meta:
             episode_files.append((file_path, meta))

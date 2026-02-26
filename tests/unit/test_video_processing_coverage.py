@@ -426,7 +426,9 @@ class TestVideoCleanerParallelCoverage:
             results = parallel_optimize_videos(directory, preset_config)
 
             assert isinstance(results, tuple)
-            assert len(results) == 3
+            assert len(results) == 4  # (total, successful, errors, skipped_compatible)
+            total, successful, errors, skipped_compatible = results
+            assert isinstance(skipped_compatible, int)
 
     def test_estimate_parallel_processing_time(self):
         """Test estimate_parallel_processing_time function."""

@@ -270,10 +270,10 @@ def parallel_optimize_videos(
 
     logger.info(f"Starting parallel optimization with {max_workers} workers")
 
-    # Find all video files
+    # Find all video files (recursive: supports top-level /mpv, show folders with Season subdirs)
     video_files = []
     for ext in [".mp4", ".mkv", ".avi", ".mov"]:
-        video_files.extend(directory.glob(f"*{ext}"))
+        video_files.extend(directory.glob(f"**/*{ext}"))
 
     # Filter out already optimized files and AppleDouble files
     # Skip files already compatible (ffprobe check) - avoid unnecessary reconversion
@@ -319,11 +319,11 @@ def parallel_optimize_videos(
             logger.info(
                 f"DRY RUN: Would skip {skipped_compatible} already-compatible file(s)"
             )
-        return len(tasks), 0, []
+        return len(tasks), 0, [], skipped_compatible
 
     if not tasks:
         logger.info("No video files found to optimize")
-        return 0, 0, []
+        return 0, 0, [], skipped_compatible
 
     # Process files in parallel
     successful = 0
@@ -417,7 +417,7 @@ def parallel_optimize_videos(
     logger.info(
         f"Parallel optimization complete: {successful}/{len(tasks)} videos optimized successfully"
     )
-    return len(tasks), successful, errors
+    return len(tasks), successful, errors, skipped_compatible
 
 
 def estimate_parallel_processing_time(
@@ -483,11 +483,14 @@ if __name__ == "__main__":
     print(f"Starting parallel optimization of {directory}")
     print(f"Optimal worker count: {get_optimal_worker_count()}")
 
-    total, successful, errors = parallel_optimize_videos(directory, preset_config)
+    total, successful, errors, skipped = parallel_optimize_videos(
+        directory, preset_config
+    )
 
     print("\nResults:")
     print(f"Total processed: {total}")
     print(f"Successful: {successful}")
+    print(f"Skipped (already compatible): {skipped}")
     print(f"Failed: {len(errors)}")
 
     if errors:

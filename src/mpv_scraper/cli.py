@@ -1233,10 +1233,10 @@ def optimize_parallel(
     # Inform preset choice
     click.echo(f"Using preset: {preset}")
 
-    # Count files for time estimation
+    # Count files for time estimation (recursive: supports nested dirs like Season 1/)
     video_files = []
     for ext in [".mp4", ".mkv", ".avi", ".mov"]:
-        video_files.extend(directory.glob(f"*{ext}"))
+        video_files.extend(directory.glob(f"**/*{ext}"))
 
     # Filter out already optimized files and AppleDouble files
     files_to_process = [
@@ -1290,7 +1290,7 @@ def optimize_parallel(
             show_eta=True,
             show_percent=True,
         ) as bar:
-            total, successful, errors = parallel_optimize_videos(
+            total, successful, errors, skipped = parallel_optimize_videos(
                 directory=directory,
                 preset_config=preset_config,
                 max_workers=workers,
@@ -1299,7 +1299,7 @@ def optimize_parallel(
                 progress_callback=lambda n: bar.update(n),
             )
     else:
-        total, successful, errors = parallel_optimize_videos(
+        total, successful, errors, skipped = parallel_optimize_videos(
             directory=directory,
             preset_config=preset_config,
             max_workers=workers,
@@ -1309,12 +1309,23 @@ def optimize_parallel(
 
     if dry_run:
         click.echo(f"DRY RUN: Would process {total} videos with {workers} workers")
+        if skipped:
+            click.echo(f"DRY RUN: Would skip {skipped} already-compatible file(s)")
     else:
-        click.echo(
-            f"Parallel optimization complete: {successful}/{total} videos optimized successfully"
-        )
+        if total == 0 and skipped > 0:
+            click.echo(
+                f"✓ All {skipped} video(s) already compatible with handheld — nothing to optimize"
+            )
+        elif total == 0:
+            click.echo("No video files to optimize.")
+        else:
+            click.echo(
+                f"Parallel optimization complete: {successful}/{total} videos optimized successfully"
+            )
+            if skipped:
+                click.echo(f"Skipped {skipped} already-compatible file(s)")
         if errors:
-            click.echo(f"Failed: {len(errors)} videos")
+            click.echo(f"Failed: {len(errors)} video(s)")
             for error in errors[:5]:  # Show first 5 errors
                 click.echo(f"  {error}")
             if len(errors) > 5:

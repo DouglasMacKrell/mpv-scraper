@@ -39,6 +39,16 @@ def _set_to_cache(key: str, data: Dict[str, Any]):
     cache_file.write_text(json.dumps(cached_data))
 
 
+def _invalidate_token_cache():
+    """Remove cached TVDB token so next authenticate_tvdb() performs fresh login."""
+    cache_file = CACHE_DIR / "tvdb_token_v4.json"
+    if cache_file.exists():
+        try:
+            cache_file.unlink()
+        except OSError:
+            pass
+
+
 def authenticate_tvdb() -> str:
     """
     Authenticates with the TVDB API V4 and returns a bearer token.
@@ -98,7 +108,6 @@ def search_show(name: str, token: str) -> List[Dict[str, Any]]:
     Returns:
         A list of candidate shows from the API.
     """
-    headers = {"Authorization": f"Bearer {token}"}
     params = {"query": name, "type": "series"}
 
     # Check cache
@@ -108,13 +117,20 @@ def search_show(name: str, token: str) -> List[Dict[str, Any]]:
         return cached_search
 
     time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
-    # Use V4 API search endpoint
-    response = requests.get(
-        "https://api4.thetvdb.com/v4/search",
-        headers=headers,
-        params=params,
-        timeout=10,
-    )
+    # Use V4 API search endpoint (retry once with fresh token on 401)
+    for attempt in range(2):
+        response = requests.get(
+            "https://api4.thetvdb.com/v4/search",
+            headers={"Authorization": f"Bearer {token}"},
+            params=params,
+            timeout=10,
+        )
+        if response.status_code == 401 and attempt == 0:
+            logger.info("TVDB token expired (401) during search, refreshing...")
+            _invalidate_token_cache()
+            token = authenticate_tvdb()
+            continue
+        break
     response.raise_for_status()
 
     # V4 API returns {"data": [...]} or {"data": {"results": [...]}}
@@ -256,13 +272,17 @@ def disambiguate_show(results: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]
     return None
 
 
-def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
+def get_series_extended(
+    series_id: int, token: str, *, refresh: bool = False
+) -> Optional[Dict[str, Any]]:
     """
     Retrieves the full extended record for a series, including all episodes using TVDB API V4.
 
     Args:
         series_id: The ID of the series (can be int or string like "series-71663").
         token: The bearer authentication token.
+        refresh: If True, bypass cache and fetch fresh data (use with --refresh to get logos
+            after updates).
 
     Returns:
         A dictionary containing the full series record, or None if not found.
@@ -278,9 +298,9 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     else:
         series_id_for_url = series_id_str
 
-    # Check cache
+    # Check cache (bypass when refresh=True to get fresh logos after code/API fixes)
     cache_key = f"series_{series_id}_extended"
-    cached_record = _get_from_cache(cache_key)
+    cached_record = None if refresh else _get_from_cache(cache_key)
 
     # If we have cached data, check if episodes are missing artwork
     # If many episodes are missing artwork, fetch fresh data to get artwork
@@ -304,19 +324,29 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     if cached_record:
         return cached_record
 
-    time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+    current_token = token
+    for attempt in range(2):
+        headers = {"Authorization": f"Bearer {current_token}"}
+        time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
 
-    # V4 API - get series details
-    series_response = requests.get(
-        f"https://api4.thetvdb.com/v4/series/{series_id_for_url}",
-        headers=headers,
-        timeout=10,
-    )
+        # V4 API - get series details
+        series_response = requests.get(
+            f"https://api4.thetvdb.com/v4/series/{series_id_for_url}",
+            headers=headers,
+            timeout=10,
+        )
 
-    if series_response.status_code == 404:
-        return None
+        if series_response.status_code == 401 and attempt == 0:
+            logger.info("TVDB token expired (401), refreshing...")
+            _invalidate_token_cache()
+            current_token = authenticate_tvdb()
+            continue
 
-    series_response.raise_for_status()
+        if series_response.status_code == 404:
+            return None
+
+        series_response.raise_for_status()
+        break
     # V4 API returns {"data": {...}}
     series_data = series_response.json().get("data", {})
 
@@ -414,36 +444,41 @@ def get_series_extended(series_id: int, token: str) -> Optional[Dict[str, Any]]:
     elif series_data.get("image"):
         poster_url = series_data.get("image")
 
-    # Get ClearLogo from artwork endpoint
+    # Get ClearLogo from series extended endpoint with meta=artworks.
+    # The /artworks?type=clearlogo endpoint returns 400 (API expects numeric type id).
+    # Using /extended?meta=artworks returns artworks array; ClearLogo has type=23.
     try:
-        artwork_response = requests.get(
-            f"https://api4.thetvdb.com/v4/series/{series_id_for_url}/artworks",
+        time.sleep(API_RATE_LIMIT_DELAY_SECONDS)
+        extended_response = requests.get(
+            f"https://api4.thetvdb.com/v4/series/{series_id_for_url}/extended",
             headers=headers,
-            params={"type": "clearlogo"},
+            params={"meta": "artworks"},
             timeout=10,
         )
-        if artwork_response.status_code == 200:
-            artwork_data = artwork_response.json().get("data", [])
-            # Handle nested structure
-            if isinstance(artwork_data, dict):
-                artwork_data = artwork_data.get(
-                    "artworks", artwork_data.get("results", [])
-                )
-            if (
-                artwork_data
-                and isinstance(artwork_data, list)
-                and len(artwork_data) > 0
-            ):
-                # V4 API may return full URL or relative path
-                logo_path = artwork_data[0].get("image") or artwork_data[0].get(
-                    "fileName", ""
-                )
-                if logo_path:
-                    if logo_path.startswith("http"):
-                        logo_url = logo_path
-                    else:
-                        logo_url = f"https://www.thetvdb.com/banners/{logo_path}"
+        if extended_response.status_code == 200:
+            extended_data = extended_response.json().get("data", {})
+            artworks = extended_data.get("artworks", [])
+            if isinstance(artworks, list):
+                # ClearLogo for series has type id 23 (from /artwork/types)
+                clearlogos = [
+                    a
+                    for a in artworks
+                    if isinstance(a, dict)
+                    and (a.get("type") == 23 or a.get("artworkTypeId") == 23)
+                ]
+                if clearlogos:
+                    logo_path = clearlogos[0].get("image") or clearlogos[0].get(
+                        "fileName", ""
+                    )
+                    if logo_path:
+                        logo_url = (
+                            logo_path
+                            if logo_path.startswith("http")
+                            else f"https://artworks.thetvdb.com/banners/{logo_path}"
+                        )
     except Exception:
+        pass
+    if not logo_url:
         # Fallback to banner if ClearLogo fetch fails
         if series_data.get("banner"):
             logo_url = f"https://www.thetvdb.com/banners/{series_data.get('banner')}"

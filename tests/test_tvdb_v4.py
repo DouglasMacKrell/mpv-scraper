@@ -399,32 +399,37 @@ class TestTVDBV4SeriesExtended:
             mock_episodes_response.status_code = 200
             mock_episodes_response.raise_for_status = Mock()
 
-            # Mock artwork response
-            mock_artwork_response = Mock()
-            mock_artwork_response.json.return_value = {
-                "data": [
-                    {
-                        "image": "https://example.com/logo.png",
-                        "fileName": "logo.png",
-                    }
-                ]
+            # Mock extended response (meta=artworks) - returns artworks array with ClearLogo type=23
+            mock_extended_response = Mock()
+            mock_extended_response.json.return_value = {
+                "data": {
+                    "artworks": [
+                        {
+                            "type": 23,
+                            "image": "https://example.com/logo.png",
+                            "fileName": "logo.png",
+                        }
+                    ]
+                }
             }
-            mock_artwork_response.status_code = 200
-            mock_artwork_response.raise_for_status = Mock()
+            mock_extended_response.status_code = 200
+            mock_extended_response.raise_for_status = Mock()
 
             mock_get.side_effect = [
                 mock_series_response,
                 mock_episodes_response,
-                mock_artwork_response,
+                mock_extended_response,
             ]
 
             result = get_series_extended(4, "test_token")
 
             assert result is not None
             assert result["image"] == "https://example.com/poster.jpg"
-            # Verify artwork endpoint was called
-            artwork_call = mock_get.call_args_list[2]
-            assert "api4.thetvdb.com/v4/series/4/artworks" in artwork_call[0][0]
+            assert result["artworks"]["clearLogo"] == "https://example.com/logo.png"
+            # Verify extended endpoint with meta=artworks was called
+            extended_call = mock_get.call_args_list[2]
+            assert "extended" in extended_call[0][0]
+            assert extended_call[1]["params"] == {"meta": "artworks"}
 
     def test_get_series_extended_v4_rating_normalization(self):
         """Test that ratings are normalized correctly from V4 API."""
