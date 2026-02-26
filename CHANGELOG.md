@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.2.0] - 2026-01-04
+### Added
+- **ES-DE Video Previews**: 30-second preview clips from the 25% mark for gamelist integration (`/mpv/videos/`, `--no-previews` to skip)
+- **`--fix-audio`**: Audio-only pass for incompatible codecs (DTS/AC3 → AAC); normalizes quiet videos (< -20 LUFS) to -14 LUFS
+- **`optimize-parallel`**: `-y/--yes` to auto-confirm destructive actions; `--regen-gamelist` to regenerate gamelist.xml after optimization
+- **Progress bars**: Two-phase flow (analysis then optimization) with determinate bar; non-TTY fallback (`Analyzing N/total`, `Optimized N/total`)
+- **TVDB logos**: ClearLogo via `/v4/series/{id}/extended?meta=artworks`; `--refresh` bypasses TVDB cache for fresh logo fetches
+- API keys acquisition guide for first-time users
+
+### Fixed
+- TVDB 401 handling: auto-refresh token on expiry in `search_show` and `get_series_extended`
+- AppleDouble (`._`) files filtered from episode lists to avoid ffprobe warnings
+- Video preview clips use even dimensions for libx264 compatibility
+- CI: Python 3.9 type hints, artifact naming, pre-commit alignment with pipeline
+
+### Changed
+- Parallel optimizer deletes originals incrementally (post-validation) with atomic replace to preserve filenames
+- `optimize-parallel` skips already-compatible files; shows "All N already compatible" or skipped count
+- Improved prompts, screenshot timing, timeouts, and image source reporting
+
+### Removed
+- Debug scripts (`debug_tvdb.py`, `debug_tvdb_logos.py`, `test_tvdb_v4_manual.py`)
+
 ## [1.1.0] - 2025-12-05
 ### Added
 - Sprint 5.2 image resize/compress utility (`ensure_png_size`).
