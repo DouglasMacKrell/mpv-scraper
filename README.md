@@ -216,6 +216,9 @@ python -m mpv_scraper.cli optimize-parallel /path/to/videos --workers 8
 # Compatibility mode (maximum compatibility, smaller files)
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset compatibility
 
+# Audio-only pass for videos that meet ceiling but have DTS/AC3 audio
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --fix-audio
+
 # Dry run to see what would be processed
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --dry-run
 ```

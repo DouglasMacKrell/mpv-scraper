@@ -17,6 +17,14 @@ import platform
 logger = logging.getLogger(__name__)
 
 
+# Audio codecs considered compatible with handheld playback (no re-encode needed)
+AUDIO_COMPATIBLE_CODECS = frozenset({"aac", "mp3", "opus"})
+
+# LUFS below this threshold is considered "quiet" - will get loudnorm when --fix-audio
+# Target is -14 LUFS (streaming standard); -20 = 6 dB below target
+QUIET_AUDIO_THRESHOLD_LUFS = -20.0
+
+
 @dataclass
 class VideoAnalysis:
     """Analysis results for a video file."""
@@ -33,6 +41,8 @@ class VideoAnalysis:
     is_problematic: bool
     issues: List[str]
     optimization_score: float  # 0.0 = perfect, 1.0 = needs optimization
+    audio_codec: str = "unknown"  # Primary audio stream codec
+    audio_needs_optimization: bool = False  # True if audio should be converted to AAC
 
 
 @dataclass
@@ -177,6 +187,15 @@ def analyze_video_file(video_path: Path) -> Optional[VideoAnalysis]:
 
         is_problematic = optimization_score > 0.3  # Threshold for "problematic"
 
+        # Analyze audio stream for handheld compatibility
+        audio_codec = "unknown"
+        audio_needs_optimization = False
+        for stream in data.get("streams", []):
+            if stream.get("codec_type") == "audio":
+                audio_codec = (stream.get("codec_name") or "unknown").lower()
+                audio_needs_optimization = audio_codec not in AUDIO_COMPATIBLE_CODECS
+                break
+
         return VideoAnalysis(
             file_path=video_path,
             codec=codec,
@@ -190,11 +209,136 @@ def analyze_video_file(video_path: Path) -> Optional[VideoAnalysis]:
             is_problematic=is_problematic,
             issues=issues,
             optimization_score=optimization_score,
+            audio_codec=audio_codec,
+            audio_needs_optimization=audio_needs_optimization,
         )
 
     except Exception as e:
         logger.error(f"Error analyzing {video_path}: {e}")
         return None
+
+
+def measure_audio_loudness_lufs(
+    video_path: Path, timeout: int = 120
+) -> Optional[float]:
+    """
+    Measure integrated loudness (LUFS) of the primary audio stream.
+    Requires full decode; use only when --fix-audio needs to detect quiet videos.
+
+    Args:
+        video_path: Path to video file
+        timeout: Subprocess timeout in seconds
+
+    Returns:
+        Integrated loudness in LUFS, or None if measurement fails
+    """
+    try:
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(video_path),
+            "-af",
+            "loudnorm=I=-14:TP=-1:print_format=json",
+            "-f",
+            "null",
+            "-",
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        # loudnorm prints JSON to stderr
+        stderr = result.stderr or ""
+        start = stderr.find("{")
+        if start >= 0:
+            depth = 0
+            for i, c in enumerate(stderr[start:], start):
+                if c == "{":
+                    depth += 1
+                elif c == "}":
+                    depth -= 1
+                    if depth == 0:
+                        block = stderr[start : i + 1]
+                        data = json.loads(block)
+                        val = data.get("input_i")
+                        if val is not None:
+                            return float(val)
+                        break
+        return None
+    except (subprocess.TimeoutExpired, FileNotFoundError) as e:
+        logger.debug(f"Loudness measurement failed for {video_path.name}: {e}")
+        return None
+    except Exception as e:
+        logger.debug(f"Loudness measurement failed for {video_path.name}: {e}")
+        return None
+
+
+def optimize_audio_only(
+    input_path: Path,
+    output_path: Path,
+    preset_config: dict,
+    overwrite: bool = False,
+) -> bool:
+    """
+    Re-encode only the audio stream to AAC for handheld compatibility.
+    Copies the video stream unchanged. Use when video already meets compatibility
+    ceiling but audio (e.g. DTS, AC3) does not.
+
+    Args:
+        input_path: Path to input video file
+        output_path: Path for output file
+        preset_config: Dict with audio_codec, audio_bitrate (from optimization preset)
+        overwrite: Whether to overwrite existing output file
+
+    Returns:
+        True if optimization succeeded, False otherwise
+    """
+    try:
+        if output_path.exists() and not overwrite:
+            logger.warning(f"Output file {output_path} already exists, skipping")
+            return False
+
+        audio_codec = preset_config.get("audio_codec", "aac")
+        audio_bitrate = int(preset_config.get("audio_bitrate", 128000))
+
+        cmd = [
+            "ffmpeg",
+            "-err_detect",
+            "ignore_err",
+            "-fflags",
+            "+genpts+igndts",
+            "-i",
+            str(input_path),
+            "-c:v",
+            "copy",
+            "-af",
+            "loudnorm=I=-14:TP=-1",
+            "-c:a",
+            audio_codec,
+            "-b:a",
+            str(audio_bitrate),
+            "-movflags",
+            "+faststart",
+            "-y" if overwrite else "-n",
+            str(output_path),
+        ]
+        logger.info(
+            f"Audio-only pass: {input_path.name} -> AAC @ {audio_bitrate // 1000}k"
+        )
+        logger.debug(f"FFmpeg command: {' '.join(cmd)}")
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
+        if result.returncode == 0:
+            logger.info(f"✓ Audio optimized: {input_path.name}")
+            return True
+        logger.error(
+            f"Audio-only pass failed for {input_path.name}: {result.stderr[-500:] if result.stderr else 'unknown'}"
+        )
+        return False
+    except subprocess.TimeoutExpired:
+        logger.error(f"Audio-only pass for {input_path.name} timed out")
+        return False
+    except Exception as e:
+        logger.error(f"Error in audio-only pass for {input_path.name}: {e}")
+        return False
 
 
 def check_disk_space(directory: Path, required_gb: float = 1.0) -> bool:

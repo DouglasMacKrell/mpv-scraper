@@ -360,20 +360,27 @@ class TestOptimizeCommands:
             )
             mock_batch_optimize.assert_called_once()
 
-    @patch("mpv_scraper.video_cleaner_parallel.parallel_optimize_videos")
+    @patch("mpv_scraper.video_cleaner_parallel.process_optimization_tasks")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
     @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
     def test_optimize_parallel_command_success(
-        self, mock_worker_count, mock_parallel_optimize
+        self, mock_worker_count, mock_build, mock_process
     ):
         """Test successful optimize-parallel command execution."""
+        from mpv_scraper.video_cleaner_parallel import ParallelOptimizationTask
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Mock worker count
             mock_worker_count.return_value = 4
-
-            # Mock successful parallel optimization
-            mock_parallel_optimize.return_value = (5, 5, [], 0)
+            mock_task = ParallelOptimizationTask(
+                input_path=temp_path / "x.mp4",
+                output_path=temp_path / "x_optimized.mp4",
+                preset_name="handheld",
+                preset_config={},
+            )
+            mock_build.return_value = ([mock_task] * 5, 0)
+            mock_process.return_value = (5, [])
 
             runner = CliRunner()
             result = runner.invoke(
@@ -383,16 +390,26 @@ class TestOptimizeCommands:
             assert result.exit_code == 0
             assert "Auto-detected optimal worker count: 4" in result.output
             assert "5/5 videos optimized successfully" in result.output
-            mock_parallel_optimize.assert_called_once()
+            mock_build.assert_called_once()
+            mock_process.assert_called_once()
 
-    @patch("mpv_scraper.video_cleaner_parallel.parallel_optimize_videos")
-    def test_optimize_parallel_command_custom_workers(self, mock_parallel_optimize):
+    @patch("mpv_scraper.video_cleaner_parallel.process_optimization_tasks")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
+    def test_optimize_parallel_command_custom_workers(self, mock_build, mock_process):
         """Test optimize-parallel command with custom worker count."""
+        from mpv_scraper.video_cleaner_parallel import ParallelOptimizationTask
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Mock successful parallel optimization
-            mock_parallel_optimize.return_value = (3, 3, [], 0)
+            mock_task = ParallelOptimizationTask(
+                input_path=temp_path / "x.mp4",
+                output_path=temp_path / "x_optimized.mp4",
+                preset_name="handheld",
+                preset_config={},
+            )
+            mock_build.return_value = ([mock_task] * 3, 0)
+            mock_process.return_value = (3, [])
 
             runner = CliRunner()
             result = runner.invoke(
@@ -402,22 +419,30 @@ class TestOptimizeCommands:
             assert result.exit_code == 0
             assert "Using 8 workers" in result.output
             assert "3/3 videos optimized successfully" in result.output
-            mock_parallel_optimize.assert_called_once()
+            mock_build.assert_called_once()
+            mock_process.assert_called_once()
 
-    @patch("mpv_scraper.video_cleaner_parallel.parallel_optimize_videos")
+    @patch("mpv_scraper.video_cleaner_parallel.process_optimization_tasks")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
     @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
     def test_optimize_parallel_command_replace_originals(
-        self, mock_worker_count, mock_parallel_optimize
+        self, mock_worker_count, mock_build, mock_process
     ):
         """Test optimize-parallel command with replace-originals flag."""
+        from mpv_scraper.video_cleaner_parallel import ParallelOptimizationTask
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Mock worker count
             mock_worker_count.return_value = 2
-
-            # Mock successful parallel optimization
-            mock_parallel_optimize.return_value = (2, 2, [], 0)
+            mock_task = ParallelOptimizationTask(
+                input_path=temp_path / "x.mp4",
+                output_path=temp_path / "x_optimized.mp4",
+                preset_name="handheld",
+                preset_config={},
+            )
+            mock_build.return_value = ([mock_task] * 2, 0)
+            mock_process.return_value = (2, [])
 
             runner = CliRunner()
             result = runner.invoke(
@@ -432,12 +457,9 @@ class TestOptimizeCommands:
             )
 
             assert result.exit_code == 0
-            # In test environment there are no files, so warning block may not appear
-            # Only assert final summary output
             assert "2/2 videos optimized successfully" in result.output
 
-            # Check that replace_originals was passed to parallel_optimize_videos
-            call_args = mock_parallel_optimize.call_args
+            call_args = mock_process.call_args
             assert call_args[1]["replace_originals"] is True
 
     def test_optimize_commands_invalid_preset(self):
@@ -480,20 +502,27 @@ class TestOptimizeCommands:
             assert result.exit_code == 0
             assert "DRY RUN" in result.output
 
-    @patch("mpv_scraper.video_cleaner_parallel.parallel_optimize_videos")
+    @patch("mpv_scraper.video_cleaner_parallel.process_optimization_tasks")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
     @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
     def test_optimize_parallel_command_compatibility_preset(
-        self, mock_worker_count, mock_parallel_optimize
+        self, mock_worker_count, mock_build, mock_process
     ):
         """Test optimize-parallel command with compatibility preset."""
+        from mpv_scraper.video_cleaner_parallel import ParallelOptimizationTask
+
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
 
-            # Mock worker count
             mock_worker_count.return_value = 3
-
-            # Mock successful parallel optimization
-            mock_parallel_optimize.return_value = (1, 1, [], 0)
+            mock_task = ParallelOptimizationTask(
+                input_path=temp_path / "x.mp4",
+                output_path=temp_path / "x_optimized.mp4",
+                preset_name="compatibility",
+                preset_config={},
+            )
+            mock_build.return_value = ([mock_task], 0)
+            mock_process.return_value = (1, [])
 
             runner = CliRunner()
             result = runner.invoke(
@@ -503,29 +532,25 @@ class TestOptimizeCommands:
             assert result.exit_code == 0
             assert "1/1 videos optimized successfully" in result.output
 
-            # Check that compatibility preset was used
-            call_args = mock_parallel_optimize.call_args
-            preset_config = call_args[1]["preset_config"]
+            call_args = mock_build.call_args
+            preset_config = call_args[0][1]
             assert preset_config["name"] == "compatibility_optimized"
             assert preset_config["target_profile"] == "baseline"
             assert preset_config["target_resolution"] == (854, 480)
             assert preset_config["crf"] == 28
 
-    @patch("mpv_scraper.video_cleaner_parallel.parallel_optimize_videos")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
     @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
     def test_optimize_parallel_all_already_compatible(
-        self, mock_worker_count, mock_parallel_optimize
+        self, mock_worker_count, mock_build
     ):
         """Test feedback when all videos are already compatible (skipped)."""
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            (temp_path / "dummy.mp4").write_bytes(
-                b"x"
-            )  # Ensure files_to_process non-empty
+            (temp_path / "dummy.mp4").write_bytes(b"x")
 
             mock_worker_count.return_value = 2
-            # total=0 (no work needed), successful=0, errors=[], skipped=1
-            mock_parallel_optimize.return_value = (0, 0, [], 1)
+            mock_build.return_value = ([], 1)
 
             runner = CliRunner()
             result = runner.invoke(

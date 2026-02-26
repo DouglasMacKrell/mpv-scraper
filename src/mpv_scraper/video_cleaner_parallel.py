@@ -16,7 +16,12 @@ import multiprocessing as mp
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from mpv_scraper.video_capture import get_video_duration
-from mpv_scraper.video_cleaner import analyze_video_file
+from mpv_scraper.video_cleaner import (
+    QUIET_AUDIO_THRESHOLD_LUFS,
+    analyze_video_file,
+    measure_audio_loudness_lufs,
+    optimize_audio_only,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +38,7 @@ class ParallelOptimizationTask:
     output_path: Path
     preset_name: str
     preset_config: dict
+    audio_only: bool = False  # True = copy video, re-encode audio only
 
 
 def get_optimal_worker_count() -> int:
@@ -81,6 +87,17 @@ def optimize_single_file_worker(
             else:
                 # Can't verify duration; treat as valid to avoid infinite retries on probe errors
                 return (task.input_path, True, "Already optimized")
+
+        # Audio-only pass: copy video, re-encode audio to AAC (for videos that meet ceiling)
+        if task.audio_only:
+            success = optimize_audio_only(
+                task.input_path, task.output_path, task.preset_config
+            )
+            return (
+                task.input_path,
+                success,
+                "Audio optimized" if success else "Audio conversion failed",
+            )
 
         # Determine platform
         is_macos = platform.system() == "Darwin"
@@ -245,38 +262,19 @@ def optimize_single_file_worker(
         return (task.input_path, False, f"Exception: {str(e)}")
 
 
-def parallel_optimize_videos(
+def build_optimization_tasks(
     directory: Path,
     preset_config: dict,
-    max_workers: Optional[int] = None,
-    dry_run: bool = False,
-    replace_originals: bool = False,
-    progress_callback: Optional[Callable[[int], None]] = None,
-) -> Tuple[int, int, List[str]]:
+    fix_audio: bool = False,
+) -> Tuple[List[ParallelOptimizationTask], int]:
     """
-    Optimize multiple video files in parallel.
-
-    Args:
-        directory: Directory containing video files
-        preset_config: Optimization preset configuration
-        max_workers: Maximum number of worker processes (auto-detect if None)
-        dry_run: If True, only show what would be processed
-
-    Returns:
-        Tuple of (total_processed, successful_count, error_messages)
+    Scan directory and build list of optimization tasks.
+    Returns (tasks, skipped_compatible). Use for progress bar length.
     """
-    if max_workers is None:
-        max_workers = get_optimal_worker_count()
-
-    logger.info(f"Starting parallel optimization with {max_workers} workers")
-
-    # Find all video files (recursive: supports top-level /mpv, show folders with Season subdirs)
     video_files = []
     for ext in [".mp4", ".mkv", ".avi", ".mov"]:
         video_files.extend(directory.glob(f"**/*{ext}"))
 
-    # Filter out already optimized files and AppleDouble files
-    # Skip files already compatible (ffprobe check) - avoid unnecessary reconversion
     tasks = []
     skipped_compatible = 0
     for video_file in video_files:
@@ -287,16 +285,36 @@ def parallel_optimize_videos(
 
         analysis = analyze_video_file(video_file)
         if analysis is not None and not analysis.is_problematic:
-            skipped_compatible += 1
-            logger.debug(
-                f"Already compatible (skip): {video_file.name} "
-                f"[{analysis.codec}, {analysis.width}x{analysis.height}]"
-            )
+            needs_audio_pass = False
+            if fix_audio and analysis.audio_needs_optimization:
+                needs_audio_pass = True
+                reason = f"audio={analysis.audio_codec}"
+            elif fix_audio and not analysis.audio_needs_optimization:
+                lufs = measure_audio_loudness_lufs(video_file)
+                if lufs is not None and lufs < QUIET_AUDIO_THRESHOLD_LUFS:
+                    needs_audio_pass = True
+                    reason = f"quiet ({lufs:.1f} LUFS < {QUIET_AUDIO_THRESHOLD_LUFS})"
+
+            if needs_audio_pass:
+                output_path = video_file.with_name(f"{video_file.stem}_optimized.mp4")
+                task = ParallelOptimizationTask(
+                    input_path=video_file,
+                    output_path=output_path,
+                    preset_name=preset_config.get("name", "handheld"),
+                    preset_config=preset_config,
+                    audio_only=True,
+                )
+                tasks.append(task)
+                logger.debug(f"Audio-only pass: {video_file.name} [{reason}]")
+            else:
+                skipped_compatible += 1
+                logger.debug(
+                    f"Already compatible (skip): {video_file.name} "
+                    f"[{analysis.codec}, {analysis.width}x{analysis.height}]"
+                )
             continue
 
-        # Probe failed or file is problematic: include for optimization
         output_path = video_file.with_name(f"{video_file.stem}_optimized.mp4")
-
         task = ParallelOptimizationTask(
             input_path=video_file,
             output_path=output_path,
@@ -305,10 +323,142 @@ def parallel_optimize_videos(
         )
         tasks.append(task)
 
+    return tasks, skipped_compatible
+
+
+def process_optimization_tasks(
+    tasks: List[ParallelOptimizationTask],
+    preset_config: dict,
+    max_workers: int,
+    replace_originals: bool = False,
+    progress_callback: Optional[Callable[[int], None]] = None,
+    dry_run: bool = False,
+) -> Tuple[int, int, List[str]]:
+    """
+    Process pre-built optimization tasks. Returns (successful, errors).
+    """
+    if dry_run:
+        return len(tasks), 0, []
+
+    successful = 0
+    errors = []
+    successful_tasks = []
+
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        future_to_task = {
+            executor.submit(optimize_single_file_worker, task): task for task in tasks
+        }
+
+        for future in as_completed(future_to_task):
+            task = future_to_task[future]
+            try:
+                input_path, success, message = future.result()
+                if success:
+                    successful += 1
+                    logger.info(f"✅ Optimized: {input_path.name} - {message}")
+
+                    if replace_originals:
+                        try:
+                            if (
+                                task.output_path.exists()
+                                and task.output_path.stat().st_size > 1024 * 1024
+                            ):
+                                os.replace(str(task.output_path), str(task.input_path))
+                                logger.info(
+                                    f"🗑️  Replaced immediately: {task.input_path.name}"
+                                )
+                            else:
+                                logger.warning(
+                                    f"⚠️  Skipped immediate replacement: {task.input_path.name} (optimized file invalid)"
+                                )
+                                successful_tasks.append(task)
+                        except Exception as e:
+                            logger.error(
+                                f"❌ Immediate replacement failed for {task.input_path.name}: {str(e)}"
+                            )
+                            successful_tasks.append(task)
+                    else:
+                        successful_tasks.append(task)
+                else:
+                    errors.append(f"❌ Failed: {input_path.name} - {message}")
+                    logger.warning(f"Failed to optimize {input_path.name}: {message}")
+            except Exception as e:
+                errors.append(f"❌ Exception: {task.input_path.name} - {str(e)}")
+                logger.error(f"Exception processing {task.input_path.name}: {str(e)}")
+
+            if progress_callback is not None:
+                try:
+                    progress_callback(1)
+                except Exception:
+                    pass
+
+    if replace_originals and successful_tasks:
+        logger.info(
+            f"Replacing {len(successful_tasks)} remaining original files with optimized versions..."
+        )
+        replaced_count = 0
+        for task in successful_tasks:
+            try:
+                if (
+                    task.output_path.exists()
+                    and task.output_path.stat().st_size > 1024 * 1024
+                ):
+                    os.replace(str(task.output_path), str(task.input_path))
+                    replaced_count += 1
+                    logger.info(f"🗑️  Replaced: {task.input_path.name}")
+                else:
+                    logger.warning(
+                        f"⚠️  Skipped replacement: {task.input_path.name} (optimized file invalid)"
+                    )
+            except Exception as e:
+                logger.error(f"❌ Failed to replace {task.input_path.name}: {str(e)}")
+        logger.info(f"Replaced {replaced_count}/{len(successful_tasks)} original files")
+
+    return successful, errors
+
+
+def parallel_optimize_videos(
+    directory: Path,
+    preset_config: dict,
+    max_workers: Optional[int] = None,
+    dry_run: bool = False,
+    replace_originals: bool = False,
+    progress_callback: Optional[Callable[[int], None]] = None,
+    fix_audio: bool = False,
+) -> Tuple[int, int, List[str], int]:
+    """
+    Optimize multiple video files in parallel.
+
+    Args:
+        directory: Directory containing video files
+        preset_config: Optimization preset configuration
+        max_workers: Maximum number of worker processes (auto-detect if None)
+        dry_run: If True, only show what would be processed
+        fix_audio: If True, run audio-only pass on videos that meet compatibility
+            ceiling but have incompatible audio (e.g. DTS, AC3 -> AAC)
+
+    Returns:
+        Tuple of (total_processed, successful_count, error_messages, skipped_compatible)
+    """
+    if max_workers is None:
+        max_workers = get_optimal_worker_count()
+
+    logger.info(f"Starting parallel optimization with {max_workers} workers")
+
+    tasks, skipped_compatible = build_optimization_tasks(
+        directory, preset_config, fix_audio
+    )
+
+    audio_only_count = sum(1 for t in tasks if t.audio_only)
     if skipped_compatible > 0:
         logger.info(
             f"Skipped {skipped_compatible} already-compatible file(s) "
             "(no conversion needed)"
+        )
+    if audio_only_count > 0:
+        logger.info(
+            f"Queued {audio_only_count} audio-only pass(es) "
+            "(video OK, audio conversion/normalization needed)"
         )
 
     if dry_run:
@@ -325,94 +475,14 @@ def parallel_optimize_videos(
         logger.info("No video files found to optimize")
         return 0, 0, [], skipped_compatible
 
-    # Process files in parallel
-    successful = 0
-    errors = []
-    successful_tasks = (
-        []
-    )  # Track successful tasks for end-of-run replacement when needed
-
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Submit all tasks
-        future_to_task = {
-            executor.submit(optimize_single_file_worker, task): task for task in tasks
-        }
-
-        # Process completed tasks
-        for future in as_completed(future_to_task):
-            task = future_to_task[future]
-            try:
-                input_path, success, message = future.result()
-                if success:
-                    successful += 1
-                    logger.info(f"✅ Optimized: {input_path.name} - {message}")
-
-                    # Incremental replacement: delete original immediately if requested
-                    if replace_originals and not dry_run:
-                        try:
-                            if (
-                                task.output_path.exists()
-                                and task.output_path.stat().st_size > 1024 * 1024
-                            ):
-                                # Atomically replace original with optimized
-                                os.replace(str(task.output_path), str(task.input_path))
-                                logger.info(
-                                    f"🗑️  Replaced immediately: {task.input_path.name}"
-                                )
-                            else:
-                                logger.warning(
-                                    f"⚠️  Skipped immediate replacement: {task.input_path.name} (optimized file invalid)"
-                                )
-                        except Exception as e:
-                            logger.error(
-                                f"❌ Immediate replacement failed for {task.input_path.name}: {str(e)}"
-                            )
-                            # Fall back to end-of-run sweep attempt
-                            successful_tasks.append(task)
-                    else:
-                        # Track for end-of-run sweep only when not doing immediate replacement
-                        successful_tasks.append(task)
-                else:
-                    errors.append(f"❌ Failed: {input_path.name} - {message}")
-                    logger.warning(f"Failed to optimize {input_path.name}: {message}")
-            except Exception as e:
-                errors.append(f"❌ Exception: {task.input_path.name} - {str(e)}")
-                logger.error(f"Exception processing {task.input_path.name}: {str(e)}")
-
-            # Advance progress bar (if provided) after each completed task
-            if progress_callback is not None:
-                try:
-                    progress_callback(1)
-                except Exception:
-                    # Never let UI callback break processing
-                    pass
-
-    # End-of-run sweep replacement for any tasks that weren't replaced immediately
-    if replace_originals and not dry_run and successful_tasks:
-        logger.info(
-            f"Replacing {len(successful_tasks)} remaining original files with optimized versions..."
-        )
-        replaced_count = 0
-
-        for task in successful_tasks:
-            try:
-                # Verify optimized file exists and is valid
-                if (
-                    task.output_path.exists()
-                    and task.output_path.stat().st_size > 1024 * 1024
-                ):
-                    # Atomically replace original with optimized
-                    os.replace(str(task.output_path), str(task.input_path))
-                    replaced_count += 1
-                    logger.info(f"🗑️  Replaced: {task.input_path.name}")
-                else:
-                    logger.warning(
-                        f"⚠️  Skipped replacement: {task.input_path.name} (optimized file invalid)"
-                    )
-            except Exception as e:
-                logger.error(f"❌ Failed to replace {task.input_path.name}: {str(e)}")
-
-        logger.info(f"Replaced {replaced_count}/{len(successful_tasks)} original files")
+    successful, errors = process_optimization_tasks(
+        tasks=tasks,
+        preset_config=preset_config,
+        max_workers=max_workers,
+        replace_originals=replace_originals,
+        progress_callback=progress_callback,
+        dry_run=False,
+    )
 
     logger.info(
         f"Parallel optimization complete: {successful}/{len(tasks)} videos optimized successfully"

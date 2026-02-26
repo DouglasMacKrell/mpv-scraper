@@ -1160,8 +1160,13 @@ def optimize(path, preset, dry_run, overwrite, regen_gamelist):
     is_flag=True,
     help="Regenerate gamelist.xml for PATH after optimization completes",
 )
+@click.option(
+    "--fix-audio",
+    is_flag=True,
+    help="Run audio-only pass on videos that meet ceiling: incompatible audio (DTS/AC3->AAC) or quiet audio (loudnorm to -14 LUFS)",
+)
 def optimize_parallel(
-    path, preset, workers, dry_run, replace_originals, yes, regen_gamelist
+    path, preset, workers, dry_run, replace_originals, yes, regen_gamelist, fix_audio
 ):
     """Optimize videos in DIRECTORY using parallel processing for faster results.
 
@@ -1171,9 +1176,10 @@ def optimize_parallel(
     """
     from pathlib import Path
     from mpv_scraper.video_cleaner_parallel import (
-        parallel_optimize_videos,
+        build_optimization_tasks,
         get_optimal_worker_count,
         estimate_parallel_processing_time,
+        process_optimization_tasks,
     )
 
     directory = Path(path)
@@ -1232,6 +1238,10 @@ def optimize_parallel(
 
     # Inform preset choice
     click.echo(f"Using preset: {preset}")
+    if fix_audio:
+        click.echo(
+            "Fix-audio mode: audio-only pass (codec conversion + volume normalization)"
+        )
 
     # Count files for time estimation (recursive: supports nested dirs like Season 1/)
     video_files = []
@@ -1282,30 +1292,45 @@ def optimize_parallel(
                     click.echo("Aborted by user.")
                     return 1
 
-    # Run parallel optimization with a progress bar (when we know total count)
-    if files_to_process:
+    # Phase 1: Analyze videos (show message so user knows work is in progress)
+    click.echo("Analyzing videos for compatibility...")
+    tasks, skipped = build_optimization_tasks(directory, preset_config, fix_audio)
+
+    # Log task breakdown
+    if skipped > 0:
+        click.echo(f"Skipped {skipped} already-compatible file(s)")
+    audio_only_count = sum(1 for t in tasks if t.audio_only)
+    if audio_only_count > 0:
+        click.echo(
+            f"Queued {audio_only_count} audio-only pass(es) "
+            "(video OK, audio conversion/normalization needed)"
+        )
+
+    # Phase 2: Process (or dry-run)
+    if dry_run:
+        total = len(tasks)
+        successful = 0
+        errors = []
+    elif tasks:
         with click.progressbar(
-            length=len(files_to_process),
+            length=len(tasks),
             label="Optimizing videos",
             show_eta=True,
             show_percent=True,
         ) as bar:
-            total, successful, errors, skipped = parallel_optimize_videos(
-                directory=directory,
+            successful, errors = process_optimization_tasks(
+                tasks=tasks,
                 preset_config=preset_config,
                 max_workers=workers,
-                dry_run=dry_run,
                 replace_originals=replace_originals,
                 progress_callback=lambda n: bar.update(n),
+                dry_run=False,
             )
+        total = len(tasks)
     else:
-        total, successful, errors, skipped = parallel_optimize_videos(
-            directory=directory,
-            preset_config=preset_config,
-            max_workers=workers,
-            dry_run=dry_run,
-            replace_originals=replace_originals,
-        )
+        total = 0
+        successful = 0
+        errors = []
 
     if dry_run:
         click.echo(f"DRY RUN: Would process {total} videos with {workers} workers")

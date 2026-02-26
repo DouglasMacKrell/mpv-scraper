@@ -131,6 +131,8 @@ python -m mpv_scraper.cli optimize /path/to/videos --dry-run
 ```
 
 #### Parallel Optimization (Recommended)
+`optimize-parallel` shows real-time progress: an analysis phase ("Analyzing videos for compatibility...") followed by a determinate progress bar with ETA during conversion.
+
 ```bash
 # Parallel optimization (6x faster!)
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset handheld
@@ -138,7 +140,7 @@ python -m mpv_scraper.cli optimize-parallel /path/to/videos --preset handheld
 # Custom worker count
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --workers 8
 
-# Replace originals (save disk space) with auto-confirm and progress bar
+# Replace originals (save disk space) with auto-confirm and live progress bar
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals -y
 
 # Dry run with space savings estimate
@@ -146,6 +148,10 @@ python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals 
 
 # Regenerate gamelist.xml after optimization completes
 python -m mpv_scraper.cli optimize-parallel /path/to/videos --replace-originals -y --regen-gamelist
+
+# Audio-only pass: re-encode audio (DTS/AC3 -> AAC) or normalize volume on videos that meet video ceiling
+# Covers: incompatible audio codecs, and quiet audio (< -20 LUFS, normalized to -14 LUFS)
+python -m mpv_scraper.cli optimize-parallel /path/to/videos --fix-audio
 ```
 
 ### Optimization Presets
