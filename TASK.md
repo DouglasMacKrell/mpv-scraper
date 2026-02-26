@@ -1185,3 +1185,61 @@ N/A (pure documentation)
 * **Done when:** Integration tests pass, docs updated, backward compatibility verified.
 
 ---
+
+## 20 · Sprint 20 (Video Previews for ES-DE)
+**Purpose:** Generate 30-second preview clips from the 25% mark of each video for ES-DE gamelist integration. Clips stored in `/mpv/videos/`, target &lt;1 MB, H.264, 640×480.
+
+### 20.1 Extract Preview Clip Function
+* **Goal:** Create a function to extract a 30-second preview from the 25% mark of a video file.
+* **Tests to Write:**
+  - `tests/video/test_video_preview.py::test_extract_preview_clip_creates_file`
+  - `tests/video/test_video_preview.py::test_extract_preview_clip_returns_false_on_failure`
+  - `tests/video/test_video_preview.py::test_extract_preview_clip_short_video_handling`
+  - `tests/video/test_video_preview.py::test_extract_preview_clip_start_at_25_percent`
+* **Steps:**
+  1. Create `src/mpv_scraper/video_preview.py` with `extract_preview_clip(input_path, output_path, start_pct=25, duration_sec=30, max_size_bytes=1024*1024) -> bool`.
+  2. Use ffmpeg: `-ss` for start time (25% of duration), `-t 30`, scale to 640×480, H.264, target &lt;1 MB.
+  3. For videos shorter than needed, cap start/duration gracefully.
+* **Done when:** Tests pass.
+
+### 20.2 Preview Output Directory & Naming
+* **Goal:** Use `/mpv/videos/` directory and `{stem}-preview.mp4` naming convention.
+* **Tests to Write:**
+  - `tests/video/test_video_preview.py::test_preview_output_path_convention`
+  - `tests/video/test_video_preview.py::test_videos_directory_created`
+* **Steps:**
+  1. Define `get_preview_path(videos_dir, video_stem) -> Path` returning `videos_dir / f"{stem}-preview.mp4"`.
+  2. Ensure videos_dir is created when generating previews.
+* **Done when:** Tests pass.
+
+### 20.3 Gamelist Video Path Wiring
+* **Goal:** Populate `entry["video"]` when preview exists or is successfully generated.
+* **Tests to Write:**
+  - `tests/test_xml.py::test_write_show_gamelist_includes_video_tag`
+  - `tests/video/test_video_preview.py::test_generate_ensures_preview_and_wires_path`
+* **Steps:**
+  1. In generate flow, for each episode/movie: ensure preview exists or generate it.
+  2. Set `game_entry["video"] = "./videos/{stem}-preview.mp4"` when file exists.
+  3. Use relative path for gamelist compatibility.
+* **Done when:** Gamelist contains `<video>` elements for entries with previews.
+
+### 20.4 CLI Integration
+* **Goal:** Integrate preview generation into the generate/run flow.
+* **Tests to Write:**
+  - `tests/smoke/test_cli_commands.py::test_generate_creates_previews` (or extend existing generate test)
+* **Steps:**
+  1. Add preview generation step to generate command (during gamelist build, before writing XML).
+  2. Add `--no-previews` flag to skip preview generation.
+  3. Wire into `run` flow (generate already called by run).
+* **Done when:** Smoke/integration tests pass.
+
+### 20.5 Documentation
+* **Goal:** Document video preview feature.
+* **Tests to Write:** N/A
+* **Steps:**
+  1. Add "Video Previews" section to `docs/user/VIDEO_PROCESSING.md`.
+  2. Document file size target, directory structure, gamelist wiring.
+  3. Update README feature list if appropriate.
+* **Done when:** Docs reflect video preview behavior.
+
+---

@@ -433,11 +433,18 @@ def scrape(
 
 @main.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=False, dir_okay=True))
-def generate(path):
+@click.option(
+    "--no-previews",
+    is_flag=True,
+    help="Skip generating 30s video preview clips for ES-DE",
+)
+def generate(path, no_previews):
     """Generate gamelist.xml files from scraped metadata."""
 
     from pathlib import Path
+
     from mpv_scraper.utils import get_logger
+    from mpv_scraper.video_preview import ensure_preview
 
     # First, sanitize any filenames with special characters
     root = Path(path)
@@ -521,6 +528,12 @@ def generate(path):
             publisher = None
             video = None
             lang = "en"
+
+            # Video preview for ES-DE (30s from 25% mark, <1 MB)
+            videos_dir = root / "videos"
+            video = ensure_preview(
+                file_path, videos_dir, file_path.stem, generate=not no_previews
+            )
 
             if show_cache and meta:
                 # Find episode in cache
@@ -737,7 +750,17 @@ def generate(path):
             genre = None
             developer = None
             publisher = None
+            video = None
             lang = "en"
+
+            # Video preview for ES-DE
+            videos_dir = root / "videos"
+            video = ensure_preview(
+                movie_file.path,
+                videos_dir,
+                movie_file.path.stem,
+                generate=not no_previews,
+            )
 
             movie_cache = _load_scrape_cache(
                 movie_file.path.parent / ".scrape_cache.json"
@@ -789,6 +812,8 @@ def generate(path):
                 game_entry["developer"] = developer
             if publisher:
                 game_entry["publisher"] = publisher
+            if video:
+                game_entry["video"] = video
 
             games.append(game_entry)
 

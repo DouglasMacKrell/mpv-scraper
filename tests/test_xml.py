@@ -222,3 +222,36 @@ class TestWriteShowGamelist:
             assert game.find("path").text == "./test.mp4"
             assert game.find("image").text == "./images/test.png"
             assert game.find("marquee").text == "./images/logo.png"
+
+    def test_write_show_gamelist_includes_video_tag(self):
+        """Test that game entries include <video> when video path is provided."""
+        games = [
+            {
+                "path": "./Show/episode.mp4",
+                "name": "S01E01 - Episode Title",
+                "video": "./videos/episode-preview.mp4",
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest = Path(temp_dir) / "gamelist.xml"
+            write_show_gamelist(games, dest)
+
+            tree = ET.parse(dest)
+            root = tree.getroot()
+            game = root[0]
+
+            assert game.find("video") is not None
+            assert game.find("video").text == "./videos/episode-preview.mp4"
+
+    def test_write_show_gamelist_omits_video_when_absent(self):
+        """Test that <video> is omitted when not provided."""
+        games = [{"path": "./episode.mp4", "name": "Test", "image": "./images/ep.png"}]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            dest = Path(temp_dir) / "gamelist.xml"
+            write_show_gamelist(games, dest)
+
+            tree = ET.parse(dest)
+            game = tree.getroot()[0]
+            assert game.find("video") is None

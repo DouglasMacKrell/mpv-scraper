@@ -76,6 +76,7 @@ flowchart LR
 - **🖥️ Hardware Acceleration**: Uses `h264_videotoolbox` on macOS for blazing-fast encoding
 - **📱 Handheld Optimization**: Converts videos to handheld-friendly formats (H.264, 720p, optimized bitrate)
 - **💾 Space Management**: Optional `--replace-originals` flag to save disk space
+- **🎬 ES-DE Video Previews**: 30-second preview clips from the 25% mark, stored in `/mpv/videos/`, targeting <1 MB for gamelist integration
 
 ### **Video Format Conversion**
 - **🔄 MKV to MP4**: Convert MKV files to web-optimized MP4 format

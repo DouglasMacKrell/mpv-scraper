@@ -7,7 +7,43 @@ The scraper uses intelligent timing to avoid capturing frames during intro seque
 - **Videos longer than 2 minutes**: Captures at the specified percentage (default 25%), but ensures at least 30 seconds have elapsed to skip intro sequences.
 - **Videos shorter than 2 minutes**: Skips forward by at least 30 seconds or 40% of the video duration, whichever is less, to avoid intro/logo frames.
 
-This ensures that screenshots capture actual episode content rather than title cards or theme song sequences. Guide
+This ensures that screenshots capture actual episode content rather than title cards or theme song sequences.
+
+## 🎬 Video Previews (ES-DE)
+
+The MPV Scraper generates 30-second preview clips for ES-DE (EmulationStation Desktop Edition) gamelist integration. These clips play in the background when browsing your library.
+
+### Behavior
+
+- **Start point**: 25% through the video (avoids intros)
+- **Duration**: 30 seconds (or remaining video if shorter)
+- **Output**: H.264 MP4, 640×480, targeting **<1 MB** per clip
+- **Directory**: `/mpv/videos/`
+- **Naming**: `{filename-stem}-preview.mp4` (e.g. `Show - S01E01-preview.mp4`)
+
+### Gamelist Integration
+
+When previews exist, the gamelist `<video>` tag is populated:
+
+```xml
+<game>
+  <path>./Show Name/Show Name - S01E01 - Episode.mp4</path>
+  <name>S01E01 - Episode Title</name>
+  <video>./videos/Show Name - S01E01 - Episode-preview.mp4</video>
+</game>
+```
+
+Previews are generated during the `generate` step (or `run`). Use `--no-previews` to skip:
+
+```bash
+python -m mpv_scraper.cli generate /mpv --no-previews
+```
+
+### Requirements
+
+- **ffmpeg** must be installed (used for clip extraction)
+
+---
 
 The MPV Scraper includes powerful video processing capabilities to optimize your media for handheld device playback, convert formats, and crop videos for specific aspect ratios.
 
