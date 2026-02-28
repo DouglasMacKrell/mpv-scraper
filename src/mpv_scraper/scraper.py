@@ -309,6 +309,19 @@ def _is_movie_scraped(
     return img_path.exists()
 
 
+def _extract_tvdb_series_id(raw: Any) -> Optional[str]:
+    """
+    Extract numeric series ID from TVDB V4 search result format.
+    TVDB V4 returns objectID as "series-392893"; we need just "392893".
+    """
+    s = str(raw or "").strip()
+    if not s:
+        return None
+    if s.startswith("series-"):
+        s = s[7:]
+    return s if s.isdigit() else None
+
+
 def _normalize_api_id(api_id_str: str) -> Optional[tuple[str, str]]:
     """
     Normalize API ID format from various input formats.
@@ -434,8 +447,9 @@ def _prompt_for_resolution(
             # Extract year from date string if needed
             if isinstance(year, str) and len(year) >= 4:
                 year = year[:4]
-            result_id = result.get("id") or "N/A"
-            click.echo(f"  [{i}] {name} ({year}) - ID: {result_id}")
+            raw_id = result.get("id") or result.get("objectID") or "N/A"
+            display_id = _extract_tvdb_series_id(raw_id) or raw_id
+            click.echo(f"  [{i}] {name} ({year}) - ID: {display_id}")
 
         click.echo("")
         click.echo("Options:")
@@ -454,14 +468,15 @@ def _prompt_for_resolution(
             choice_num = int(choice)
             if 1 <= choice_num <= min(len(search_results), 10):
                 selected = search_results[choice_num - 1]
-                # Extract provider from context (TV shows use TVDB, movies use TMDB)
-                if parsed_meta and hasattr(parsed_meta, "api_tag"):
-                    # Use parsed API tag if available
-                    if parsed_meta.api_tag:
-                        return parsed_meta.api_tag
-                # Default: TV shows -> tvdb, movies -> tmdb
+                # Use the user's selection (never override with api_tag)
                 provider = "tvdb" if hasattr(parsed_meta, "season") else "tmdb"
-                result_id = str(selected.get("id", ""))
+                # TVDB V4 SearchResult may use "id" or "objectID" (format: "392893" or "series-392893")
+                raw_id = selected.get("id") or selected.get("objectID")
+                result_id = (
+                    _extract_tvdb_series_id(raw_id)
+                    if provider == "tvdb"
+                    else str(raw_id or "").strip()
+                )
                 if result_id:
                     return f"{provider}-{result_id}"
         except ValueError:
@@ -545,6 +560,63 @@ def _prompt_for_resolution(
     return None
 
 
+# Parenthetical tags to strip before API search (case-insensitive).
+# These are common in folder/filenames but not in TVDB/TMDB titles.
+# Years like (1987) are NOT stripped.
+_SEARCH_STRIP_TAGS = frozenset(
+    [
+        "dub",
+        "dubbed",
+        "sub",
+        "subbed",
+        "english",
+        "japanese",
+        "spanish",
+        "french",
+        "german",
+        "italian",
+        "uncut",
+        "remastered",
+        "remaster",
+        "1080p",
+        "720p",
+        "480p",
+        "4k",
+        "bluray",
+        "blu-ray",
+        "bd",
+        "complete",
+        "extended",
+        "director's cut",
+        "directors cut",
+        "dual audio",
+        "dual-audio",
+    ]
+)
+
+
+def _normalize_title_for_search(title: str) -> str:
+    """
+    Strip common parenthetical tags from a title before API search.
+
+    E.g. "The Irresponsible Captain Tylor (Dub)" -> "The Irresponsible Captain Tylor"
+    Years like (1987) are preserved.
+    """
+    result = title.strip()
+    # Strip (Tag) for any tag in our list; preserve (Year) e.g. (1987)
+    for tag in _SEARCH_STRIP_TAGS:
+        # Match " (Tag)" or " (TAG)" (case-insensitive), not preceded by digits
+        pattern = re.compile(
+            r"\s+\(" + re.escape(tag) + r"\)(?=\s|$)",
+            re.IGNORECASE,
+        )
+        prev = None
+        while prev != result:
+            prev = result
+            result = pattern.sub("", result).strip()
+    return result.strip()
+
+
 def _get_show_name_variations(show_name: str) -> list[str]:
     """
     Generate variations of a show name for better TVDB matching.
@@ -554,6 +626,8 @@ def _get_show_name_variations(show_name: str) -> list[str]:
     - "Popeye the Sailor" -> ["Popeye the Sailor", "Popeye"]
     - Shows with years in parentheses
     """
+    # Normalize first (strip Dub, Sub, etc.)
+    show_name = _normalize_title_for_search(show_name)
     variations = [show_name]
 
     # Handle shows that might have year suffixes in TVDB
@@ -657,7 +731,7 @@ def scrape_tv_parallel(
         # Extract API tag from folder name (e.g., "Show Name (2018) {tvdb-347765}")
         folder_api_tag = _extract_api_tag(show_dir.name)
 
-        # Clean folder name by removing API tag for searching
+        # Clean folder name by removing API tag and normalizing for search
         clean_show_name = show_dir.name
         if folder_api_tag:
             # Remove {provider-id} pattern (case-insensitive) from folder name
@@ -667,6 +741,8 @@ def scrape_tv_parallel(
             logger.info(
                 f"Found API tag in folder name for {show_dir.name}: {folder_api_tag}. Using direct lookup."
             )
+        # Strip common tags (Dub, Sub, 1080p, etc.) for API search
+        clean_show_name = _normalize_title_for_search(clean_show_name)
 
         episode_files = [
             f
@@ -804,8 +880,9 @@ def scrape_tv_parallel(
                                     int(series_id_str), token, refresh=refresh
                                 )
                                 if record:
-                                    # Success - continue with this record
-                                    pass
+                                    # Success - set search_results so subsequent code
+                                    # (len/search_results[0]) does not IndexError
+                                    search_results = [{"id": int(series_id_str)}]
                                 else:
                                     logger.warning(
                                         f"Failed to fetch record for {api_id}. Skipping."
@@ -877,7 +954,15 @@ def scrape_tv_parallel(
                     return []
             else:
                 # Use first result (default behavior)
-                series_id = search_results[0]["id"]
+                # TVDB V4 SearchResult may use "id" or "objectID" (format: "392893" or "series-392893")
+                first = search_results[0]
+                raw_id = first.get("id") or first.get("objectID")
+                series_id_str = _extract_tvdb_series_id(raw_id)
+                if not series_id_str:
+                    raise RuntimeError(
+                        "TVDB search result missing valid id/objectID; cannot fetch series"
+                    )
+                series_id = int(series_id_str)
                 record = tvdb.get_series_extended(series_id, token, refresh=refresh)
                 if not record:
                     error_msg = f"Failed to fetch extended record for id {series_id}"
@@ -1310,11 +1395,10 @@ def scrape_movie(
 
         # Perform search if no direct lookup was successful
         if record is None:
+            search_title = _normalize_title_for_search(movie_meta.title)
             if try_tmdb:
                 try:
-                    search_results = tmdb.search_movie(
-                        movie_meta.title, movie_meta.year
-                    )
+                    search_results = tmdb.search_movie(search_title, movie_meta.year)
                 except Exception:
                     search_results = []
                 if search_results:
@@ -1325,7 +1409,7 @@ def scrape_movie(
                 from mpv_scraper import omdb
 
                 try:
-                    omdb_results = omdb.search_movie(movie_meta.title, movie_meta.year)
+                    omdb_results = omdb.search_movie(search_title, movie_meta.year)
                 except Exception:
                     omdb_results = []
                 if omdb_results:

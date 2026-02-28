@@ -1356,11 +1356,17 @@ def optimize_parallel(
     if skipped > 0:
         click.echo(f"Skipped {skipped} already-compatible file(s)")
     audio_only_count = sum(1 for t in tasks if t.audio_only)
+    loudnorm_count = sum(1 for t in tasks if getattr(t, "apply_loudnorm", False))
     if audio_only_count > 0:
         click.echo(
             f"Queued {audio_only_count} audio-only pass(es) "
             "(video OK, audio conversion/normalization needed)"
         )
+        if loudnorm_count > 0:
+            click.echo(
+                f"Note: {loudnorm_count} file(s) need loudnorm (quiet audio) — may take 5-10 min each.",
+                err=True,
+            )
 
     # Phase 2: Process (or dry-run)
     if dry_run:
@@ -1377,12 +1383,20 @@ def optimize_parallel(
                 show_percent=True,
                 file=sys.stderr,
             ) as bar:
+
+                def on_complete(filename: str, ok: bool) -> None:
+                    click.echo(
+                        f"  {'✓' if ok else '✗'} {filename}",
+                        err=True,
+                    )
+
                 successful, errors = process_optimization_tasks(
                     tasks=tasks,
                     preset_config=preset_config,
                     max_workers=workers,
                     replace_originals=replace_originals,
                     progress_callback=lambda n: bar.update(n),
+                    completion_callback=on_complete,
                     dry_run=False,
                 )
         else:
@@ -1396,12 +1410,16 @@ def optimize_parallel(
                     err=True,
                 )
 
+            def on_complete(filename: str, ok: bool) -> None:
+                click.echo(f"  {'✓' if ok else '✗'} {filename}", err=True)
+
             successful, errors = process_optimization_tasks(
                 tasks=tasks,
                 preset_config=preset_config,
                 max_workers=workers,
                 replace_originals=replace_originals,
                 progress_callback=progress_echo,
+                completion_callback=on_complete,
                 dry_run=False,
             )
     else:

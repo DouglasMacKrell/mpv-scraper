@@ -21,6 +21,7 @@ from mpv_scraper.video_cleaner import (
     analyze_video_file,
     measure_audio_loudness_lufs,
     optimize_audio_only,
+    verify_video_output_valid,
 )
 
 logger = logging.getLogger(__name__)
@@ -39,6 +40,9 @@ class ParallelOptimizationTask:
     preset_name: str
     preset_config: dict
     audio_only: bool = False  # True = copy video, re-encode audio only
+    apply_loudnorm: bool = (
+        False  # True = use loudnorm (slow); False = codec conversion only
+    )
 
 
 def get_optimal_worker_count() -> int:
@@ -91,7 +95,10 @@ def optimize_single_file_worker(
         # Audio-only pass: copy video, re-encode audio to AAC (for videos that meet ceiling)
         if task.audio_only:
             success = optimize_audio_only(
-                task.input_path, task.output_path, task.preset_config
+                task.input_path,
+                task.output_path,
+                task.preset_config,
+                apply_loudnorm=getattr(task, "apply_loudnorm", False),
             )
             return (
                 task.input_path,
@@ -362,12 +369,14 @@ def build_optimization_tasks(
                         output_path = video_file.with_name(
                             f"{video_file.stem}_optimized.mp4"
                         )
+                        apply_loudnorm = reason.startswith("quiet")
                         task = ParallelOptimizationTask(
                             input_path=video_file,
                             output_path=output_path,
                             preset_name=preset_config.get("name", "handheld"),
                             preset_config=preset_config,
                             audio_only=True,
+                            apply_loudnorm=apply_loudnorm,
                         )
                         tasks.append(task)
                         logger.debug(f"Audio-only pass: {video_file.name} [{reason}]")
@@ -402,12 +411,14 @@ def build_optimization_tasks(
             needs_audio_pass, reason = _needs_audio_pass(analysis, video_file)
             if needs_audio_pass:
                 output_path = video_file.with_name(f"{video_file.stem}_optimized.mp4")
+                apply_loudnorm = reason.startswith("quiet")
                 task = ParallelOptimizationTask(
                     input_path=video_file,
                     output_path=output_path,
                     preset_name=preset_config.get("name", "handheld"),
                     preset_config=preset_config,
                     audio_only=True,
+                    apply_loudnorm=apply_loudnorm,
                 )
                 tasks.append(task)
                 logger.debug(f"Audio-only pass: {video_file.name} [{reason}]")
@@ -437,10 +448,12 @@ def process_optimization_tasks(
     max_workers: int,
     replace_originals: bool = False,
     progress_callback: Optional[Callable[[int], None]] = None,
+    completion_callback: Optional[Callable[[str, bool], None]] = None,
     dry_run: bool = False,
 ) -> Tuple[int, int, List[str]]:
     """
     Process pre-built optimization tasks. Returns (successful, errors).
+    completion_callback: Optional callback(filename, success) when each task finishes.
     """
     if dry_run:
         return len(tasks), 0, []
@@ -456,6 +469,8 @@ def process_optimization_tasks(
 
         for future in as_completed(future_to_task):
             task = future_to_task[future]
+            input_path = task.input_path
+            success = False
             try:
                 input_path, success, message = future.result()
                 if success:
@@ -467,6 +482,7 @@ def process_optimization_tasks(
                             if (
                                 task.output_path.exists()
                                 and task.output_path.stat().st_size > 1024 * 1024
+                                and verify_video_output_valid(task.output_path)
                             ):
                                 os.replace(str(task.output_path), str(task.input_path))
                                 logger.info(
@@ -474,7 +490,7 @@ def process_optimization_tasks(
                                 )
                             else:
                                 logger.warning(
-                                    f"⚠️  Skipped immediate replacement: {task.input_path.name} (optimized file invalid)"
+                                    f"⚠️  Skipped immediate replacement: {task.input_path.name} (optimized file invalid or corrupt)"
                                 )
                                 successful_tasks.append(task)
                         except Exception as e:
@@ -488,12 +504,18 @@ def process_optimization_tasks(
                     errors.append(f"❌ Failed: {input_path.name} - {message}")
                     logger.warning(f"Failed to optimize {input_path.name}: {message}")
             except Exception as e:
+                success = False
                 errors.append(f"❌ Exception: {task.input_path.name} - {str(e)}")
                 logger.error(f"Exception processing {task.input_path.name}: {str(e)}")
 
             if progress_callback is not None:
                 try:
                     progress_callback(1)
+                except Exception:
+                    pass
+            if completion_callback is not None:
+                try:
+                    completion_callback(str(input_path.name), success)
                 except Exception:
                     pass
 
@@ -507,13 +529,14 @@ def process_optimization_tasks(
                 if (
                     task.output_path.exists()
                     and task.output_path.stat().st_size > 1024 * 1024
+                    and verify_video_output_valid(task.output_path)
                 ):
                     os.replace(str(task.output_path), str(task.input_path))
                     replaced_count += 1
                     logger.info(f"🗑️  Replaced: {task.input_path.name}")
                 else:
                     logger.warning(
-                        f"⚠️  Skipped replacement: {task.input_path.name} (optimized file invalid)"
+                        f"⚠️  Skipped replacement: {task.input_path.name} (optimized file invalid or corrupt)"
                     )
             except Exception as e:
                 logger.error(f"❌ Failed to replace {task.input_path.name}: {str(e)}")

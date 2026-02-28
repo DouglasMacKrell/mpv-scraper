@@ -637,67 +637,133 @@ class TestParallelOptimizeVideos:
             assert result[2] == []  # errors
 
     @pytest.mark.integration
+    @patch("mpv_scraper.video_cleaner_parallel.verify_video_output_valid")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
     @patch("mpv_scraper.video_cleaner_parallel.ProcessPoolExecutor")
     @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
     def test_parallel_optimize_videos_replace_originals(
-        self, mock_worker_count, mock_executor
+        self, mock_worker_count, mock_executor, mock_build, mock_verify
     ):
         """Test replacing original files after successful optimization."""
+        mock_verify.return_value = True  # Output passes pre-replace validation
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-
-            # Create test video file
             test_video = temp_path / "video1.mp4"
             test_video.touch()
+            output_path = temp_path / "video1_optimized.mp4"
+            output_path.touch()
+            output_path.write_bytes(b"x" * (2 * 1024 * 1024))  # 2MB placeholder
 
-            # Mock worker count
+            preset = {
+                "name": "test_preset",
+                "target_codec": "libx264",
+                "target_profile": "high",
+                "target_bitrate": 1500000,
+                "target_resolution": (1280, 720),
+                "crf": 23,
+                "preset": "faster",
+                "tune": "film",
+                "audio_codec": "aac",
+                "audio_bitrate": 128000,
+                "timeout": 1800,
+            }
+            task = ParallelOptimizationTask(
+                input_path=test_video,
+                output_path=output_path,
+                preset_name="test_preset",
+                preset_config=preset,
+            )
+            mock_build.return_value = ([task], 0)
             mock_worker_count.return_value = 1
 
-            # Mock executor and futures
             mock_executor_instance = Mock()
             mock_executor.return_value.__enter__.return_value = mock_executor_instance
-
-            # Mock successful future
             future = Mock()
             future.result.return_value = (test_video, True, "Success")
-
             mock_executor_instance.submit.return_value = future
 
-            # Mock as_completed
             with patch(
                 "mpv_scraper.video_cleaner_parallel.as_completed"
-            ) as mock_as_completed:
+            ) as mock_as_completed, patch(
+                "mpv_scraper.video_cleaner_parallel.os.replace"
+            ) as mock_replace:
                 mock_as_completed.return_value = [future]
 
-                # Mock optimized file exists and is valid
-                with patch("pathlib.Path.exists", return_value=True), patch(
-                    "pathlib.Path.stat"
-                ) as mock_stat, patch("pathlib.Path.unlink") as mock_unlink:
-                    mock_stat.return_value = Mock(st_size=1024 * 1024)  # 1MB
+                result = parallel_optimize_videos(
+                    directory=temp_path,
+                    preset_config=preset,
+                    max_workers=1,
+                    replace_originals=True,
+                )
 
-                    result = parallel_optimize_videos(
-                        directory=temp_path,
-                        preset_config={
-                            "name": "test_preset",
-                            "target_codec": "libx264",
-                            "target_profile": "high",
-                            "target_bitrate": 1500000,
-                            "target_resolution": (1280, 720),
-                            "crf": 23,
-                            "preset": "faster",
-                            "tune": "film",
-                            "audio_codec": "aac",
-                            "audio_bitrate": 128000,
-                            "timeout": 1800,
-                        },
-                        max_workers=1,
-                        replace_originals=True,
-                    )
+            assert result[0] == 1
+            assert result[1] == 1
+            assert result[2] == []
+            mock_replace.assert_called_once()
 
-                assert result[0] == 1  # total
-                assert result[1] == 1  # successful
-                assert result[2] == []  # errors
-                mock_unlink.assert_called_once()  # Original file should be deleted
+    @pytest.mark.integration
+    @patch("mpv_scraper.video_cleaner_parallel.verify_video_output_valid")
+    @patch("mpv_scraper.video_cleaner_parallel.build_optimization_tasks")
+    @patch("mpv_scraper.video_cleaner_parallel.ProcessPoolExecutor")
+    @patch("mpv_scraper.video_cleaner_parallel.get_optimal_worker_count")
+    def test_parallel_optimize_skips_replace_when_output_corrupt(
+        self, mock_worker_count, mock_executor, mock_build, mock_verify
+    ):
+        """Replace is skipped when output fails pre-replace validation (corrupt/truncated)."""
+        mock_verify.return_value = False  # Output is corrupt (e.g. moov atom missing)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            test_video = temp_path / "video1.mp4"
+            test_video.touch()
+            output_path = temp_path / "video1_optimized.mp4"
+            output_path.touch()
+            output_path.write_bytes(b"x" * (2 * 1024 * 1024))
+
+            preset = {
+                "name": "test_preset",
+                "target_codec": "libx264",
+                "target_profile": "high",
+                "target_bitrate": 1500000,
+                "target_resolution": (1280, 720),
+                "crf": 23,
+                "preset": "faster",
+                "tune": "film",
+                "audio_codec": "aac",
+                "audio_bitrate": 128000,
+                "timeout": 1800,
+            }
+            task = ParallelOptimizationTask(
+                input_path=test_video,
+                output_path=output_path,
+                preset_name="test_preset",
+                preset_config=preset,
+            )
+            mock_build.return_value = ([task], 0)
+            mock_worker_count.return_value = 1
+
+            mock_executor_instance = Mock()
+            mock_executor.return_value.__enter__.return_value = mock_executor_instance
+            future = Mock()
+            future.result.return_value = (test_video, True, "Success")
+            mock_executor_instance.submit.return_value = future
+
+            with patch(
+                "mpv_scraper.video_cleaner_parallel.as_completed"
+            ) as mock_as_completed, patch(
+                "mpv_scraper.video_cleaner_parallel.os.replace"
+            ) as mock_replace:
+                mock_as_completed.return_value = [future]
+
+                result = parallel_optimize_videos(
+                    directory=temp_path,
+                    preset_config=preset,
+                    max_workers=1,
+                    replace_originals=True,
+                )
+
+            assert result[0] == 1
+            assert result[1] == 1
+            mock_replace.assert_not_called()  # Safeguard: do not replace with corrupt output
 
     @pytest.mark.integration
     @patch("mpv_scraper.video_cleaner_parallel.ProcessPoolExecutor")

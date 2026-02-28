@@ -11,10 +11,12 @@ from unittest.mock import patch
 from mpv_scraper.scraper import (
     scrape_tv_parallel,
     scrape_movie,
+    _extract_tvdb_series_id,
     _is_episode_scraped,
     _is_movie_scraped,
     _load_scrape_cache,
     _normalize_api_id,
+    _normalize_title_for_search,
     _validate_id_matches_filename,
     _prompt_for_resolution,
 )
@@ -334,6 +336,41 @@ def test_prompt_on_failure_no_results(monkeypatch):
     assert result == "tmdb-15196"
 
 
+def test_extract_tvdb_series_id():
+    """Test extraction of numeric ID from TVDB V4 search result format."""
+    assert _extract_tvdb_series_id("series-392893") == "392893"
+    assert _extract_tvdb_series_id("series-78260") == "78260"
+    assert _extract_tvdb_series_id("392893") == "392893"
+    assert _extract_tvdb_series_id(392893) == "392893"
+    assert _extract_tvdb_series_id("") is None
+    assert _extract_tvdb_series_id(None) is None
+    assert _extract_tvdb_series_id("invalid") is None
+
+
+def test_prompt_resolution_with_objectid_format(monkeypatch):
+    """Test prompt resolution when TVDB V4 returns objectID as 'series-272472'."""
+    from mpv_scraper.types import TVMeta
+
+    search_results = [
+        {"objectID": "series-272472", "name": "Paw Patrol", "year": "2013"},
+        {"objectID": "series-999999", "name": "Other Show", "year": "2020"},
+    ]
+    parsed_meta = TVMeta(show="Paw Patrol", season=1, start_ep=1, end_ep=1)
+
+    inputs = ["1"]
+    monkeypatch.setattr(
+        "mpv_scraper.scraper._safe_prompt",
+        lambda prompt_text, default: inputs.pop(0) if inputs else default,
+    )
+
+    result = _prompt_for_resolution(
+        "Paw Patrol - S01E01.mkv",
+        search_results=search_results,
+        parsed_meta=parsed_meta,
+    )
+    assert result == "tvdb-272472"
+
+
 def test_prompt_skip_option(monkeypatch):
     """Test that skip option works correctly."""
     search_results = [{"id": 1, "name": "Show A"}]
@@ -502,3 +539,19 @@ def test_episode_matching_with_none_season():
             # Should match episode even with seasonNumber=None
             # The episode should be matched when target_season is 1 and episode number matches
             assert mock_download_image.called or len(download_manager.tasks) > 0
+
+
+def test_normalize_title_for_search():
+    """Test that common parenthetical tags are stripped for API search."""
+    assert (
+        _normalize_title_for_search("The Irresponsible Captain Tylor (Dub)")
+        == "The Irresponsible Captain Tylor"
+    )
+    assert _normalize_title_for_search("Show Name (Sub)") == "Show Name"
+    assert _normalize_title_for_search("Show (1080p)") == "Show"
+    assert _normalize_title_for_search("Show (Dub) (1080p)") == "Show"
+    # Years are preserved
+    assert _normalize_title_for_search("Show Name (1987)") == "Show Name (1987)"
+    assert _normalize_title_for_search("Show (Dub) (1987)") == "Show (1987)"
+    # No change when no tags
+    assert _normalize_title_for_search("Plain Show Name") == "Plain Show Name"

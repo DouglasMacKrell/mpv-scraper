@@ -104,10 +104,11 @@ def analyze_video_file(video_path: Path) -> Optional[VideoAnalysis]:
     """
     try:
         # Get detailed video information using ffprobe
+        # Use -v error (not quiet) so we capture actual errors (e.g. moov atom not found)
         cmd = [
             "ffprobe",
             "-v",
-            "quiet",
+            "error",
             "-print_format",
             "json",
             "-show_format",
@@ -117,7 +118,8 @@ def analyze_video_file(video_path: Path) -> Optional[VideoAnalysis]:
 
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode != 0:
-            logger.error(f"Failed to analyze {video_path}: {result.stderr}")
+            err = result.stderr or result.stdout or f"exit code {result.returncode}"
+            logger.error(f"Failed to analyze {video_path}: {err.strip()}")
             return None
 
         data = json.loads(result.stdout)
@@ -218,6 +220,45 @@ def analyze_video_file(video_path: Path) -> Optional[VideoAnalysis]:
         return None
 
 
+def verify_video_output_valid(video_path: Path) -> bool:
+    """
+    Verify that a video file is valid and complete before replacing originals.
+    Catches truncated/corrupt files (e.g. moov atom missing from interrupted writes).
+
+    Returns:
+        True if ffprobe succeeds and file has valid video stream + duration
+    """
+    try:
+        cmd = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-print_format",
+            "json",
+            "-show_format",
+            "-show_streams",
+            str(video_path),
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode != 0:
+            logger.warning(
+                f"Output validation failed for {video_path.name}: {result.stderr or result.stdout or 'unknown error'}"
+            )
+            return False
+        data = json.loads(result.stdout)
+        has_video = any(s.get("codec_type") == "video" for s in data.get("streams", []))
+        duration = float(data.get("format", {}).get("duration", 0) or 0)
+        if not has_video or duration <= 0:
+            logger.warning(
+                f"Output validation failed for {video_path.name}: no video stream or zero duration"
+            )
+            return False
+        return True
+    except Exception as e:
+        logger.warning(f"Output validation failed for {video_path.name}: {e}")
+        return False
+
+
 def measure_audio_loudness_lufs(
     video_path: Path, timeout: int = 120
 ) -> Optional[float]:
@@ -277,6 +318,7 @@ def optimize_audio_only(
     output_path: Path,
     preset_config: dict,
     overwrite: bool = False,
+    apply_loudnorm: bool = False,
 ) -> bool:
     """
     Re-encode only the audio stream to AAC for handheld compatibility.
@@ -288,6 +330,8 @@ def optimize_audio_only(
         output_path: Path for output file
         preset_config: Dict with audio_codec, audio_bitrate (from optimization preset)
         overwrite: Whether to overwrite existing output file
+        apply_loudnorm: If True, apply loudnorm filter (slow, for quiet audio).
+            If False, codec conversion only (fast).
 
     Returns:
         True if optimization succeeded, False otherwise
@@ -310,17 +354,21 @@ def optimize_audio_only(
             str(input_path),
             "-c:v",
             "copy",
-            "-af",
-            "loudnorm=I=-14:TP=-1",
-            "-c:a",
-            audio_codec,
-            "-b:a",
-            str(audio_bitrate),
-            "-movflags",
-            "+faststart",
-            "-y" if overwrite else "-n",
-            str(output_path),
         ]
+        if apply_loudnorm:
+            cmd.extend(["-af", "loudnorm=I=-14:TP=-1"])
+        cmd.extend(
+            [
+                "-c:a",
+                audio_codec,
+                "-b:a",
+                str(audio_bitrate),
+                "-movflags",
+                "+faststart",
+                "-y" if overwrite else "-n",
+                str(output_path),
+            ]
+        )
         logger.info(
             f"Audio-only pass: {input_path.name} -> AAC @ {audio_bitrate // 1000}k"
         )

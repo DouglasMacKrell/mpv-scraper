@@ -16,6 +16,7 @@ from mpv_scraper.video_cleaner import (
     batch_analyze_videos,
     optimize_video_file,
     batch_optimize_videos,
+    verify_video_output_valid,
 )
 
 
@@ -105,6 +106,47 @@ class TestOptimizationPreset:
         assert COMPATIBILITY_MODE.tune == "fastdecode"
         assert COMPATIBILITY_MODE.audio_codec == "aac"
         assert COMPATIBILITY_MODE.audio_bitrate == 96000
+
+
+class TestVerifyVideoOutputValid:
+    """Test pre-replace validation of optimized output."""
+
+    @patch("mpv_scraper.video_cleaner.subprocess.run")
+    def test_verify_valid_output(self, mock_run):
+        """Valid output: ffprobe succeeds, has video stream and duration."""
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout='{"streams":[{"codec_type":"video"}],"format":{"duration":"120.5"}}',
+        )
+        assert verify_video_output_valid(Path("/test/out.mp4")) is True
+
+    @patch("mpv_scraper.video_cleaner.subprocess.run")
+    def test_verify_corrupt_output_moov_missing(self, mock_run):
+        """Corrupt output: ffprobe fails (e.g. moov atom not found)."""
+        mock_run.return_value = Mock(
+            returncode=1,
+            stderr="moov atom not found\nInvalid data found when processing input",
+            stdout="{}",
+        )
+        assert verify_video_output_valid(Path("/test/out.mp4")) is False
+
+    @patch("mpv_scraper.video_cleaner.subprocess.run")
+    def test_verify_no_video_stream(self, mock_run):
+        """Invalid: no video stream in output."""
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout='{"streams":[{"codec_type":"audio"}],"format":{"duration":"120"}}',
+        )
+        assert verify_video_output_valid(Path("/test/out.mp4")) is False
+
+    @patch("mpv_scraper.video_cleaner.subprocess.run")
+    def test_verify_zero_duration(self, mock_run):
+        """Invalid: zero duration."""
+        mock_run.return_value = Mock(
+            returncode=0,
+            stdout='{"streams":[{"codec_type":"video"}],"format":{"duration":"0"}}',
+        )
+        assert verify_video_output_valid(Path("/test/out.mp4")) is False
 
 
 class TestAnalyzeVideoFile:

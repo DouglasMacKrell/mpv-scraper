@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0] - 2026-01-04
+### Fixed
+- **optimize-parallel**: Pre-replace validation—verify output with ffprobe before replacing originals (prevents corrupt files from truncated writes)
+- **optimize-parallel**: Skip loudnorm for codec-only audio passes (DTS/AC3→AAC); use loudnorm only for quiet audio—fixes 30+ min hangs
+- **optimize-parallel**: Real-time feedback—echo each completed filename and loudnorm timing note
+- **optimize-parallel**: Improved ffprobe error logging (`-v error`) so failures show actual reason (e.g. "moov atom not found")
+- **Scraper**: Fix IndexError when user enters API ID after TVDB search fails (empty search_results)
+- **Title normalization**: Strip (Dub), (Sub), (1080p), etc. before API search—fixes "The Irresponsible Captain Tylor (Dub)" and similar
+
+### Added
+- `verify_video_output_valid()` to catch truncated/corrupt output before replace
+- `_normalize_title_for_search()` for TV and movie search
+- `completion_callback` for per-file progress during optimization
+
 ## [1.2.0] - 2026-01-04
 ### Added
 - **ES-DE Video Previews**: 30-second preview clips from the 25% mark for gamelist integration (`/mpv/videos/`, `--no-previews` to skip)
