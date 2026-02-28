@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.3.0] - 2026-01-04
+## [1.3.0] - 2026-02-28
 ### Fixed
 - **optimize-parallel**: Pre-replace validation—verify output with ffprobe before replacing originals (prevents corrupt files from truncated writes)
 - **optimize-parallel**: Skip loudnorm for codec-only audio passes (DTS/AC3→AAC); use loudnorm only for quiet audio—fixes 30+ min hangs
